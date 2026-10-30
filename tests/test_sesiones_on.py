@@ -74,21 +74,21 @@ class SesionesOn(unittest.TestCase):
         r = modulo.Remoto(_Ventana(self.bib))
         viejo = r.emparejar(r.codigo, "a")
         usado = r.emparejar(r.codigo, "b")
-        hace_29_dias = time.time() - 29 * 24 * 3600
+        casi_vencida = time.time() - modulo.VIGENCIA + 24 * 3600 * 1.5
         for h in r._sesiones:
-            r._sesiones[h]["usada"] = hace_29_dias
+            r._sesiones[h]["usada"] = casi_vencida
         r._guardar_sesiones()
-        self.assertTrue(r.sesion_valida(usado))  # se usó: se renueva por 30 días más
-        self.assertGreater(r._sesiones[seguridad.huella_sesion(usado)]["usada"], hace_29_dias)
+        self.assertTrue(r.sesion_valida(usado))  # se usó: se renueva
+        self.assertGreater(r._sesiones[seguridad.huella_sesion(usado)]["usada"], casi_vencida)
         r2 = self._reabrir()
-        r2._sesiones[seguridad.huella_sesion(viejo)]["usada"] = time.time() - 31 * 24 * 3600
+        r2._sesiones[seguridad.huella_sesion(viejo)]["usada"] = time.time() - modulo.VIGENCIA - 24 * 3600
         self.assertFalse(r2.sesion_valida(viejo))  # 31 días sin usarse: vencida
         self.assertTrue(r2.sesion_valida(usado))
         self.assertEqual(len(self._reabrir().celulares()), 1)
 
     def test_vencidas_se_borran_al_abrir(self):
         datos = [{"huella": "a" * 64, "nombre": "viejo", "creada": "01/01/2026 10:00",
-                  "usada": time.time() - 40 * 24 * 3600},
+                  "usada": time.time() - modulo.VIGENCIA - 10 * 24 * 3600},
                  {"huella": "b" * 64, "nombre": "sin fecha", "creada": "28/10/2026 10:00"}]
         self.bib.guardar_config("on_sesiones", json.dumps(datos))
         r = self._reabrir()

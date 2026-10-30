@@ -46,8 +46,9 @@ WEB = Path(__file__).parent / "web"
 ICONO = Path(__file__).parent / "icono.png"
 PUERTO = 8765
 COOKIE = "tvon_sesion"
-# Un celular vinculado sigue vinculado mientras se use: la sesión vence tras 30 días sin usarse
-VIGENCIA = 30 * 24 * 3600
+# Un celular vinculado es de confianza: se reconecta solo, sin pedir nada, hasta que se lo desvincula.
+# Solo se olvida si pasa un año entero sin usarse (un celular perdido o regalado que nadie desvinculó)
+VIGENCIA = 365 * 24 * 3600
 # El celular pregunta «TVON?» por difusión UDP a este puerto si la IP de la PC cambió
 PREGUNTA_DESCUBRIR = b"TVON?"
 ESPERA_INTERFAZ = 15  # segundos: si la ventana está trabada más que esto, el pedido falla

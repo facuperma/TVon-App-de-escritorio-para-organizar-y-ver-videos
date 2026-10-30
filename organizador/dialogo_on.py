@@ -92,7 +92,7 @@ class DialogoOn(QDialog):
         self.lista_celulares = QListWidget()
         self.lista_celulares.setMaximumHeight(110)
         self.lista_celulares.setToolTip("Un celular vinculado se reconecta solo, sin volver a escanear el QR.\n"
-                                        "Si pasa 30 días sin usarse, se desvincula.")
+                                        "Queda como dispositivo de confianza hasta que lo desvincules (o pase un año sin usarse).")
         self.lista_celulares.currentItemChanged.connect(lambda *_: self._elegido_cambiado())
         self.btn_desvincular = QPushButton("Desvincular")
         self.btn_desvincular.setToolTip("Ese celular tiene que volver a escanear el código para entrar")
