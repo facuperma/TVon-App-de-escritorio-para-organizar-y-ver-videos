@@ -210,3 +210,44 @@ class Pc(val base: String, val huella: String, @Volatile var token: String?) {
         fun esCertificado(e: Throwable) = e is ErrorApi && e.codigo == CODIGO_CERTIFICADO
     }
 }
+
+/**
+ * Si la IP de la PC cambió (el router le dio otra), se la busca en la wifi: se pregunta «TVON?» por
+ * difusión UDP y cada TVon con ON encendido contesta su puerto y la huella de su certificado.
+ * Devuelve las direcciones (https://ip:puerto) que contestaron con una de las huellas conocidas.
+ * Contestar no prueba nada: después la conexión igual exige ese mismo certificado.
+ */
+suspend fun descubrirPcs(huellas: Set<String>, puerto: Int = 8765, esperaMs: Int = 1500): Map<String, String> =
+    withContext(Dispatchers.IO) {
+        val encontradas = mutableMapOf<String, String>()
+        try {
+            java.net.DatagramSocket().use { s ->
+                s.broadcast = true
+                s.soTimeout = 300
+                val pregunta = "TVON?".toByteArray()
+                s.send(java.net.DatagramPacket(pregunta, pregunta.size, InetAddress.getByName("255.255.255.255"), puerto))
+                val buffer = ByteArray(512)
+                val fin = System.currentTimeMillis() + esperaMs
+                while (System.currentTimeMillis() < fin) {
+                    val paquete = java.net.DatagramPacket(buffer, buffer.size)
+                    try {
+                        s.receive(paquete)
+                    } catch (e: java.net.SocketTimeoutException) {
+                        continue
+                    }
+                    try {
+                        val o = JSONObject(String(paquete.data, 0, paquete.length))
+                        val huella = o.getString("huella").uppercase()
+                        val p = o.getInt("puerto")
+                        val ip = paquete.address.hostAddress ?: continue
+                        if (huella in huellas && p in 1..65535 && !ip.contains(':')) encontradas["https://$ip:$p"] = huella
+                    } catch (e: Exception) {
+                        // una respuesta que no es de TVon
+                    }
+                }
+            }
+        } catch (e: IOException) {
+            // sin wifi: no hay a quién preguntar
+        }
+        encontradas
+    }

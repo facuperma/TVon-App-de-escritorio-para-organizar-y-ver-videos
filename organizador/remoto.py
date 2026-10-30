@@ -46,6 +46,10 @@ WEB = Path(__file__).parent / "web"
 ICONO = Path(__file__).parent / "icono.png"
 PUERTO = 8765
 COOKIE = "tvon_sesion"
+# Un celular vinculado sigue vinculado mientras se use: la sesión vence tras 30 días sin usarse
+VIGENCIA = 30 * 24 * 3600
+# El celular pregunta «TVON?» por difusión UDP a este puerto si la IP de la PC cambió
+PREGUNTA_DESCUBRIR = b"TVON?"
 ESPERA_INTERFAZ = 15  # segundos: si la ventana está trabada más que esto, el pedido falla
 SITIOS = {"peliculas": "https://ext.to/", "subtitulos": "https://subdivx.com/"}
 TIPOS = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
@@ -217,9 +221,13 @@ class Remoto(QObject):
             for s in json.loads(self.bib.config("on_sesiones") or "[]"):
                 if "token" in s:  # versiones anteriores guardaban la sesión tal cual
                     s["huella"] = seguridad.huella_sesion(s.pop("token"))
+                s.setdefault("usada", time.time())  # las de antes de que vencieran arrancan hoy
                 self._sesiones[s["huella"]] = s
         except (ValueError, KeyError, TypeError):
             pass
+        if self._quitar_vencidas():
+            self._guardar_sesiones()
+        self._udp: socket.socket | None = None
         self._fallidos: dict[str, list[float]] = {}  # intentos de emparejar con código equivocado, por IP
         self.huella_certificado = ""
         if not self._config["on_codigo"]:
@@ -240,7 +248,8 @@ class Remoto(QObject):
 
     @property
     def al_iniciar(self) -> bool:
-        return self._opcion("on_activo", "0")
+        # Sin elegirlo nunca: si hay celulares vinculados, ON se enciende solo para que se reconecten
+        return self._opcion("on_activo", "1" if self._sesiones else "0")
 
     def guardar_opcion(self, clave: str, activa: bool):
         self._config[clave] = "1" if activa else "0"
@@ -323,6 +332,7 @@ class Remoto(QObject):
         self.cambiar_codigo()
         self.puerto = self.servidor.server_address[1]
         threading.Thread(target=self.servidor.serve_forever, daemon=True).start()
+        self._iniciar_descubrimiento()
         self.estado_cambiado.emit()
         return True
 
@@ -330,10 +340,42 @@ class Remoto(QObject):
         if self.servidor is None:
             return
         self.dejar_de_compartir()
+        udp, self._udp = self._udp, None
+        if udp is not None:
+            udp.close()
         servidor, self.servidor = self.servidor, None
         servidor.shutdown()
         servidor.server_close()
         self.estado_cambiado.emit()
+
+    def _iniciar_descubrimiento(self):
+        """Responde al «TVON?» de los celulares vinculados con el puerto y la huella del
+        certificado: si la IP de la PC cambió, el celular la encuentra solo. No da acceso a nada:
+        el celular igual comprueba la huella al conectarse y necesita su sesión."""
+        try:
+            udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            udp.bind(("0.0.0.0", PUERTO))
+        except OSError:
+            return  # otro programa usa el puerto: el celular se conecta igual si la IP no cambió
+        udp.settimeout(1)
+        self._udp = udp
+        respuesta = json.dumps({"tvon": 1, "puerto": self.puerto,
+                                "huella": self.huella_certificado.replace(":", "")}).encode()
+        threading.Thread(target=self._responder_descubrimiento, args=(udp, respuesta), daemon=True).start()
+
+    def _responder_descubrimiento(self, udp: socket.socket, respuesta: bytes):
+        while self._udp is udp:
+            try:
+                datos, origen = udp.recvfrom(64)
+            except socket.timeout:
+                continue
+            except OSError:
+                return  # se cerró al apagar ON
+            if datos.strip() == PREGUNTA_DESCUBRIR and seguridad.ip_permitida(origen[0]):
+                try:
+                    udp.sendto(respuesta, origen)
+                except OSError:
+                    pass
 
     # --- Sesiones ----------------------------------------------------------------------
 
@@ -356,7 +398,8 @@ class Remoto(QObject):
         nombre = nombre_dispositivo(agente)
         huella = seguridad.huella_sesion(token)
         with self._cerrojo:
-            self._sesiones[huella] = {"huella": huella, "nombre": nombre, "creada": time.strftime("%d/%m/%Y %H:%M")}
+            self._sesiones[huella] = {"huella": huella, "nombre": nombre, "creada": time.strftime("%d/%m/%Y %H:%M"),
+                                      "usada": time.time()}
         self._guardar_sesiones()
         # La base es del hilo de la interfaz
         if threading.current_thread() is threading.main_thread():
@@ -371,11 +414,41 @@ class Remoto(QObject):
         if not token:
             return False
         huella = seguridad.huella_sesion(token)
+        ahora = time.time()
         with self._cerrojo:
-            if huella not in self._sesiones:
+            sesion = self._sesiones.get(huella)
+            if sesion is None:
                 return False
-            self._vistas[huella] = time.time()
-            return True
+            vencida = ahora - sesion["usada"] > VIGENCIA
+            if vencida:
+                del self._sesiones[huella]
+            else:
+                self._vistas[huella] = ahora
+                # Se renueva al usarla (se guarda una vez por día para no escribir la base a cada rato)
+                renovar = ahora - sesion["usada"] > 24 * 3600
+                if renovar:
+                    sesion["usada"] = ahora
+        if vencida or renovar:
+            self._guardar_sesiones()
+        if vencida:
+            self.estado_cambiado.emit()
+        return not vencida
+
+    def _quitar_vencidas(self) -> bool:
+        ahora = time.time()
+        with self._cerrojo:
+            vencidas = [h for h, s in self._sesiones.items() if ahora - s["usada"] > VIGENCIA]
+            for h in vencidas:
+                del self._sesiones[h]
+        return bool(vencidas)
+
+    def desvincular(self, huella: str):
+        """Saca un celular: tiene que volver a escanear el QR para entrar."""
+        with self._cerrojo:
+            self._sesiones.pop(huella, None)
+            self._vistas.pop(huella, None)
+        self._guardar_sesiones()
+        self.estado_cambiado.emit()
 
     def cerrar_sesion(self, token: str):
         with self._cerrojo:
@@ -391,11 +464,14 @@ class Remoto(QObject):
         self.estado_cambiado.emit()
 
     def celulares(self) -> list[dict]:
-        """Los emparejados, con hace cuántos segundos se los vio por última vez (None: nunca en esta sesión)."""
+        """Los vinculados, con hace cuántos segundos se los vio por última vez (None: nunca desde que se
+        abrió TVon) y hasta cuándo siguen vinculados si no se usan, el más reciente primero."""
         with self._cerrojo:
             ahora = time.time()
-            return [{**s, "visto": (ahora - self._vistas[t]) if t in self._vistas else None}
-                    for t, s in self._sesiones.items()]
+            lista = [{**s, "visto": (ahora - self._vistas[t]) if t in self._vistas else None,
+                      "vence": time.strftime("%d/%m/%Y", time.localtime(s["usada"] + VIGENCIA))}
+                     for t, s in self._sesiones.items()]
+        return sorted(lista, key=lambda s: (s["visto"] is None, s["visto"] or 0, -s["usada"]))
 
     def _guardar_sesiones(self):
         # La base es del hilo de la interfaz: desde el servidor se guarda a través del puente

@@ -3,7 +3,8 @@ import segno
 from PySide6.QtCore import QRectF, Qt, QTimer
 from PySide6.QtGui import QColor, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import (
-    QCheckBox, QDialog, QGroupBox, QHBoxLayout, QLabel, QListWidget, QMessageBox, QPushButton, QVBoxLayout,
+    QCheckBox, QDialog, QGroupBox, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QMessageBox, QPushButton,
+    QVBoxLayout,
 )
 
 from . import inicio_windows
@@ -27,7 +28,7 @@ def pixmap_qr(texto: str, lado: int = 260) -> QPixmap:
 
 def hace(segundos: float | None) -> str:
     if segundos is None:
-        return "sin actividad desde que se abrió TVon"
+        return "sin conectarse desde que se abrió TVon"
     if segundos < 10:
         return "conectado ahora"
     if segundos < 3600:
@@ -68,7 +69,8 @@ class DialogoOn(QDialog):
 
         self.chk_pantalla = QCheckBox("Permitir compartir la pantalla de la PC con el celular")
         self.chk_control = QCheckBox("Permitir manejar el mouse y el teclado desde el celular (touchpad y teclado)")
-        self.chk_inicio = QCheckBox("Encender ON cada vez que se abre TVon")
+        self.chk_inicio = QCheckBox("Encender ON cada vez que se abre TVon (así los celulares vinculados "
+                                    "se reconectan solos)")
         self.chk_pantalla.setChecked(remoto.permite_pantalla)
         self.chk_control.setChecked(remoto.permite_control)
         self.chk_inicio.setChecked(remoto.al_iniciar)
@@ -88,19 +90,27 @@ class DialogoOn(QDialog):
             capa_opciones.addWidget(chk)
 
         self.lista_celulares = QListWidget()
-        self.lista_celulares.setMaximumHeight(90)
-        btn_desconectar = QPushButton("Desconectar todos")
+        self.lista_celulares.setMaximumHeight(110)
+        self.lista_celulares.setToolTip("Un celular vinculado se reconecta solo, sin volver a escanear el QR.\n"
+                                        "Si pasa 30 días sin usarse, se desvincula.")
+        self.lista_celulares.currentItemChanged.connect(lambda *_: self._elegido_cambiado())
+        self.btn_desvincular = QPushButton("Desvincular")
+        self.btn_desvincular.setToolTip("Ese celular tiene que volver a escanear el código para entrar")
+        self.btn_desvincular.setEnabled(False)
+        self.btn_desvincular.clicked.connect(self._desvincular)
+        btn_desconectar = QPushButton("Desvincular todos")
         btn_desconectar.setToolTip("Los celulares tienen que volver a escanear el código")
         btn_desconectar.clicked.connect(remoto.desconectar_todos)
         btn_codigo = QPushButton("Cambiar el código QR")
         btn_codigo.setToolTip("Hace un código nuevo. Los celulares ya conectados siguen conectados")
         btn_codigo.clicked.connect(remoto.cambiar_codigo)
-        grupo_celulares = QGroupBox("Celulares conectados")
+        grupo_celulares = QGroupBox("Dispositivos vinculados")
         capa_celulares = QVBoxLayout(grupo_celulares)
         capa_celulares.addWidget(self.lista_celulares)
         fila = QHBoxLayout()
         fila.addStretch()
         fila.addWidget(btn_codigo)
+        fila.addWidget(self.btn_desvincular)
         fila.addWidget(btn_desconectar)
         capa_celulares.addLayout(fila)
 
@@ -209,9 +219,34 @@ class DialogoOn(QDialog):
             self.move(x, y)
 
     def _mostrar_celulares(self):
+        # Se rearma cada 5 s: el elegido tiene que seguir elegido
+        elegido = self.lista_celulares.currentItem()
+        huella = elegido.data(Qt.UserRole) if elegido else None
+        self.lista_celulares.blockSignals(True)
         self.lista_celulares.clear()
         celulares = self.remoto.celulares()
         for c in celulares:
-            self.lista_celulares.addItem(f"📱 {c['nombre']} — {hace(c['visto'])} (desde el {c['creada']})")
+            item = QListWidgetItem(f"📱 {c['nombre']} — {hace(c['visto'])} · vinculado el {c['creada']} "
+                                   f"· vence el {c['vence']} si no se usa")
+            item.setData(Qt.UserRole, c["huella"])
+            self.lista_celulares.addItem(item)
+            if c["huella"] == huella:
+                self.lista_celulares.setCurrentItem(item)
         if not celulares:
             self.lista_celulares.addItem("Ninguno todavía")
+        self.lista_celulares.blockSignals(False)
+        self._elegido_cambiado()
+
+    def _elegido_cambiado(self):
+        item = self.lista_celulares.currentItem()
+        self.btn_desvincular.setEnabled(bool(item and item.data(Qt.UserRole)))
+
+    def _desvincular(self):
+        item = self.lista_celulares.currentItem()
+        huella = item.data(Qt.UserRole) if item else None
+        if not huella:
+            return
+        nombre = item.text().split(" — ")[0].removeprefix("📱 ")
+        if QMessageBox.question(self, "Desvincular", f"¿Desvincular «{nombre}»?\n"
+                                "Para volver a usarlo tiene que escanear el código QR.") == QMessageBox.Yes:
+            self.remoto.desvincular(huella)

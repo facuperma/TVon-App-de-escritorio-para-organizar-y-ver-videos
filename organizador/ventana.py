@@ -1435,7 +1435,7 @@ class Ventana(QMainWindow):
         for visor in [self.visor, *(v.visor for v in self.ventanas_video)]:
             if visor.ruta_video == ruta_video:
                 visor.cargar_subtitulos(ruta_sub)
-        self.statusBar().showMessage(f"Subtítulo listo: {Path(ruta_sub).name}", 10000)
+        self.statusBar().showMessage(f"Subtítulo listo para {Path(ruta_video).name}: {Path(ruta_sub).name}", 10000)
 
     # --- Modo ON (el celular) -----------------------------------------------------
 

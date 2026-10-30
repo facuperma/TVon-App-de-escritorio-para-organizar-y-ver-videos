@@ -197,6 +197,7 @@ class Modelo(app: Application) : AndroidViewModel(app) {
                 }
             }
         }
+        if (mensaje != OTRO_CERTIFICADO && reencontrar()) return
         if (almacen.conexiones().isEmpty()) {
             fase = Fase.Emparejar("Este celular ya no está conectado a TVon: escaneá el código QR de nuevo (botón 📱 ON en la PC).")
         } else if (fase != Fase.Lista || mensaje == OTRO_CERTIFICADO) {
@@ -204,6 +205,38 @@ class Modelo(app: Application) : AndroidViewModel(app) {
         } else {
             conectado = false
         }
+    }
+
+    /**
+     * La PC vinculada no contesta en su dirección de siempre: quizá el router le dio otra IP o TVon
+     * abrió otro puerto. Se la busca en la wifi y, si aparece con el mismo certificado, se sigue con
+     * la misma sesión en la dirección nueva (sin volver a escanear el QR).
+     */
+    private suspend fun reencontrar(): Boolean {
+        val guardadas = almacen.conexiones()
+        if (guardadas.isEmpty()) return false
+        for ((base, huella) in descubrirPcs(guardadas.map { it.huella }.toSet())) {
+            if (guardadas.any { it.base == base }) continue // esa ya se probó
+            for (c in guardadas.filter { it.huella == huella }) {
+                val prueba = Pc(base, huella, c.token)
+                try {
+                    val e = Estado.de(prueba.obj("/api/estado"))
+                    almacen.quitar(c.base)
+                    almacen.guardar(Conexion(base, huella, c.token))
+                    pc = prueba
+                    estado = e
+                    conectado = true
+                    if (fase != Fase.Lista) {
+                        fase = Fase.Lista
+                        alCambiarDePestana()
+                    }
+                    return true
+                } catch (e: ErrorApi) {
+                    // esa sesión es de otra dirección (la de Tailscale, por ejemplo): se prueba la siguiente
+                }
+            }
+        }
+        return false
     }
 
     private var fallos = 0

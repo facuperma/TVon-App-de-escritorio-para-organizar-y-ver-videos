@@ -1,4 +1,5 @@
 import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -11,7 +12,7 @@ from organizador.inicio_windows import ARGUMENTO
 from organizador.tema import ESTILO
 from organizador.ventana import Ventana
 
-VERSION = "1.7.1"
+VERSION = "1.7.2"
 INSTANCIA = "TVon-una-sola-vez"
 
 # Empaquetado con PyInstaller, los recursos están en sys._MEIPASS
@@ -19,13 +20,18 @@ RECURSOS = Path(getattr(sys, "_MEIPASS", Path(__file__).parent))
 
 
 def carpeta_datos() -> Path:
-    """Dónde se guarda la biblioteca. Instalada, la carpeta del programa no admite escritura,
-    así que se usa %LOCALAPPDATA%\\TVon; desde el código fuente, la carpeta del proyecto."""
-    if getattr(sys, "frozen", False):
-        carpeta = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "TVon"
-        carpeta.mkdir(parents=True, exist_ok=True)
-        return carpeta
-    return Path(__file__).parent
+    """Dónde se guarda la biblioteca: siempre %LOCALAPPDATA%\\TVon, se abra instalado o desde el
+    código fuente. Así las categorías, la configuración, el certificado de ON y los celulares
+    vinculados son los mismos (antes cada forma de abrirlo tenía su propia biblioteca)."""
+    carpeta = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "TVon"
+    carpeta.mkdir(parents=True, exist_ok=True)
+    proyecto = Path(__file__).parent
+    if not getattr(sys, "frozen", False) and not (carpeta / "biblioteca.db").exists():
+        # Primera vez con esta versión desde el código: se lleva la biblioteca de la carpeta del proyecto
+        for nombre in ("biblioteca.db", "on_certificado.pem", "on_clave.pem"):
+            if (proyecto / nombre).exists():
+                shutil.copy2(proyecto / nombre, carpeta / nombre)
+    return carpeta
 
 
 def main():

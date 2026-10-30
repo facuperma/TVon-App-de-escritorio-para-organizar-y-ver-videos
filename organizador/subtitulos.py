@@ -129,3 +129,54 @@ def colocar_subtitulo(archivo: Path, ruta_video: str, idioma: str = "es") -> str
         shutil.copyfile(elegido, destino)
     archivo.unlink(missing_ok=True)  # ya está junto al video: no queda suelto en Descargas
     return str(destino)
+
+
+_ANIO = re.compile(r"(?<!\d)(19\d\d|20\d\d)(?!\d)")
+_EPISODIO = re.compile(r"(?i)(?<![a-z0-9])s?(\d{1,2})[ex](\d{1,3})(?!\d)")
+
+
+def _anio_y_episodio(nombre: str) -> tuple[str | None, tuple[int, int] | None]:
+    anio = _ANIO.search(re.sub(r"\[[^\]]*\]", " ", nombre))  # «[339191]» es el número del aporte en subdivx
+    episodio = _EPISODIO.search(nombre)
+    return (anio.group(1) if anio else None,
+            (int(episodio.group(1)), int(episodio.group(2))) if episodio else None)
+
+
+def video_del_subtitulo(nombres: list[str], videos: list[str]) -> str | None:
+    """El video de la biblioteca al que corresponde un subtítulo bajado, por su nombre (el del
+    .zip, la carpeta o el .srt): mismo título, y mismo año y capítulo si los dos lo dicen.
+    None si no hay ninguno o si hay más de uno posible (mejor no adivinar)."""
+    from .titulos import titulo_de
+    posibles = set()
+    for nombre in nombres:
+        titulo = titulo_de(nombre).lower()
+        anio, episodio = _anio_y_episodio(nombre)
+        if not titulo:
+            continue
+        for video in videos:
+            v = Path(video).name
+            if titulo_de(v).lower() != titulo:
+                continue
+            anio_v, episodio_v = _anio_y_episodio(v)
+            if anio and anio_v and anio != anio_v:
+                continue
+            if episodio != episodio_v:  # un capítulo con su capítulo; una película con su película
+                continue
+            posibles.add(video)
+        if len(posibles) == 1:
+            return posibles.pop()
+        posibles.clear()
+    return None
+
+
+def nombres_de_comprimido(archivo: Path) -> list[str]:
+    """El nombre del comprimido y, si es .zip, el de los subtítulos que trae adentro."""
+    nombres = [archivo.stem]
+    if archivo.suffix.lower() == ".zip":
+        import zipfile
+        try:
+            with zipfile.ZipFile(archivo) as z:
+                nombres += [Path(n).name for n in z.namelist() if Path(n).suffix.lower() in EXT_SUBTITULOS]
+        except (OSError, zipfile.BadZipFile):
+            pass
+    return nombres

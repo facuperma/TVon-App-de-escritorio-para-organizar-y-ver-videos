@@ -6,9 +6,9 @@ Aplicación de escritorio para organizar y ver videos e imágenes por categoría
 
 ## Descargar
 
-**[⬇ TVon-Setup-1.7.1.exe](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TVon-Setup-1.7.1.exe)** (34 MB) — para la PC (Windows 10/11, 64 bits)
+**[⬇ TVon-Setup-1.7.2.exe](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TVon-Setup-1.7.2.exe)** (34 MB) — para la PC (Windows 10/11, 64 bits)
 
-**[⬇ TVon-ON-1.1.1.apk](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TVon-ON-1.1.1.apk)** (3 MB) — app para el celular (Android 8 o más nuevo): ver más abajo, en [📱 ON](#-on-manejar-tvon-desde-el-celular)
+**[⬇ TVon-ON-1.1.2.apk](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TVon-ON-1.1.2.apk)** (3 MB) — app para el celular (Android 8 o más nuevo): ver más abajo, en [📱 ON](#-on-manejar-tvon-desde-el-celular)
 
 El instalador de la PC: ejecutalo y seguí los pasos: no hace falta instalar Python ni nada más, ni permisos de administrador. Crea accesos directos en el menú Inicio (y en el Escritorio, si lo elegís) y se desinstala desde *Configuración → Aplicaciones*.
 
@@ -23,7 +23,7 @@ python -m venv .venv
 .venv\Scripts\pip install -r requirements.txt
 ```
 
-Doble clic en `TVon.bat` o `.venv\Scripts\python main.py` (la biblioteca queda en la carpeta del proyecto).
+Doble clic en `TVon.bat` o `.venv\Scripts\python main.py` (usa la misma biblioteca que la versión instalada, en `%LOCALAPPDATA%\TVon`).
 
 Para generar el instalador: `.venv\Scripts\pip install pyinstaller` y `.venv\Scripts\python empaquetado\construir.py` (requiere [Inno Setup 6](https://jrsoftware.org/isinfo.php)). Queda en `compilado\`. El script baja [aria2](https://aria2.github.io) (motor de torrents) a `organizador\bin\` si no está, y verifica su huella.
 
@@ -49,9 +49,9 @@ Botón **📱 ON** en la barra superior (o *Configuración → ON*; se pone verd
 
 #### App para Android (recomendada)
 
-**[⬇ TVon-ON-1.1.1.apk](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TVon-ON-1.1.1.apk)** (3 MB, Android 8 o más nuevo). Bajalo en el celular y abrilo; Android pide permiso para *instalar apps de origen desconocido* (al navegador o a Archivos): permitilo solo para esto. Después tocá **📷 Escanear el código QR** con la ventana de ON abierta en la PC.
+**[⬇ TVon-ON-1.1.2.apk](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TVon-ON-1.1.2.apk)** (3 MB, Android 8 o más nuevo). Bajalo en el celular y abrilo; Android pide permiso para *instalar apps de origen desconocido* (al navegador o a Archivos): permitilo solo para esto. Después tocá **📷 Escanear el código QR** con la ventana de ON abierta en la PC.
 
-Si tenías la app 1.1.0, desinstalala antes de instalar la 1.1.1 (cambió la firma) y volvé a escanear el código QR.
+Si tenías la app 1.1.0, desinstalala antes de instalar la 1.1.2 (cambió la firma) y volvé a escanear el código QR. Desde la 1.1.1 se actualiza encima, sin volver a vincular.
 
 Hace todo lo de la versión web (reproductor, subtítulos, cola, biblioteca, categorías, torrents, dominio público, mouse, teclado en vivo y pantalla de la PC) y además:
 
@@ -62,6 +62,7 @@ Hace todo lo de la versión web (reproductor, subtítulos, cola, biblioteca, cat
 - **Ver en el celular:** tocá una película y *📱 Ver en el celular*: llega por la misma conexión cifrada, con subtítulos y siguiendo desde donde quedaste (en la PC o en el celular: el progreso es uno solo). Si el celular no puede reproducir el sonido o el video, la PC lo convierte mientras lo ves (hace falta ffmpeg: `winget install Gyan.FFmpeg`).
 - **Links magnet:** tocá uno en el navegador (o *Compartir → TVon ON*) y va directo a la PC.
 - **Botones de volumen** del celular → volumen de TVon (en Reproductor; se apaga en *Más*).
+- **Se vincula una sola vez:** el celular recuerda la PC (sesión cifrada con el Keystore de Android) y se reconecta solo después de reiniciar TVon o la PC. Si el router le dio otra IP a la PC, la app la vuelve a encontrar en la wifi (y comprueba que sea el mismo certificado). La sesión vence si pasa **30 días sin usarse**; cada uso la renueva. Con celulares vinculados, ON se enciende solo al abrir TVon (salvo que lo apagues en *Encender ON cada vez que se abre TVon*).
 - Casa y Tailscale: escaneá los dos QR (*Más → Agregar otra conexión*) y la app usa sola la que ande.
 
 Para compilarla: JDK 17 y Android SDK 35; en `android\`, `gradlew assembleRelease` (firma con `android\firma.properties`, que no está en el repositorio).
@@ -83,7 +84,7 @@ Para compilarla: JDK 17 y Android SDK 35; en `android\`, `gradlew assembleReleas
 ### 🔒 Seguridad
 
 - **Conexión cifrada:** el celular y la PC hablan por **HTTPS** (TLS 1.2 o 1.3) con un certificado propio de TVon. La primera vez Chrome avisa «La conexión no es privada» porque no conoce ese certificado: *Configuración avanzada → Continuar*. Para comprobar que es tu PC, la huella del certificado (candado → certificado) tiene que coincidir con la que muestra la ventana de ON.
-- **Quién entra:** solo desde la red de tu casa o por Tailscale; desde internet se rechaza. El código del QR sirve **una sola vez** y cambia cada vez que se enciende ON; con 10 códigos equivocados se frena 10 minutos. Cada celular tiene su propia sesión (cookie *Secure*, *HttpOnly*, *SameSite=Strict*) y se puede desconectar desde la PC (*Desconectar todos*, *Cambiar el código QR*). Otras páginas no pueden mandar órdenes a TVon (protección contra CSRF y *DNS rebinding*).
+- **Quién entra:** solo desde la red de tu casa o por Tailscale; desde internet se rechaza. El código del QR sirve **una sola vez** y cambia cada vez que se enciende ON; con 10 códigos equivocados se frena 10 minutos. Cada celular tiene su propia sesión (cookie *Secure*, *HttpOnly*, *SameSite=Strict*; la PC guarda solo su huella SHA-256). En la ventana de ON, **Dispositivos vinculados** muestra cada uno con *Desvincular* (o *Desvincular todos*). Otras páginas no pueden mandar órdenes a TVon (protección contra CSRF y *DNS rebinding*).
 - **Datos guardados:** las claves (OpenSubtitles, el código del QR, la clave del certificado) se guardan **cifradas con DPAPI de Windows**: solo tu usuario en tu PC puede leerlas. De los celulares se guarda solo una huella (SHA-256), nunca la sesión.
 - **Internet:** todo va por HTTPS con el certificado del sitio verificado; TVon no sigue redirecciones a direcciones sin cifrar. Los torrents van con el tráfico cifrado entre pares (puede haber menos fuentes; los demás que comparten igual ven tu IP).
 - Compartir la pantalla y manejar el mouse y el teclado se pueden apagar en las opciones de ON. La primera vez, Windows pregunta por el firewall: permitilo solo en **redes privadas**.
@@ -171,6 +172,7 @@ Marcá **⏻ Apagar** en los controles: cuando termine el video (en el visor o e
 - **🌐 Buscar en internet**: descarga subtítulos de [OpenSubtitles](https://www.opensubtitles.com) en los idiomas configurados (por defecto español e inglés). Usa la huella del archivo para encontrar los que están sincronizados con ese video. Hace falta una clave de API gratuita (Configuración → Preferencias).
 - **Automáticos:** con la clave de OpenSubtitles, cada película nueva (de torrents o de Descargas) recibe sola el subtítulo del primer idioma configurado. Es uno por película, porque la cuenta gratis tiene pocas descargas por día.
 - **🌐 Buscar en subdivx** (en el botón CC): abre [subdivx.com](https://subdivx.com/) con el título limpio de la película copiado, y un cartel en la esquina de la pantalla recuerda pegarlo en el buscador con **Ctrl+V**. El subtítulo que bajes (`.srt`, `.zip`, `.rar` o `.7z`) se coloca solo junto al video y se activa. Si el comprimido trae varios, elige el que más se parece al nombre del video. subdivx no tiene API, por eso la descarga la hacés vos.
+- Subtítulos bajados por tu cuenta: un `.srt`, un `.zip`/`.rar`/`.7z` o una carpeta ya descomprimida que aparece en Descargas se pone sola junto a su video (como `video.es.srt`) si por el nombre se sabe de cuál es: mismo título, y mismo año o capítulo. Si hay dudas, o el video ya tiene subtítulo en español, no se toca.
 - También se puede soltar el `.srt` sobre la ventana.
 - **Sincronía de subtítulos**: bajo los controles dice cómo salen («1,5 s antes», «sincronizados»). ◀◀ / ◀ los muestran 0,5 / 0,1 s antes; ▶ / ▶▶, después (también G / H). **🎯 Ahora**: tocalo justo cuando alguien empieza a hablar y el subtítulo más cercano se acomoda a ese momento. ↺ vuelve a como viene el archivo.
 - El archivo de subtítulos y el retraso se recuerdan para cada video.

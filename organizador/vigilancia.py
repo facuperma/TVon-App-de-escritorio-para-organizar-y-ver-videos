@@ -2,6 +2,8 @@
 
 - Mueve los videos terminados de Descargas a la carpeta de videos.
 - Revisa las carpetas de la biblioteca (Videos y Documentos) y suma los videos nuevos.
+- Pone junto a su video los subtítulos que se bajan a Descargas (sueltos, en .zip/.rar/.7z o ya
+  descomprimidos en una carpeta), si por el nombre se sabe de qué video son.
 """
 import glob
 import os
@@ -14,7 +16,9 @@ from pathlib import Path
 from PySide6.QtCore import QObject, Signal
 
 from .db import EXT_VIDEO, Biblioteca
-from .subtitulos import EXT_COMPRIMIDOS, EXT_SUBTITULOS, colocar_subtitulo
+from .subtitulos import (
+    EXT_COMPRIMIDOS, EXT_SUBTITULOS, colocar_subtitulo, nombres_de_comprimido, subtitulos_junto_a, video_del_subtitulo,
+)
 
 INTERVALO_S = 10            # revisión de Descargas
 INTERVALO_ESCANEO_S = 60    # revisión de las carpetas de la biblioteca
@@ -22,6 +26,7 @@ QUIETO_S = 20               # un archivo sin cambios hace este tiempo se conside
 RECIENTE_S = 30 * 24 * 3600  # subcarpetas de Descargas creadas en el último mes (torrents)
 MUESTRA_MAX = 300 * 1024 * 1024
 ESPERA_SUBTITULO_S = 15 * 60  # cuánto se espera el subtítulo pedido a subdivx
+SUBTITULO_RECIENTE_S = 2 * 24 * 3600  # subtítulos de Descargas que se ubican solos: los de los últimos 2 días
 # Carpetas que no se recorren (además de las que empiezan con «.» o «$»)
 IGNORAR = {"node_modules", "__pycache__", "appdata", "site-packages", "venv", "env"}
 
@@ -95,6 +100,7 @@ class Vigilante(QObject):
         self._parar = threading.Event()
         self._escanear_ya = True
         self._esperando: tuple[str, float] | None = None  # (video, desde cuándo) esperando subtítulo
+        self._sin_video: set[tuple[str, float]] = set()  # subtítulos de Descargas que no son de ningún video
         self._hilo = threading.Thread(target=self._bucle, daemon=True)
 
     def iniciar(self):
@@ -122,6 +128,8 @@ class Vigilante(QObject):
             try:
                 if self._esperando:
                     self._buscar_subtitulo(bib)
+                else:
+                    self._ubicar_subtitulos(bib)
                 if bib.config("mover_descargas") == "1":
                     self._revisar_descargas(bib, vistos)
                 if self._escanear_ya or time.monotonic() - ultimo_escaneo > INTERVALO_ESCANEO_S:
@@ -187,6 +195,61 @@ class Vigilante(QObject):
             else:
                 self.subtitulo_fallido.emit(f"{archivo.name} no tiene subtítulos (.srt o .vtt) adentro")
             return
+
+    def _ubicar_subtitulos(self, bib: Biblioteca):
+        """Subtítulos bajados sin pedirlos desde TVon (p. ej. desde subdivx en el navegador): si el
+        nombre dice de qué video son, se ponen junto a él como «video.es.srt»."""
+        origen = Path(bib.config("carpeta_descargas_sistema"))
+        if not origen.is_dir():
+            return
+        ahora = time.time()
+        videos = None
+        for elemento in origen.iterdir():
+            try:
+                info = elemento.stat()
+            except OSError:
+                continue
+            clave = (str(elemento), info.st_mtime)
+            if clave in self._sin_video or ahora - info.st_mtime > SUBTITULO_RECIENTE_S or ahora - info.st_mtime < 3:
+                continue
+            if elemento.is_dir():
+                # Un .zip que ya se descomprimió: una carpeta con solo subtítulos
+                adentro = [p for p in elemento.iterdir()]
+                subs = [p for p in adentro if p.suffix.lower() in EXT_SUBTITULOS]
+                if not subs or len(adentro) > 10 or len(subs) != len(adentro):
+                    continue
+                nombres = [elemento.name] + [p.name for p in subs]
+            elif elemento.suffix.lower() in EXT_SUBTITULOS:
+                nombres = [elemento.name]
+            elif elemento.suffix.lower() in EXT_COMPRIMIDOS:
+                nombres = nombres_de_comprimido(elemento)
+                if elemento.suffix.lower() == ".zip" and len(nombres) == 1:
+                    self._sin_video.add(clave)  # un .zip sin subtítulos adentro: no es para TVon
+                    continue
+                if en_uso(elemento):
+                    continue
+            else:
+                continue
+            if videos is None:
+                videos = [ruta for _id, ruta, _nombre, tipo in bib.listar_archivos("video") if Path(ruta).exists()]
+            video = video_del_subtitulo(nombres, videos)
+            # Si el video ya tiene subtítulo en español, no se le agrega otro
+            if video is None or any(Path(s).stem.lower().endswith((".es", ".spa")) or Path(s).stem == Path(video).stem
+                                    for s in subtitulos_junto_a(video)):
+                self._sin_video.add(clave)
+                continue
+            if elemento.is_dir():
+                sub = colocar_subtitulo(max(subs, key=lambda p: p.stat().st_size), video)
+                try:
+                    elemento.rmdir()  # quedó vacía
+                except OSError:
+                    pass
+            else:
+                sub = colocar_subtitulo(elemento, video)
+            if sub:
+                self.subtitulo_listo.emit(video, sub)
+            else:
+                self._sin_video.add(clave)
 
     def _videos_descargas(self, origen: Path):
         """(ruta, stat) de los videos de Descargas: los sueltos y los de las carpetas
