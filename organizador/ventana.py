@@ -31,7 +31,9 @@ from .inicio_windows import traer_al_frente
 from .titulos import nombre_lindo, titulo_de
 from .torrents import GestorTorrents
 from .descargas import nombre_seguro
-from .vigilancia import Vigilante, borrar_carpetas_vacias, en_uso, mover_video
+from .vigilancia import (
+    Vigilante, borrar_carpetas_vacias, carpeta_de_categoria, en_uso, mover_video, traer_subtitulos,
+)
 from .subtitulos_online import buscar_para_visor, subtitulos_automaticos
 from .ventana_torrents import VentanaTorrents
 from .ventana_video import VentanaVideo
@@ -180,8 +182,11 @@ class Ventana(QMainWindow):
         capa_centro = QVBoxLayout(centro)
         capa_centro.addWidget(self.lista, 1)
         fila_pie = QHBoxLayout()
-        fila_pie.addWidget(self.lbl_cantidad, 1)
-        fila_pie.addWidget(self.btn_categoria_titulo)
+        fila_pie.addWidget(self.lbl_cantidad)
+        # Ocupa todo lo que deja el contador (con un título largo y el panel angosto quedaba de 0 px)
+        self.btn_categoria_titulo.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
+        fila_pie.addWidget(self.btn_categoria_titulo, 1)
+        fila_pie.addStretch()
         fila_pie.addWidget(self.btn_eliminar)
         capa_centro.addLayout(fila_pie)
 
@@ -497,7 +502,10 @@ class Ventana(QMainWindow):
         return nombre if ok and nombre else None
 
     def _nueva_categoria(self):
-        if nombre := self._pedir_nombre("Nueva categoría"):
+        # Con archivos seleccionados, van a la categoría nueva (y a su carpeta, con sus subtítulos)
+        if seleccion := [i.data(0, ROL) for i in self.lista.selectedItems()]:
+            self._asignar_a_nueva(seleccion)
+        elif nombre := self._pedir_nombre("Nueva categoría"):
             try:
                 self.bib.crear_categoria(nombre)
             except Exception:
@@ -827,7 +835,7 @@ class Ventana(QMainWindow):
             asignar.addAction(nombre, lambda c=cid, nom=nombre: self.asignar_seleccion(ids, c, nom, True))
         if categorias:
             asignar.addSeparator()
-        asignar.addAction("Nueva categoría…", lambda: self._asignar_a_nueva(ids))
+        asignar.addAction("Nueva categoría…", lambda: self._asignar_a_nueva(seleccion))
 
         # Solo ofrece quitar las categorías que tenga algún archivo seleccionado
         presentes = set().union(*(self.bib.categorias_de(a) for a in ids))
@@ -861,8 +869,10 @@ class Ventana(QMainWindow):
         verbo = "asignado(s) a" if activa else "quitado(s) de"
         self.statusBar().showMessage(f"{len(ids)} archivo(s) {verbo} «{nombre}»", 5000)
 
-    def _asignar_a_nueva(self, ids: list[int]):
-        if not (nombre := self._pedir_nombre("Nueva categoría")):
+    def _asignar_a_nueva(self, archivos: list[tuple[int, str, str]]):
+        """Crea una categoría y le asigna los archivos (id, ruta, tipo); los videos se mudan a la
+        carpeta de la categoría con sus subtítulos."""
+        if not (nombre := self._pedir_nombre(f"Nueva categoría ({len(archivos)} archivo(s))")):
             return
         try:
             self.bib.crear_categoria(nombre)
@@ -870,9 +880,15 @@ class Ventana(QMainWindow):
             QMessageBox.warning(self, "Categoría", f"Ya existe una categoría llamada «{nombre}».")
             return
         cid = next(c for c, n, _ in self.bib.listar_categorias() if n == nombre)
-        self.bib.asignar_varios(ids, cid, True)
+        self.bib.asignar_varios([aid for aid, _r, _t in archivos], cid, True)
+        movidos, quedaron = self._organizar_en_carpeta([r for _a, r, t in archivos if t == "video"], nombre)
         self.cargar_filtros()
-        self.statusBar().showMessage(f"{len(ids)} archivo(s) asignado(s) a «{nombre}»", 5000)
+        aviso = f"{len(archivos)} archivo(s) asignado(s) a «{nombre}»"
+        if movidos:
+            aviso += f" · {movidos} movido(s) a Peliculas\\{nombre_seguro(nombre)}"
+        if quedaron:
+            aviso += f" · {quedaron} {'quedó' if quedaron == 1 else 'quedaron'} donde estaba(n) (en uso u otro disco)"
+        self.statusBar().showMessage(aviso, 8000)
 
     def archivo_actual(self) -> tuple[int, str, str] | None:
         item = self.lista.currentItem()
@@ -969,7 +985,7 @@ class Ventana(QMainWindow):
             accion.setChecked(cid in asignadas)
             accion.toggled.connect(lambda activa, c=cid: self._alternar_categoria(c, activa))
         m.addSeparator()
-        m.addAction("Nueva categoría…", lambda: self._asignar_a_nueva([actual[0]]))
+        m.addAction("Nueva categoría…", lambda: self._asignar_a_nueva([actual]))
 
     def _alternar_categoria(self, cid: int, activa: bool):
         actual = self.archivo_actual()
@@ -1505,13 +1521,14 @@ class Ventana(QMainWindow):
         self.btn_eliminar.setText(f"🗑 Eliminar ({len(seleccion)})" if len(seleccion) > 1 else "🗑 Eliminar")
         if len(seleccion) == 1:
             titulo = titulo_de(_archivo(seleccion[0]))
-            self.btn_categoria_titulo.setText(f"＋ Categoría: {titulo}")
+            self.btn_categoria_titulo.setText(f"⚡ Categoría rápida: {titulo}")
             self.btn_categoria_titulo.setToolTip(
-                f"Crea la categoría «{titulo}» y le asigna este archivo y los demás con el mismo título")
+                f"Crea la categoría «{titulo}», le asigna este archivo y los demás con el mismo título, "
+                f"y los mueve con sus subtítulos a Videos\\Peliculas\\{nombre_seguro(titulo)}")
             self.btn_categoria_titulo.show()
         elif seleccion:
             titulo = self._titulo_seleccion(seleccion)
-            self.btn_categoria_titulo.setText(f"＋ Crear categoría: {titulo} ({len(seleccion)})")
+            self.btn_categoria_titulo.setText(f"⚡ Categoría rápida: {titulo} ({len(seleccion)})")
             self.btn_categoria_titulo.setToolTip(
                 f"Crea la categoría «{titulo}» y mete en ella los {len(seleccion)} archivos seleccionados")
             self.btn_categoria_titulo.show()
@@ -1560,9 +1577,18 @@ class Ventana(QMainWindow):
         No toca los que se están reproduciendo, los que otro programa tiene abiertos ni los que
         están en otro disco (sería copiar gigas). Devuelve (movidos, los que quedaron)."""
         raiz = Path(self.bib.config("carpeta_videos"))
-        destino = raiz / "Peliculas" / nombre_seguro(categoria)
-        reproduciendo = {Path(v.ruta_video).resolve() for v in [self.visor, *(w.visor for w in self.ventanas_video)]
-                         if v.ruta_video}
+        destino = carpeta_de_categoria(self.bib, categoria)
+        # De estas carpetas no se traen subtítulos con otro nombre: tienen los de muchos videos
+        compartidas = {Path(c).resolve() for c in [*self.bib.carpetas_biblioteca(), raiz,
+                                                    self.bib.config("carpeta_descargas_sistema")] if c}
+        # El del reproductor de al lado (seleccionar un video lo carga ahí): se suelta, se mueve y se
+        # vuelve a cargar desde la carpeta nueva. Los de las ventanas aparte no se tocan.
+        retomar = None
+        if self.visor.ruta_video and Path(self.visor.ruta_video).resolve() in {Path(r).resolve() for r in rutas}:
+            retomar = (Path(self.visor.ruta_video).resolve(), self.visor.posicion_actual())
+            self.visor.mostrar(None, None)
+            QApplication.processEvents()  # que el reproductor termine de cerrar el archivo
+        reproduciendo = {Path(w.visor.ruta_video).resolve() for w in self.ventanas_video if w.visor.ruta_video}
         movidos = quedaron = 0
         for ruta in rutas:
             video = Path(ruta)
@@ -1578,8 +1604,17 @@ class Ventana(QMainWindow):
                 quedaron += 1
                 continue
             self.bib.mover_ruta(video.resolve(), nuevo, subtitulos)
+            if video.parent.resolve() not in compartidas:
+                traer_subtitulos(video.parent, nuevo)
             borrar_carpetas_vacias(video.parent, raiz)
+            if retomar and retomar[0] == video.resolve():
+                retomar = (nuevo, retomar[1])
             movidos += 1
+        if retomar:
+            ruta = str(retomar[0])
+            self.visor.mostrar(ruta, "video", self.bib.subtitulos_de(ruta), retomar[1], modo=self._modo_seleccion)
+        if movidos:
+            self.vigilante.despertar()  # y los de Descargas que sean de estos videos
         return movidos, quedaron
 
     def _soltar_archivo(self, ruta: str):

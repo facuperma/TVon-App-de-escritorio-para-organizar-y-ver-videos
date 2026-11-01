@@ -100,6 +100,38 @@ def _palabras(texto: str) -> set[str]:
     return set(re.findall(r"[a-z0-9]+", texto.lower()))
 
 
+def _tar(argumentos: list[str], timeout: int) -> subprocess.CompletedProcess | None:
+    tar = Path(os.environ.get("SystemRoot", r"C:\Windows"), "System32", "tar.exe")
+    try:
+        return subprocess.run([str(tar) if tar.exists() else "tar", *argumentos], capture_output=True,
+                              timeout=timeout,
+                              creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0)
+    except (subprocess.TimeoutExpired, OSError):
+        return None
+
+
+def listar_comprimido(archivo: Path) -> list[str]:
+    """Los nombres de los archivos que trae un .zip/.rar/.7z ([] si no se puede abrir)."""
+    resultado = _tar(["-tf", str(archivo)], 60)
+    if resultado is None or resultado.returncode != 0:
+        return []
+    return [n for n in resultado.stdout.decode("utf-8", "replace").splitlines() if n and not n.endswith("/")]
+
+
+def extraer_comprimido(archivo: Path, carpeta: Path, timeout: int = 60) -> bool:
+    resultado = _tar(["-xf", str(archivo), "-C", str(carpeta)], timeout)
+    return resultado is not None and resultado.returncode == 0
+
+
+_ESPANOL = re.compile(r"(?i)(?<![a-z])(es|spa|esp|spanish|espa[nñ]ol|latino|castellano)(?![a-z])")
+_INGLES = re.compile(r"(?i)(?<![a-z])(en|eng|english|ingl[eé]s)(?![a-z])")
+
+
+def idioma_de(sub: Path) -> str:
+    """«es» o «en» según el nombre del subtítulo (en duda, español: es lo que se baja de subdivx)."""
+    return "en" if _INGLES.search(sub.stem) and not _ESPANOL.search(sub.stem) else "es"
+
+
 def colocar_subtitulo(archivo: Path, ruta_video: str, idioma: str = "es") -> str | None:
     """Pone un subtítulo descargado (suelto o comprimido) junto al video, como «video.es.srt».
     Si el comprimido trae varios, elige el que más se parece al nombre del video.
@@ -107,13 +139,7 @@ def colocar_subtitulo(archivo: Path, ruta_video: str, idioma: str = "es") -> str
     video = Path(ruta_video)
     with tempfile.TemporaryDirectory() as carpeta:
         if archivo.suffix.lower() in EXT_COMPRIMIDOS:
-            tar = Path(os.environ.get("SystemRoot", r"C:\Windows"), "System32", "tar.exe")
-            try:
-                subprocess.run([str(tar) if tar.exists() else "tar", "-xf", str(archivo), "-C", carpeta],
-                               capture_output=True, timeout=60,
-                               creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0)
-            except subprocess.TimeoutExpired:
-                return None
+            extraer_comprimido(archivo, Path(carpeta))
             candidatos = [p for p in Path(carpeta).rglob("*") if p.suffix.lower() in EXT_SUBTITULOS]
         else:
             candidatos = [archivo]

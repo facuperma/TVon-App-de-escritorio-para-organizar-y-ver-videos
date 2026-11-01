@@ -6,7 +6,7 @@ Aplicación de escritorio para organizar y ver videos e imágenes por categoría
 
 ## Descargar
 
-**[⬇ TVon-Setup-1.7.2.exe](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TVon-Setup-1.7.2.exe)** (34 MB) — para la PC (Windows 10/11, 64 bits)
+**[⬇ TVon-Setup-1.7.3.exe](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TVon-Setup-1.7.3.exe)** (34 MB) — para la PC (Windows 10/11, 64 bits)
 
 **[⬇ TVon-ON-1.1.3.apk](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TVon-ON-1.1.3.apk)** (3 MB) — app para el celular (Android 8 o más nuevo): ver más abajo, en [📱 ON](#-on-manejar-tvon-desde-el-celular)
 
@@ -37,6 +37,7 @@ Para generar el instalador: `.venv\Scripts\pip install pyinstaller` y `.venv\Scr
 - La categoría **★ Favoritos** viene incluida y siempre está primera: sumá archivos con clic derecho → *Agregar a Favoritos*.
 - Un clic en un video muestra una **vista previa** (un cuadro del video, sin sonido): se reproduce con clic sobre la imagen, ▶ o Espacio, siempre desde el principio.
 - Al elegir una categoría se selecciona su primer video en vista previa, sin empezar a reproducirse.
+- **⚡ Categoría rápida** (a la derecha de la cantidad de archivos, con algo seleccionado): crea la categoría con el título del video y mueve el video con sus subtítulos a `Videos\Peliculas\<título>`. **+ Nueva categoría** con archivos seleccionados hace lo mismo con el nombre que elijas.
 - Nombres lindos: la lista muestra el título limpio, como la categoría rápida, con el capítulo, el año y la calidad si el archivo los trae («Breaking.Bad.S01E02.720p.WEB-DL.mkv» → «Breaking Bad · S01E02 · 720p», «The.Matrix.1999.1080p.BluRay.mkv» → «The Matrix (1999) · 1080p»). El archivo en el disco no se toca; su ruta aparece al pasar el mouse.
 - Columnas de la lista (**Nombre** y **Carpeta**): se achican, agrandan y mueven arrastrando; clic derecho en la cabecera para ocultar o mostrar cada una. TVon recuerda cómo las dejaste. La carpeta es un vínculo: tocarla abre el Explorador con el video marcado.
 - Volumen: el porcentaje se ve al lado de la barra y, al moverlo, grande sobre el video. TVon arranca al 50 %.
@@ -94,7 +95,7 @@ Para compilarla: JDK 17 y Android SDK 35; en `android\`, `gradlew assembleReleas
 ### Biblioteca automática
 
 - Los videos de **Videos** y **Documentos** (con subcarpetas) se suman solos a la biblioteca: al abrir TVon y cada minuto. Se saltean carpetas ocultas o de programación (`.venv`, `node_modules`…).
-- Los videos que terminan de bajarse en **Descargas** se mueven solos a **Videos** (con sus subtítulos) y entran a la biblioteca. También los de las carpetas que crean los programas de torrents (uTorrent, qBittorrent), si son del último mes; los «sample» se ignoran.
+- Los videos que terminan de bajarse en **Descargas** se mueven solos a **Videos\Peliculas\<título>** (con sus subtítulos, también los de `Subs\`) y entran a la biblioteca con su categoría. Un `.zip`/`.rar`/`.7z` que trae un video se descomprime solo, y video y subtítulo quedan juntos en esa carpeta. También los de las carpetas que crean los programas de torrents (uTorrent, qBittorrent), si son del último mes; los «sample» se ignoran.
 - Si el programa de torrents sigue compartiendo el archivo, la película aparece igual en la biblioteca apenas termina de bajar, y se mueve a Videos cuando el programa la suelta (conserva categorías y subtítulos).
 - Todo se ajusta en **Configuración → Preferencias** (agregar o quitar carpetas, desactivar el movimiento).
 

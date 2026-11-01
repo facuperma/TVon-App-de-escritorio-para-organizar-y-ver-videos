@@ -4,6 +4,8 @@
 - Revisa las carpetas de la biblioteca (Videos y Documentos) y suma los videos nuevos.
 - Pone junto a su video los subtítulos que se bajan a Descargas (sueltos, en .zip/.rar/.7z o ya
   descomprimidos en una carpeta), si por el nombre se sabe de qué video son.
+- Descomprime los .zip/.rar/.7z de Descargas que traen videos.
+Cada video que llega va a la carpeta de su categoría (Videos\\Peliculas\\<título>) con sus subtítulos.
 """
 import glob
 import os
@@ -13,12 +15,15 @@ import threading
 import time
 from pathlib import Path
 
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QFile, QObject, Signal
 
 from .db import EXT_VIDEO, Biblioteca
+from .descargas import nombre_seguro
 from .subtitulos import (
-    EXT_COMPRIMIDOS, EXT_SUBTITULOS, colocar_subtitulo, nombres_de_comprimido, subtitulos_junto_a, video_del_subtitulo,
+    EXT_COMPRIMIDOS, EXT_SUBTITULOS, _anio_y_episodio, colocar_subtitulo, extraer_comprimido, idioma_de, listar_comprimido,
+    nombres_de_comprimido, subtitulos_junto_a, video_del_subtitulo,
 )
+from .titulos import titulo_de
 
 INTERVALO_S = 10            # revisión de Descargas
 INTERVALO_ESCANEO_S = 60    # revisión de las carpetas de la biblioteca
@@ -86,6 +91,49 @@ def mover_video(video: Path, carpeta: Path) -> tuple[Path, dict[str, str]]:
     return nuevo, subtitulos
 
 
+def carpeta_de_categoria(bib: Biblioteca, titulo: str) -> Path:
+    """Videos\\Peliculas\\<título>: la carpeta de cada película o serie."""
+    return Path(bib.config("carpeta_videos")) / "Peliculas" / nombre_seguro(titulo)
+
+
+def es_muestra(video: Path) -> bool:
+    """Los torrents suelen traer un «sample» de un minuto."""
+    return "sample" in video.stem.lower() and video.stat().st_size < MUESTRA_MAX
+
+
+def traer_subtitulos(origen: Path, video: Path) -> str | None:
+    """Pone junto al video (como «video.es.srt») un subtítulo que quedó en la carpeta de donde vino
+    con otro nombre (los torrents y los .zip los traen como «Subs\\Spanish.srt» o con el nombre de
+    la película). Si en esa carpeta hay otros videos, solo uno cuyo nombre diga que es de este.
+    `origen` tiene que ser la carpeta propia del video (la del torrent o del .zip), nunca Descargas."""
+    if subtitulos_junto_a(str(video)) or not origen.is_dir():
+        return None
+    subs, otros_videos = [], False
+    for actual, subcarpetas, archivos in os.walk(origen):
+        if len(Path(actual).relative_to(origen).parts) >= 2:
+            subcarpetas[:] = []
+        for nombre in archivos:
+            extension = Path(nombre).suffix.lower()
+            if extension in EXT_SUBTITULOS:
+                subs.append(Path(actual, nombre))
+            elif extension in EXT_VIDEO:
+                otros_videos = True
+    if otros_videos:
+        subs = [s for s in subs if video_del_subtitulo([s.name], [str(video)])]
+    else:
+        # Aunque sea el último que queda: nunca el subtítulo de otro capítulo
+        episodio = _anio_y_episodio(video.name)[1]
+        subs = [s for s in subs if _anio_y_episodio(s.name)[1] in (None, episodio)]
+    # Uno por idioma (primero el español); entre varios, el más grande (el completo, no el «forced»)
+    colocados = []
+    for idioma in ("es", "en"):
+        del_idioma = [s for s in subs if idioma_de(s) == idioma]
+        if del_idioma and (sub := colocar_subtitulo(max(del_idioma, key=lambda s: s.stat().st_size),
+                                                    str(video), idioma)):
+            colocados.append(sub)
+    return colocados[0] if colocados else None
+
+
 class Vigilante(QObject):
     archivos_nuevos = Signal(int)
     movido = Signal(str)  # ruta nueva del video
@@ -101,14 +149,16 @@ class Vigilante(QObject):
         self._escanear_ya = True
         self._esperando: tuple[str, float] | None = None  # (video, desde cuándo) esperando subtítulo
         self._sin_video: set[tuple[str, float]] = set()  # subtítulos de Descargas que no son de ningún video
+        self._comprimidos: dict[tuple[str, float], bool] = {}  # comprimidos de Descargas: ¿traen videos?
         self._hilo = threading.Thread(target=self._bucle, daemon=True)
 
     def iniciar(self):
         self._hilo.start()
 
     def despertar(self):
-        """Revisar ya (p. ej. después de cambiar la configuración)."""
+        """Revisar ya (p. ej. después de cambiar la configuración o de mover videos)."""
         self._escanear_ya = True
+        self._sin_video.clear()  # un subtítulo que no era de ningún video puede serlo ahora
         self._despertar.set()
 
     def esperar_subtitulo(self, ruta_video: str):
@@ -126,28 +176,96 @@ class Vigilante(QObject):
         ultimo_escaneo = 0.0
         while not self._parar.is_set():
             try:
-                if self._esperando:
-                    self._buscar_subtitulo(bib)
-                else:
-                    self._ubicar_subtitulos(bib)
+                llegaron = 0
                 if bib.config("mover_descargas") == "1":
-                    self._revisar_descargas(bib, vistos)
+                    llegaron += self._extraer_videos(bib)
+                    llegaron += self._revisar_descargas(bib, vistos)
                 if self._escanear_ya or time.monotonic() - ultimo_escaneo > INTERVALO_ESCANEO_S:
                     self._escanear_ya = False
                     ultimo_escaneo = time.monotonic()
                     if nuevos := self._escanear(bib):
+                        llegaron += nuevos
                         self.archivos_nuevos.emit(nuevos)
+                if llegaron:
+                    # El subtítulo que se bajó antes que su video ya tiene con quién ir
+                    self._sin_video.clear()
+                if self._esperando:
+                    self._buscar_subtitulo(bib)
+                else:
+                    self._ubicar_subtitulos(bib)
             except OSError:
                 pass  # carpeta inaccesible o archivo que desapareció: se reintenta en la próxima vuelta
             # Esperando un subtítulo, se mira más seguido
             self._despertar.wait(2 if self._esperando else INTERVALO_S)
             self._despertar.clear()
 
-    def _revisar_descargas(self, bib: Biblioteca, vistos: dict):
+    def _a_su_categoria(self, bib: Biblioteca, video: Path, carpeta_propia: Path | None) -> Path:
+        """Mueve un video que llegó a Videos\\Peliculas\\<título> con sus subtítulos (también los
+        que quedaron en `carpeta_propia` con otro nombre) y lo mete en la categoría <título>."""
+        titulo = titulo_de(video.name)
+        nuevo, subtitulos = mover_video(video, carpeta_de_categoria(bib, titulo))
+        if carpeta_propia is not None:
+            traer_subtitulos(carpeta_propia, nuevo)
+            for carpeta in sorted(carpeta_propia.rglob("*"), reverse=True):  # «Subs\» y demás que quedaron vacías
+                if carpeta.is_dir():
+                    try:
+                        carpeta.rmdir()
+                    except OSError:
+                        pass
+        if bib.id_de_ruta(str(video)) is None:
+            bib.agregar_archivos([nuevo])
+            self.descargado.emit(str(nuevo))
+        else:
+            bib.mover_ruta(video, nuevo, subtitulos)
+        if (aid := bib.id_de_ruta(str(nuevo))) is not None:
+            bib.asignar(aid, bib.categoria_id(titulo), True)
+        self.movido.emit(str(nuevo))
+        return nuevo
+
+    def _extraer_videos(self, bib: Biblioteca) -> int:
+        """Los .zip/.rar/.7z de Descargas que traen videos: se descomprimen, cada video va a la
+        carpeta de su categoría con sus subtítulos, y el comprimido va a la Papelera."""
+        origen = Path(bib.config("carpeta_descargas_sistema"))
+        if not origen.is_dir():
+            return 0
+        ahora = time.time()
+        llegaron = 0
+        for archivo in origen.iterdir():
+            if archivo.suffix.lower() not in EXT_COMPRIMIDOS or not archivo.is_file():
+                continue
+            info = archivo.stat()
+            clave = (str(archivo), info.st_mtime)
+            if ahora - info.st_mtime > SUBTITULO_RECIENTE_S or ahora - info.st_mtime <= QUIETO_S:
+                continue
+            if clave not in self._comprimidos:
+                self._comprimidos[clave] = any(Path(n).suffix.lower() in EXT_VIDEO for n in listar_comprimido(archivo))
+            if not self._comprimidos[clave] or en_uso(archivo):
+                continue
+            # Se descomprime en el mismo disco que Videos: después mover es instantáneo
+            temporal = Path(bib.config("carpeta_videos")) / ".tvon_descomprimiendo" / nombre_seguro(archivo.stem)
+            shutil.rmtree(temporal, ignore_errors=True)
+            temporal.mkdir(parents=True)
+            try:
+                if not extraer_comprimido(archivo, temporal, timeout=3600):
+                    self._comprimidos[clave] = False  # dañado o con contraseña: no se reintenta
+                    continue
+                for video in [p for p in temporal.rglob("*") if p.suffix.lower() in EXT_VIDEO]:
+                    if not es_muestra(video):
+                        self._a_su_categoria(bib, video, temporal)
+                        llegaron += 1
+            finally:
+                shutil.rmtree(temporal, ignore_errors=True)
+                borrar_carpetas_vacias(temporal.parent, Path(bib.config("carpeta_videos")))
+            if self._comprimidos[clave]:
+                QFile.moveToTrash(str(archivo))
+        return llegaron
+
+    def _revisar_descargas(self, bib: Biblioteca, vistos: dict) -> int:
         origen = Path(bib.config("carpeta_descargas_sistema")).resolve()
         destino = Path(bib.config("carpeta_videos"))
         if not origen.is_dir() or origen == destino.resolve():
-            return
+            return 0
+        llegaron = 0
         actuales = {}
         for archivo, info in self._videos_descargas(origen):
             firma = (info.st_size, info.st_mtime)
@@ -164,18 +282,16 @@ class Vigilante(QObject):
                         self.archivos_nuevos.emit(1)
                         self.descargado.emit(str(archivo))
                     continue
-                nuevo, subtitulos = mover_video(archivo, destino / archivo.parent.relative_to(origen))
-                if bib.id_de_ruta(str(archivo)) is None:
-                    bib.agregar_archivos([nuevo])
-                    self.descargado.emit(str(nuevo))
-                else:
-                    bib.mover_ruta(archivo, nuevo, subtitulos)
+                # La carpeta del torrent (no Descargas): de ahí salen también sus subtítulos
+                partes = archivo.relative_to(origen).parts
+                self._a_su_categoria(bib, archivo, origen / partes[0] if len(partes) > 1 else None)
                 borrar_carpetas_vacias(archivo.parent, origen)
-                self.movido.emit(str(nuevo))
+                llegaron += 1
             except OSError:
                 pass  # se reintenta en la próxima vuelta, sin frenar a los demás
         vistos.clear()
         vistos.update(actuales)
+        return llegaron
 
     def _buscar_subtitulo(self, bib: Biblioteca):
         video, desde = self._esperando
@@ -222,6 +338,11 @@ class Vigilante(QObject):
             elif elemento.suffix.lower() in EXT_SUBTITULOS:
                 nombres = [elemento.name]
             elif elemento.suffix.lower() in EXT_COMPRIMIDOS:
+                if clave not in self._comprimidos:
+                    self._comprimidos[clave] = any(Path(n).suffix.lower() in EXT_VIDEO
+                                                   for n in listar_comprimido(elemento))
+                if self._comprimidos[clave]:
+                    continue  # trae videos: lo descomprime _extraer_videos
                 nombres = nombres_de_comprimido(elemento)
                 if elemento.suffix.lower() == ".zip" and len(nombres) == 1:
                     self._sin_video.add(clave)  # un .zip sin subtítulos adentro: no es para TVon
@@ -265,8 +386,7 @@ class Vigilante(QObject):
                 if archivo.suffix.lower() not in EXT_VIDEO:
                     continue
                 info = archivo.stat()
-                # Los torrents suelen traer un «sample» de un minuto
-                if actual != str(origen) and "sample" in archivo.stem.lower() and info.st_size < MUESTRA_MAX:
+                if actual != str(origen) and es_muestra(archivo):
                     continue
                 yield archivo, info
 
