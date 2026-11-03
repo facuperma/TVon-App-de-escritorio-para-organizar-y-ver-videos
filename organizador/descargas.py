@@ -13,7 +13,7 @@ from PySide6.QtCore import QObject, Signal
 
 from . import archive
 from .db import Biblioteca
-from .opensubtitles import OpenSubtitles, idiomas_de
+from .opensubtitles import cliente_desde_config, idiomas_de
 from .red import ErrorRed, abrir_descarga, bajar_bytes
 
 ESPACIO_LIBRE_MINIMO = 5 * 1024**3  # nunca llenar el disco por debajo de 5 GB libres
@@ -172,7 +172,7 @@ class GestorDescargas(QObject):
         cliente = None
         if bib.config("os_api_key"):
             try:
-                cliente = OpenSubtitles(bib.config("os_api_key"), bib.config("os_usuario"), bib.config("os_clave"))
+                cliente = cliente_desde_config(bib)
             except ErrorRed as e:
                 self.mensaje.emit(f"OpenSubtitles: {e}")
         faltantes = []

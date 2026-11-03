@@ -23,13 +23,12 @@ from .subtitulos import (
     EXT_COMPRIMIDOS, EXT_SUBTITULOS, _anio_y_episodio, colocar_subtitulo, extraer_comprimido, idioma_de, listar_comprimido,
     nombres_de_comprimido, subtitulos_junto_a, video_del_subtitulo,
 )
-from .titulos import titulo_de
+from .titulos import es_extra, titulo_de
 
 INTERVALO_S = 10            # revisión de Descargas
 INTERVALO_ESCANEO_S = 60    # revisión de las carpetas de la biblioteca
 QUIETO_S = 20               # un archivo sin cambios hace este tiempo se considera terminado
 RECIENTE_S = 30 * 24 * 3600  # subcarpetas de Descargas creadas en el último mes (torrents)
-MUESTRA_MAX = 300 * 1024 * 1024
 ESPERA_SUBTITULO_S = 15 * 60  # cuánto se espera el subtítulo pedido a subdivx
 SUBTITULO_RECIENTE_S = 2 * 24 * 3600  # subtítulos de Descargas que se ubican solos: los de los últimos 2 días
 # Carpetas que no se recorren (además de las que empiezan con «.» o «$»)
@@ -94,11 +93,6 @@ def mover_video(video: Path, carpeta: Path) -> tuple[Path, dict[str, str]]:
 def carpeta_de_categoria(bib: Biblioteca, titulo: str) -> Path:
     """Videos\\Peliculas\\<título>: la carpeta de cada película o serie."""
     return Path(bib.config("carpeta_videos")) / "Peliculas" / nombre_seguro(titulo)
-
-
-def es_muestra(video: Path) -> bool:
-    """Los torrents suelen traer un «sample» de un minuto."""
-    return "sample" in video.stem.lower() and video.stat().st_size < MUESTRA_MAX
 
 
 def traer_subtitulos(origen: Path, video: Path) -> str | None:
@@ -250,7 +244,7 @@ class Vigilante(QObject):
                     self._comprimidos[clave] = False  # dañado o con contraseña: no se reintenta
                     continue
                 for video in [p for p in temporal.rglob("*") if p.suffix.lower() in EXT_VIDEO]:
-                    if not es_muestra(video):
+                    if not es_extra(video):
                         self._a_su_categoria(bib, video, temporal)
                         llegaron += 1
             finally:
@@ -386,7 +380,7 @@ class Vigilante(QObject):
                 if archivo.suffix.lower() not in EXT_VIDEO:
                     continue
                 info = archivo.stat()
-                if actual != str(origen) and es_muestra(archivo):
+                if es_extra(archivo, info.st_size):
                     continue
                 yield archivo, info
 

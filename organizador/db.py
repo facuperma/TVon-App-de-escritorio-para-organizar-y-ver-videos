@@ -6,6 +6,7 @@ from pathlib import Path
 from PySide6.QtCore import QStandardPaths
 
 from . import seguridad
+from .titulos import es_extra
 
 EXT_VIDEO = {".mp4", ".mkv", ".avi", ".mov", ".wmv", ".webm", ".m4v", ".flv", ".mpg", ".mpeg"}
 EXT_IMAGEN = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".tif", ".tiff"}
@@ -242,11 +243,12 @@ class Biblioteca:
     # --- Archivos ---------------------------------------------------------
 
     def agregar_archivos(self, rutas: list[Path]) -> int:
-        """Agrega archivos soportados; devuelve cuántos eran nuevos."""
+        """Agrega archivos soportados; devuelve cuántos eran nuevos. Los extras de las películas
+        (tráiler, muestra, entrevistas…) no se agregan."""
         nuevos = 0
         for ruta in rutas:
             tipo = tipo_de(ruta)
-            if tipo is None:
+            if tipo is None or (tipo == "video" and es_extra(ruta)):
                 continue
             cur = self.con.execute(
                 "INSERT OR IGNORE INTO archivos (ruta, nombre, tipo) VALUES (?, ?, ?)",
@@ -270,11 +272,6 @@ class Biblioteca:
     def agregar_carpeta(self, carpeta: Path) -> int:
         rutas = [p for p in carpeta.rglob("*") if p.is_file() and tipo_de(p)]
         return self.agregar_archivos(rutas)
-
-    def quitar_archivo(self, archivo_id: int) -> None:
-        """Quita el archivo de la biblioteca (no lo borra del disco)."""
-        self.con.execute("DELETE FROM archivos WHERE id = ?", (archivo_id,))
-        self.con.commit()
 
     def listar_archivos(self, filtro: str = "todos", categoria_id: int | None = None,
                         texto: str = "") -> list[tuple[int, str, str, str]]:
@@ -489,3 +486,12 @@ class Biblioteca:
         """Quita varios archivos de la biblioteca (no los borra del disco)."""
         self.con.executemany("DELETE FROM archivos WHERE id = ?", [(a,) for a in archivo_ids])
         self.con.commit()
+
+    def quitar_extras(self) -> int:
+        """Quita de la biblioteca los extras que se agregaron antes de que se filtraran
+        (quedan en el disco). Devuelve cuántos eran."""
+        extras = [aid for aid, ruta in self.con.execute("SELECT id, ruta FROM archivos WHERE tipo = 'video'")
+                  if es_extra(Path(ruta))]
+        if extras:
+            self.quitar_archivos(extras)
+        return len(extras)

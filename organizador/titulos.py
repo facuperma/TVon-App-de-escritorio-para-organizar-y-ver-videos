@@ -68,3 +68,45 @@ def titulo_de(nombre_archivo: str) -> str:
     if not t:
         return original
     return t.title() if t.islower() or t.isupper() else t
+
+
+# Lo que traen las películas además de la película: tráiler, muestra, entrevistas, cortos…
+_EXTRA = re.compile(
+    r"(?i)\b(trailers?|teasers?|samples?|featurettes?|interviews?|entrevistas?|behind the scenes|"
+    r"making of|deleted (?:and extended )?scenes|extended scenes|escenas eliminadas|bonus|bloopers|gag reel)\b"
+)
+# Carpetas de extras (las de Plex y Jellyfin, y en castellano)
+_CARPETAS_EXTRA = {
+    "extras", "extra", "featurettes", "featurette", "trailers", "trailer", "interviews", "entrevistas",
+    "behind the scenes", "deleted scenes", "escenas eliminadas", "shorts", "cortos", "cortometrajes",
+    "samples", "sample", "bonus", "bonus features", "special features", "making of",
+}
+# «Pelicula-trailer.mkv», como los nombra Plex
+_SUFIJO_EXTRA = re.compile(r"(?i)-(trailer|teaser|sample|featurette|interview|behindthescenes|deleted|scene|short)$")
+EXTRA_CHICO = 300 * 1024 * 1024
+
+
+def es_extra(ruta: Path, tamano: int | None = None) -> bool:
+    """True si el video es un extra y no la película o el capítulo. Sin falsos positivos con
+    títulos como «The Interview (2014)» o «Trailer Park Boys S01E01»: la palabra tiene que ir
+    después del título, o el archivo ser chico y la carpeta no llamarse igual.
+    tamano: en bytes, si ya se sabe (si no, se mira en el disco solo cuando hace falta)."""
+    ruta = Path(ruta)
+    if any(re.sub(r"[._]+", " ", c).strip().lower() in _CARPETAS_EXTRA for c in ruta.parts[-4:-1]):
+        return True
+    if _SUFIJO_EXTRA.search(ruta.stem):
+        return True
+    limpio, titulo = _limpio(ruta.name), titulo_de(ruta.name)
+    if limpio.lower().startswith(titulo.lower()) and _EXTRA.search(limpio[len(titulo):]):
+        return True  # «Dune.2021.1080p.Trailer.mkv», «Movie.2020.sample.mkv»
+    palabra = _EXTRA.search(limpio)
+    if not palabra or palabra.group(1).lower() in ruta.parent.name.lower():
+        return False
+    if palabra.end() <= len(titulo) and limpio[len(titulo):].strip():
+        return False  # es parte del título y después viene el año o el capítulo
+    if tamano is None:
+        try:
+            tamano = ruta.stat().st_size
+        except OSError:
+            return False
+    return tamano < EXTRA_CHICO  # «Official Trailer.mp4», «sample.mkv»

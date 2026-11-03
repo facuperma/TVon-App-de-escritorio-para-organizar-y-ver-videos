@@ -22,7 +22,8 @@ from urllib.request import Request, urlopen
 from PySide6.QtCore import QObject, Signal
 
 from .db import EXT_VIDEO, Biblioteca
-from .vigilancia import MUESTRA_MAX, destino_libre
+from .titulos import es_extra
+from .vigilancia import destino_libre
 
 ARIA2 = Path(__file__).parent / "bin" / "aria2c.exe"
 # Empieza con «.»: el escaneo de la biblioteca no entra, así no aparecen películas a medio bajar
@@ -71,6 +72,8 @@ class Aria2:
             # ver qué se baja; los demás que comparten el torrent igual ven la IP)
             "--rpc-listen-all=false", "--check-certificate=true",
             "--bt-require-crypto=true", "--bt-min-crypto-level=arc4",
+            # Lo que se desmarca (los extras) se borra al terminar, aunque se haya bajado una parte
+            "--bt-remove-unselected-file=true",
             # Si TVon se cierra de golpe, aria2 también
             f"--stop-with-process={os.getpid()}",
         ]
@@ -133,10 +136,10 @@ def nombre_de(descarga: dict) -> str:
 
 
 def videos_en(ruta: Path) -> list[Path]:
-    """Videos de lo que bajó el torrent, sin los «sample»."""
+    """Videos de lo que bajó el torrent, sin los extras (tráiler, muestra…)."""
     archivos = [ruta] if ruta.is_file() else sorted(ruta.rglob("*"))
     return [a for a in archivos if a.suffix.lower() in EXT_VIDEO and a.is_file()
-            and not ("sample" in a.stem.lower() and a.stat().st_size < MUESTRA_MAX)]
+            and not es_extra(a)]
 
 
 class GestorTorrents(QObject):
@@ -250,6 +253,8 @@ class GestorTorrents(QObject):
                 if d["status"] not in ("active", "waiting", "paused"):
                     aria2.llamar("removeDownloadResult", d["gid"])
                 continue
+            if d["status"] in ("active", "waiting", "paused") and d.get("bittorrent"):
+                self._sin_extras(aria2, d)
             if d["status"] == "complete" and nombre:
                 self._terminar(aria2, d, temporal, videos)
                 continue
@@ -265,6 +270,18 @@ class GestorTorrents(QObject):
             })
         self._borrar_canceladas()
         self.estado.emit(lista)
+
+    @staticmethod
+    def _sin_extras(aria2: Aria2, descarga: dict):
+        """Desmarca los extras de la película (tráiler, muestra, entrevistas…) para que no se bajen.
+        Si todos los videos parecen extras, no se toca nada. aria2 retoma la descarga solo."""
+        archivos = descarga.get("files") or []
+        videos = [f for f in archivos if Path(f["path"]).suffix.lower() in EXT_VIDEO]
+        extras = [f for f in videos if es_extra(Path(f["path"]), int(f["length"]))]
+        if not extras or len(extras) == len(videos) or all(f["selected"] == "false" for f in extras):
+            return
+        elegidos = [f["index"] for f in archivos if f not in extras and f["selected"] == "true"]
+        aria2.llamar("changeOption", descarga["gid"], {"select-file": ",".join(elegidos)})
 
     def _terminar(self, aria2: Aria2, descarga: dict, temporal: Path, videos: Path):
         nuevos = []

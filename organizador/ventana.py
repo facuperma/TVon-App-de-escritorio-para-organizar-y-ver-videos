@@ -72,6 +72,7 @@ class Ventana(QMainWindow):
     def __init__(self, biblioteca: Biblioteca):
         super().__init__()
         self.bib = biblioteca
+        self.bib.quitar_extras()  # tráileres, muestras, entrevistas… agregados antes de filtrarlos
         self.filtro = ("todos", None)
         # Cómo arranca el video al elegirlo en la lista: con un clic, solo vista previa
         self._modo_seleccion = VISTA_PREVIA
@@ -170,10 +171,11 @@ class Ventana(QMainWindow):
         self.btn_categoria_titulo = QPushButton(objectName="chico")
         self.btn_categoria_titulo.clicked.connect(self._categoria_desde_titulo)
         self.btn_categoria_titulo.hide()
-        self.btn_eliminar = QPushButton("🗑 Eliminar", objectName="chico",
+        # Siempre a la vista, junto a «Quitar de la biblioteca»; se habilita al seleccionar algo
+        self.btn_eliminar = QPushButton("🗑 Eliminar del disco", objectName="peligro",
                                         toolTip="Mandar los archivos seleccionados a la Papelera de reciclaje (Supr)")
         self.btn_eliminar.clicked.connect(self._eliminar_del_disco)
-        self.btn_eliminar.hide()
+        self.btn_eliminar.setEnabled(False)
         QShortcut(QKeySequence.Delete, self.lista, activated=self._eliminar_del_disco,
                   context=Qt.WidgetShortcut)
         QShortcut(QKeySequence.Copy, self.lista, activated=self._copiar_rutas, context=Qt.WidgetShortcut)
@@ -187,7 +189,6 @@ class Ventana(QMainWindow):
         self.btn_categoria_titulo.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
         fila_pie.addWidget(self.btn_categoria_titulo, 1)
         fila_pie.addStretch()
-        fila_pie.addWidget(self.btn_eliminar)
         capa_centro.addLayout(fila_pie)
 
         # --- Columna derecha: visor y detalles ------------------------------
@@ -252,6 +253,7 @@ class Ventana(QMainWindow):
         fila_nav.addWidget(btn_ventana)
         fila_nav.addStretch()
         fila_nav.addWidget(btn_quitar)
+        fila_nav.addWidget(self.btn_eliminar)
 
         self.detalles = QWidget()
         capa_det = QVBoxLayout(self.detalles)
@@ -1517,8 +1519,9 @@ class Ventana(QMainWindow):
 
     def _actualizar_boton_titulo(self):
         seleccion = self.lista.selectedItems()
-        self.btn_eliminar.setVisible(bool(seleccion))
-        self.btn_eliminar.setText(f"🗑 Eliminar ({len(seleccion)})" if len(seleccion) > 1 else "🗑 Eliminar")
+        self.btn_eliminar.setEnabled(bool(seleccion))
+        self.btn_eliminar.setText(f"🗑 Eliminar del disco ({len(seleccion)})" if len(seleccion) > 1
+                                  else "🗑 Eliminar del disco")
         if len(seleccion) == 1:
             titulo = titulo_de(_archivo(seleccion[0]))
             self.btn_categoria_titulo.setText(f"⚡ Categoría rápida: {titulo}")

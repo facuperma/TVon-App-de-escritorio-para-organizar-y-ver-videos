@@ -15,6 +15,9 @@ QLabel#insignia {
 QPushButton#interruptor { font-size: 12pt; font-weight: 600; padding: 10px; }
 QPushButton#interruptor:checked { background: #14532d; border-color: #22c55e; color: #dcfce7; }
 QPushButton#chico { padding: 2px 8px; font-size: 9pt; color: #9fc2ff; }
+QPushButton#peligro { background: #5c1d1d; border-color: #b91c1c; color: #fecaca; font-weight: 600; }
+QPushButton#peligro:hover { background: #7f1d1d; }
+QPushButton#peligro:disabled { background: transparent; border-color: #3a3f4b; color: #6b7280; }
 QFrame#panelSiguiente {
     background: rgba(15, 23, 41, 225); border: 1px solid #3d7bfd; border-radius: 10px;
 }
