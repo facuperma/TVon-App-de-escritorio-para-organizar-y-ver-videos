@@ -4,6 +4,8 @@ import android.app.Application
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.provider.OpenableColumns
+import android.util.Base64
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -58,6 +60,8 @@ val CALIDADES = listOf(
 )
 
 /** Arma el JSON de una orden; las listas pasan a arreglos. */
+private const val SUBTITULO_MAX = 3L * 1024 * 1024
+
 fun json(vararg pares: Pair<String, Any?>): JSONObject = JSONObject().apply {
     for ((k, v) in pares) put(k, if (v is Collection<*>) JSONArray(v) else v ?: JSONObject.NULL)
 }
@@ -716,6 +720,43 @@ class Modelo(app: Application) : AndroidViewModel(app) {
             delay(1500)
             cargarTorrents()
         }
+    }
+
+    // --- Subtítulos para la PC: un link (lo baja la PC) o un archivo del celular -------------------------
+
+    var enlaceSubtitulo by mutableStateOf("")
+
+    fun mandarSubtitulo() {
+        val enlace = enlaceSubtitulo.trim()
+        if (enlace.isEmpty()) return mostrarAviso("Pegá el link del subtítulo o elegí el archivo", true)
+        correr { if (subirSubtitulo(json("enlace" to enlace))) enlaceSubtitulo = "" }
+    }
+
+    fun mandarArchivoSubtitulo(uri: Uri) = correr {
+        val resolver = getApplication<Application>().contentResolver
+        var nombre = "subtitulo"
+        var tamano = 0L
+        resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { c ->
+            if (c.moveToFirst()) {
+                nombre = c.getString(0) ?: nombre
+                tamano = c.getLong(1)
+            }
+        }
+        // Un subtítulo pesa unos KB: así no se lee entero un video elegido por error
+        if (tamano > SUBTITULO_MAX) return@correr mostrarAviso("Es demasiado grande para ser un subtítulo", true)
+        val bytes = withContext(Dispatchers.IO) { resolver.openInputStream(uri)?.use { it.readBytes() } }
+            ?: return@correr mostrarAviso("No se pudo leer el archivo", true)
+        subirSubtitulo(json("nombre" to nombre, "contenido" to Base64.encodeToString(bytes, Base64.NO_WRAP)))
+    }
+
+    private suspend fun subirSubtitulo(cuerpo: JSONObject): Boolean = try {
+        val r = conPc().post("/api/subtitulo", cuerpo)
+        conectado = true
+        r?.optString("aviso")?.takeIf { it.isNotBlank() }?.let { mostrarAviso(it, false) }
+        true
+    } catch (e: ErrorApi) {
+        manejar(e, avisar = true)
+        false
     }
 
     /** Un link magnet que llegó de otra app (compartir o «abrir con»). */

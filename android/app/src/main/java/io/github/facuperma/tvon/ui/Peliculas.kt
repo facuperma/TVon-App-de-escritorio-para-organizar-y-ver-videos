@@ -4,6 +4,8 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -67,7 +69,7 @@ fun PestanaPeliculas(vm: Modelo) {
                     Boton("🌐 Películas", Modifier.weight(1f)) { abrirEnNavegador(contexto, SITIO_PELICULAS) }
                     Boton("🌐 Subtítulos", Modifier.weight(1f)) { abrirEnNavegador(contexto, SITIO_SUBTITULOS) }
                 }
-                Pista("Se abren en Chrome. Copiá el link magnet y pegalo abajo.")
+                Pista("Se abren en Chrome. Copiá el link magnet o el del subtítulo y pegalo abajo.")
             }
         }
         item {
@@ -85,6 +87,27 @@ fun PestanaPeliculas(vm: Modelo) {
                 Boton("⬇ Bajar en la PC", Modifier.fillMaxWidth(), Estilo.PRIMARIO) { foco.clearFocus(); vm.bajarTorrent() }
                 if (vm.torrents.isEmpty()) Pista("No hay torrents bajando.")
                 for (t in vm.torrents) ItemTorrent(vm, t)
+            }
+        }
+        item {
+            val elegir = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+                uri?.let { vm.mandarArchivoSubtitulo(it) }
+            }
+            Tarjeta {
+                TituloTarjeta("💬 Subtítulo")
+                Pista("Pegá el link del subtítulo (.srt o .zip) y lo baja la PC, o bajalo en el celular y mandalo con " +
+                    "«Elegir archivo». Llega a Descargas de la PC y TVon lo pone solo junto a su película o capítulo.")
+                OutlinedTextField(
+                    vm.enlaceSubtitulo, { vm.enlaceSubtitulo = it }, Modifier.fillMaxWidth(), singleLine = true,
+                    colors = campoColores(), placeholder = { Text("https://…") },
+                    keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, keyboardType = KeyboardType.Uri,
+                        capitalization = KeyboardCapitalization.None, imeAction = ImeAction.Go),
+                    keyboardActions = KeyboardActions(onGo = { foco.clearFocus(); vm.mandarSubtitulo() }),
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Boton("⬇ Bajar en la PC", Modifier.weight(1f), Estilo.PRIMARIO) { foco.clearFocus(); vm.mandarSubtitulo() }
+                    Boton("📂 Elegir archivo", Modifier.weight(1f)) { elegir.launch("*/*") }
+                }
             }
         }
         item {

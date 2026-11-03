@@ -7,6 +7,7 @@ una sesión propia (cookie), que se puede revocar desde la PC.
 El servidor atiende cada pedido en un hilo propio. Todo lo que toca la ventana o la base pasa por
 `_Puente`, que lo ejecuta en el hilo de la interfaz y espera el resultado.
 """
+import base64
 import ipaddress
 import json
 import re
@@ -32,14 +33,17 @@ from PySide6.QtWidgets import QApplication
 
 from . import archive, fichas, inicio_windows, pantalla_remota, seguridad
 from .db import CATEGORIA_FAVORITOS, orden_natural
+from .descargas import nombre_seguro
 from .dominio_publico import (
     ESTADOS, cancelar_descargas, eliminar_peliculas, peliculas_borrables, quitar_descargas,
     reintentar_descargas,
 )
-from .subtitulos import descripcion, leer_texto, subtitulos_junto_a
+from .red import ErrorRed, abrir_descarga
+from .subtitulos import EXT_SUBTITULOS, descripcion, leer_texto, subtitulos_junto_a
 from .subtitulos_online import buscar_para_visor
 from .titulos import nombre_lindo
 from .torrents import ErrorTorrent
+from .vigilancia import destino_libre
 from .visor import TAMANOS_SUB, texto_progreso
 
 WEB = Path(__file__).parent / "web"
@@ -552,9 +556,9 @@ class _Manejador(BaseHTTPRequestHandler):
         cookie = SimpleCookie(self.headers.get("Cookie", ""))
         return cookie[COOKIE].value if COOKIE in cookie else None
 
-    def _cuerpo(self) -> dict:
+    def _cuerpo(self, maximo: int = 64 * 1024) -> dict:
         largo = int(self.headers.get("Content-Length") or 0)
-        if largo > 64 * 1024:
+        if largo > maximo:
             raise ErrorRemoto("Pedido demasiado grande", 413)
         try:
             datos = json.loads(self.rfile.read(largo) or b"{}")
@@ -651,10 +655,13 @@ class _Manejador(BaseHTTPRequestHandler):
         # Una cabecera propia: otro sitio no puede mandarla sin permiso (CORS), así no hay CSRF
         if self.headers.get("X-TVon") != "1":
             raise ErrorRemoto("Falta la cabecera X-TVon", 403)
-        datos = self._cuerpo()
+        # Un subtítulo puede venir como archivo (en base64): se le deja más lugar
+        datos = self._cuerpo(SUBTITULO_MAX * 2 if ruta == "/api/subtitulo" else 64 * 1024)
         if ruta == "/api/accion":
             accion = str(datos.pop("accion", ""))
             self._json(self.remoto.puente.llamar(lambda: self.remoto.control.ejecutar(accion, datos)) or {})
+        elif ruta == "/api/subtitulo":
+            self._json(self._recibir_subtitulo(datos))
         elif ruta == "/api/pantalla/entrada":
             self._entrada(datos)
             self._json({})
@@ -663,6 +670,38 @@ class _Manejador(BaseHTTPRequestHandler):
             self._json({}, cabeceras={"Set-Cookie": f"{COOKIE}=; Max-Age=0; Path=/; Secure; HttpOnly; SameSite=Strict"})
         else:
             raise ErrorRemoto("No existe", 404)
+
+    def _recibir_subtitulo(self, datos: dict) -> dict:
+        """Un subtítulo mandado desde el celular: un link para que lo baje la PC o el archivo mismo.
+        Va a Descargas y TVon lo pone solo junto a su video (por título y año o capítulo).
+        Corre en el hilo del pedido: bajarlo no traba la ventana."""
+        if enlace := str(datos.get("enlace") or "").strip():
+            if not enlace.lower().startswith("https://"):
+                raise ErrorRemoto("Pegá un link que empiece con https://")
+            try:
+                with abrir_descarga(enlace, timeout=30) as r:
+                    contenido = r.read(SUBTITULO_MAX + 1)
+                    m = re.search(r"filename\*?=(?:UTF-8'')?\"?([^\";]+)", r.headers.get("Content-Disposition", ""))
+                    nombre = m.group(1) if m else Path(urlparse(r.url).path).name
+            except (ErrorRed, OSError) as e:
+                raise ErrorRemoto(f"No se pudo bajar: {e}", 502) from e
+        else:
+            try:
+                contenido = base64.b64decode(str(datos.get("contenido") or ""), validate=True)
+            except ValueError:
+                raise ErrorRemoto("El archivo llegó dañado") from None
+            nombre = str(datos.get("nombre") or "")
+        if len(contenido) > SUBTITULO_MAX:
+            raise ErrorRemoto("Es demasiado grande para ser un subtítulo", 413)
+        extension = _extension_subtitulo(contenido, Path(nombre).suffix.lower())
+        if extension is None:
+            raise ErrorRemoto("Eso no es un subtítulo (.srt, .vtt) ni un .zip/.rar/.7z. Si el link abre una página, "
+                              "bajalo en el celular y mandalo con «Elegir archivo».")
+        carpeta = Path(self.remoto.puente.llamar(lambda: self.remoto.bib.config("carpeta_descargas_sistema")))
+        destino = destino_libre(carpeta / f"{nombre_seguro(Path(nombre).stem) or 'subtitulo'}{extension}")
+        destino.write_bytes(contenido)
+        self.remoto.ventana.vigilante.despertar()
+        return {"aviso": f"Subtítulo en Descargas de la PC ({destino.name}): TVon lo pone solo junto a su video"}
 
     def _exigir_sesion(self) -> str:
         token = self._token()
@@ -1612,3 +1651,16 @@ class _Control:
                 self.bib.guardar_config(clave, valor)
         self.ventana.gestor.despertar()
 
+SUBTITULO_MAX = 3 * 1024 * 1024  # un .zip de subtítulos pesa unos KB
+
+
+def _extension_subtitulo(contenido: bytes, extension: str) -> str | None:
+    """Con qué extensión guardar lo que llegó como subtítulo, mirando el contenido (el link puede
+    no decir el nombre). None si no es un subtítulo ni un comprimido (p. ej. una página web)."""
+    for firma, ext in ((b"PK\x03\x04", ".zip"), (b"Rar!\x1a\x07", ".rar"), (b"7z\xbc\xaf\x27\x1c", ".7z")):
+        if contenido.startswith(firma):
+            return ext
+    inicio = contenido[:4096].decode("utf-8", "ignore").lower()
+    if "-->" not in inicio or "<html" in inicio or "<!doctype" in inicio:
+        return None
+    return extension if extension in EXT_SUBTITULOS else (".vtt" if inicio.lstrip("\ufeff").startswith("webvtt") else ".srt")
