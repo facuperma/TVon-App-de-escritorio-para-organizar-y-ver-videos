@@ -195,6 +195,15 @@ Marcá **⏻ Apagar** en los controles: cuando termine el video (en el visor o e
 
 ## Licencia
 
-Código abierto bajo la [licencia MIT](LICENSE). © 2026 Faierwall.
+© 2026 Facundo Gabriel Peralta Marello. **Todos los derechos reservados** ([LICENSE](LICENSE)).
 
-Incluye [aria2](https://github.com/aria2/aria2) 1.37.0 sin modificar, como programa aparte, bajo la licencia GPL v2 (`organizador\bin\aria2-LICENCIA.txt`). Su código fuente está en github.com/aria2/aria2.
+El código está publicado para que se pueda leer, pero no se puede copiar, modificar, distribuir, vender ni usar con fines comerciales sin mi autorización por escrito. Los instaladores oficiales se pueden bajar e instalar para uso personal. Las versiones anteriores al 03/11/2026 se publicaron con la licencia MIT.
+
+### Componentes de terceros
+
+Conservan sus propias licencias:
+
+- [aria2](https://github.com/aria2/aria2) 1.37.0: GPL v2, incluido sin modificar como programa aparte (`organizador\bin\aria2-LICENCIA.txt`). Su código fuente está en github.com/aria2/aria2.
+- [PySide6 / Qt](https://www.qt.io/qt-for-python): LGPL v3, sin modificar.
+- [cryptography](https://github.com/pyca/cryptography): Apache 2.0 / BSD. [segno](https://github.com/heuer/segno): BSD.
+- App de Android: AndroidX, Jetpack Compose, Media3 (ExoPlayer) y OkHttp con licencia Apache 2.0; lector de QR de Google Play Services según los términos de Google.
