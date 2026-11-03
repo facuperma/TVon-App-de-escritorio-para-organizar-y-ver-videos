@@ -170,7 +170,7 @@ class VerEnCelular(
         val f = ficha ?: return
         if (!f.conversion) {
             error = "$motivo. Para verlo acá, instalá ffmpeg en la PC (winget install Gyan.FFmpeg) y volvé a " +
-                "abrir TVon; o miralo en la PC."
+                "abrir TorrentVision; o miralo en la PC."
             if (modo == "audio") return // se puede seguir viendo sin sonido
             jugador.stop()
             return

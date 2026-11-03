@@ -10,7 +10,7 @@
         android:dataExtractionRules="@xml/extraccion"
         android:fullBackupContent="false"
         android:icon="@mipmap/ic_launcher"
-        android:label="TVon ON"
+        android:label="TorrentVision"
         android:networkSecurityConfig="@xml/red"
         android:supportsRtl="false"
         android:theme="@style/Tema">
@@ -25,7 +25,7 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- Links magnet: «Abrir con TVon ON» los manda a la PC -->
+            <!-- Links magnet: «Abrir con TorrentVision» los manda a la PC -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />

@@ -90,7 +90,7 @@ class MainActivity : ComponentActivity() {
         when {
             magnet != null -> vm.recibirMagnet(magnet)
             Enlace.leer(texto) != null -> vm.usarEnlace(texto)
-            else -> vm.mostrarAviso("TVon ON solo recibe links magnet o el enlace del QR de TVon", true)
+            else -> vm.mostrarAviso("TorrentVision ON solo recibe links magnet o el enlace del QR de TorrentVision", true)
         }
     }
 

@@ -76,7 +76,7 @@ fun PestanaPeliculas(vm: Modelo) {
             Tarjeta {
                 TituloTarjeta("🧲 Torrent (link magnet)")
                 Pista("Copiá el link magnet, pegalo acá y la PC la baja con 🧲 Torrents. Al terminar entra sola a la " +
-                    "biblioteca. También podés tocar un link magnet en el navegador y abrirlo con TVon ON.")
+                    "biblioteca. También podés tocar un link magnet en el navegador y abrirlo con TorrentVision.")
                 OutlinedTextField(
                     vm.enlaceTorrent, { vm.enlaceTorrent = it }, Modifier.fillMaxWidth(), singleLine = true,
                     colors = campoColores(), placeholder = { Text("magnet:?xt=…") },
@@ -96,7 +96,7 @@ fun PestanaPeliculas(vm: Modelo) {
             Tarjeta {
                 TituloTarjeta("💬 Subtítulo")
                 Pista("Pegá el link del subtítulo (.srt o .zip) y lo baja la PC, o bajalo en el celular y mandalo con " +
-                    "«Elegir archivo». Llega a Descargas de la PC y TVon lo pone solo junto a su película o capítulo.")
+                    "«Elegir archivo». Llega a Descargas de la PC y TorrentVision lo pone solo junto a su película o capítulo.")
                 OutlinedTextField(
                     vm.enlaceSubtitulo, { vm.enlaceSubtitulo = it }, Modifier.fillMaxWidth(), singleLine = true,
                     colors = campoColores(), placeholder = { Text("https://…") },

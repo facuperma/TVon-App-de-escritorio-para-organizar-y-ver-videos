@@ -258,7 +258,7 @@ private fun menuArchivo(vm: Modelo, a: ArchivoBib) {
     val esFav = bib.favoritos in a.categorias
     val ids = listOf(a.id)
     val opciones = mutableListOf(
-        Opcion(if (a.tipo == "video") "▶ Reproducir en TVon" else "🖼 Mostrar en TVon") { vm.accion("reproducir", "id" to a.id) },
+        Opcion(if (a.tipo == "video") "▶ Reproducir en TorrentVision" else "🖼 Mostrar en TorrentVision") { vm.accion("reproducir", "id" to a.id) },
     )
     if (a.tipo == "video") opciones += Opcion("☰ Agregar a la cola") { vm.accion("cola_agregar", "ids" to ids) }
     opciones += listOf(

@@ -99,7 +99,7 @@ def main():
     print("== Instalador")
     subprocess.run([str(iscc()), f"/DVersion={v}", f"/DOrigen={APP}", f"/O{SALIDA}",
                     str(RAIZ / "empaquetado" / "TVon.iss")], check=True)
-    instalador = SALIDA / f"TVon-Setup-{v}.exe"
+    instalador = SALIDA / f"TorrentVision-Setup-{v}.exe"
     print(f"\nListo: {instalador} ({instalador.stat().st_size / 1024**2:.0f} MB)")
 
 

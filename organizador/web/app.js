@@ -34,8 +34,8 @@ async function api(ruta, cuerpo) {
     r = await fetch(ruta, { cache: "no-store", ...opciones });
   } catch {
     marcarConexion(false);
-    throw new ErrorApi("No hay conexión con la PC. ¿TVon está abierto y con ON encendido? "
-      + "(Con «Arrancar TVon con Windows» en la ventana ON, siempre queda listo)", 0);
+    throw new ErrorApi("No hay conexión con la PC. ¿TorrentVision está abierto y con ON encendido? "
+      + "(Con «Arrancar TorrentVision con Windows» en la ventana ON, siempre queda listo)", 0);
   }
   marcarConexion(true);
   if (r.status === 401) {
@@ -185,7 +185,7 @@ function mostrarEstado() {
   // TVon escondido junto al reloj (ON sigue): a un toque de abrirlo
   $("#aviso-escondido").hidden = e.ventana_visible !== false || app.pestana === "mouse" || app.pestana === "pantalla";
   $("#pc-estado").textContent = e.ventana_visible === false
-    ? "TVon está escondido junto al reloj de la PC." : "TVon está abierto en la PC.";
+    ? "TorrentVision está escondido junto al reloj de la PC." : "TorrentVision está abierto en la PC.";
   if (document.activeElement !== $("#chk-windows")) $("#chk-windows").checked = !!e.arranca_con_windows;
   if (e.siguiente) {
     $("#siguiente-texto").textContent = e.siguiente.texto;
@@ -628,7 +628,7 @@ function menuArchivo(a) {
   const fav = app.biblioteca.favoritos;
   const esFav = a.categorias.includes(fav);
   const opciones = [
-    { texto: a.tipo === "video" ? "▶ Reproducir en TVon" : "🖼 Mostrar en TVon", hacer: () => accion("reproducir", { id: a.id }) },
+    { texto: a.tipo === "video" ? "▶ Reproducir en TorrentVision" : "🖼 Mostrar en TorrentVision", hacer: () => accion("reproducir", { id: a.id }) },
   ];
   if (a.tipo === "video") opciones.push({ texto: "☰ Agregar a la cola", hacer: () => accion("cola_agregar", { ids: [a.id] }) });
   opciones.push(
@@ -880,11 +880,11 @@ async function prepararPantalla() {
     const r = await api("/api/pantalla/monitores");
     const sel = $("#monitor");
     sel.replaceChildren(...r.monitores.map((m, i) => new Option(
-      `${i + 1}${m.principal ? " (principal)" : ""}${i === r.tvon ? " · TVon" : ""} — ${m.ancho}×${m.alto}`, i)));
+      `${i + 1}${m.principal ? " (principal)" : ""}${i === r.tvon ? " · TorrentVision" : ""} — ${m.ancho}×${m.alto}`, i)));
     sel.value = r.tvon;
     $("#campo-monitor").hidden = r.monitores.length < 2;
     $("#btn-compartir").disabled = !r.pantalla;
-    if (!r.pantalla) mostrarErrorPantalla("Compartir la pantalla está desactivado en TVon (📱 ON → Opciones).");
+    if (!r.pantalla) mostrarErrorPantalla("Compartir la pantalla está desactivado en TorrentVision (📱 ON → Opciones).");
     pantalla.control = r.control;
   } catch (e) {
     mostrarErrorPantalla(e.message);
@@ -1182,7 +1182,7 @@ async function prepararMouse() {
     pantalla.control = r.control;
     $("#teclado").hidden = !r.control;
     if (!r.control) {
-      $("#mouse-error").textContent = "Manejar el mouse y el teclado está desactivado en TVon (📱 ON → Opciones).";
+      $("#mouse-error").textContent = "Manejar el mouse y el teclado está desactivado en TorrentVision (📱 ON → Opciones).";
       $("#mouse-error").hidden = false;
     }
   } catch (e) {

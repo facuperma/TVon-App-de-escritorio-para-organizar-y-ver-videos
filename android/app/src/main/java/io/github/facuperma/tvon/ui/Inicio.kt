@@ -91,7 +91,7 @@ fun PestanaInicio(vm: Modelo) {
                 item {
                     Tarjeta(Modifier.padding(horizontal = 16.dp)) {
                         Text("Todavía no hay videos en la biblioteca de la PC.")
-                        Pista("Agregá carpetas en TVon (Archivo → Agregar carpeta) o bajá una película desde ➕ Agregar.")
+                        Pista("Agregá carpetas en TorrentVision (Archivo → Agregar carpeta) o bajá una película desde ➕ Agregar.")
                     }
                 }
             }
@@ -374,7 +374,7 @@ private fun DetalleVideo(vm: Modelo, f: FichaVideo) {
         Pista(if (f.subtitulos.isEmpty()) "Sin subtítulos junto al video (buscalos desde ▶ Control → CC)."
             else "Subtítulos: " + (f.subtitulos.firstOrNull { it.elegido }?.texto ?: "desactivados") +
                 ". En el reproductor se cambian con el botón de subtítulos.")
-        if (!f.conversion) Pista("Si un video no se oye o no se ve en el celular, instalá ffmpeg en la PC y TVon lo convierte solo.")
+        if (!f.conversion) Pista("Si un video no se oye o no se ve en el celular, instalá ffmpeg en la PC y TorrentVision lo convierte solo.")
         Pista(f.nombre, Modifier.padding(top = 8.dp))
     }
 }

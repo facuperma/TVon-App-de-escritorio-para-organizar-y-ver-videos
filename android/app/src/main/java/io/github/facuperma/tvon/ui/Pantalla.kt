@@ -82,7 +82,7 @@ fun PestanaPantalla(vm: Modelo) {
                     Text("Monitor")
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         m.lista.forEachIndexed { i, mon ->
-                            val texto = "${i + 1}" + (if (mon.principal) " (principal)" else "") + (if (i == m.tvon) " · TVon" else "") +
+                            val texto = "${i + 1}" + (if (mon.principal) " (principal)" else "") + (if (i == m.tvon) " · TorrentVision" else "") +
                                 " — ${mon.ancho}×${mon.alto}"
                             Chip(texto, i == vm.monitor) { vm.monitor = i }
                         }
@@ -92,7 +92,7 @@ fun PestanaPantalla(vm: Modelo) {
                 Boton("Ver la pantalla", Modifier.fillMaxWidth(), Estilo.PRIMARIO, habilitado = permitida) {
                     vm.verPantalla(CALIDADES[calidad])
                 }
-                if (!permitida) Text("Compartir la pantalla está desactivado en TVon (📱 ON → Opciones).", color = C.error)
+                if (!permitida) Text("Compartir la pantalla está desactivado en TorrentVision (📱 ON → Opciones).", color = C.error)
                 vm.errorPantalla?.let { Text(it, color = C.error) }
             }
             Tarjeta {

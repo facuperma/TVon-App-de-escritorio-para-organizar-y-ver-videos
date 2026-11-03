@@ -174,8 +174,8 @@ private fun Avisos(vm: Modelo) {
             }
         }
         if (!e.ventanaVisible && vm.pestana != Pestana.MOUSE && vm.pestana != Pestana.PANTALLA) {
-            Banner("TVon está escondido en la PC", "ON sigue: el mouse y el teclado andan.") {
-                Boton("Abrir TVon", chico = true, estilo = Estilo.PRIMARIO) { vm.hacer("mostrar_tvon") }
+            Banner("TorrentVision está escondido en la PC", "ON sigue: el mouse y el teclado andan.") {
+                Boton("Abrir TorrentVision", chico = true, estilo = Estilo.PRIMARIO) { vm.hacer("mostrar_tvon") }
             }
         }
     }
@@ -277,11 +277,11 @@ private fun Dialogos(vm: Modelo) {
             title = { Text("¿Es tu PC?") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Este código QR es de un TVon sin la huella del certificado. Compará esta huella con la " +
+                    Text("Este código QR es de un TorrentVision sin la huella del certificado. Compará esta huella con la " +
                         "que muestra la ventana 📱 ON de la PC (🔒 Huella del certificado):")
                     Text(huellaLinda(h.huella), color = C.acentoClaro, fontSize = 13.sp)
                     Pista("Si no es igual, no sigas: otra máquina podría estar haciéndose pasar por tu PC. " +
-                        "Actualizando TVon en la PC, el QR ya trae la huella y no hace falta comparar.")
+                        "Actualizando TorrentVision en la PC, el QR ya trae la huella y no hace falta comparar.")
                 }
             },
             confirmButton = { TextButton(onClick = { vm.emparejarCon(h.enlace, h.huella) }) { Text("Es la misma") } },

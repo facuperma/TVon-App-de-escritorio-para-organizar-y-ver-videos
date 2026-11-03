@@ -24,7 +24,7 @@ class VentanaTorrents(QWidget):
     def __init__(self, gestor: GestorTorrents):
         super().__init__(None, Qt.Window)
         self.gestor = gestor
-        self.setWindowTitle("Torrents — TVon")
+        self.setWindowTitle("Torrents — TorrentVision")
         self.resize(900, 520)
         self._filas: dict[str, tuple[QTreeWidgetItem, QProgressBar]] = {}
         self._agregados: set[str] = set()
@@ -51,7 +51,7 @@ class VentanaTorrents(QWidget):
         self.cola.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.cola.header().setSectionResizeMode(0, QHeaderView.Stretch)
         self.cola.header().resizeSection(3, 200)
-        self.lbl_vacia = QLabel("No hay descargas. Pegá un link magnet arriba o arrastrá un .torrent a TVon.",
+        self.lbl_vacia = QLabel("No hay descargas. Pegá un link magnet arriba o arrastrá un .torrent a TorrentVision.",
                                 objectName="pista", alignment=Qt.AlignCenter)
 
         btn_pausar = QPushButton("⏸ Pausar")

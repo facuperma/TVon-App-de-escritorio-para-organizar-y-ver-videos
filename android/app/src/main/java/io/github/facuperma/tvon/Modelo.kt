@@ -203,7 +203,7 @@ class Modelo(app: Application) : AndroidViewModel(app) {
         }
         if (mensaje != OTRO_CERTIFICADO && reencontrar()) return
         if (almacen.conexiones().isEmpty()) {
-            fase = Fase.Emparejar("Este celular ya no está conectado a TVon: escaneá el código QR de nuevo (botón 📱 ON en la PC).")
+            fase = Fase.Emparejar("Este celular ya no está conectado a TorrentVision: escaneá el código QR de nuevo (botón 📱 ON en la PC).")
         } else if (fase != Fase.Lista || mensaje == OTRO_CERTIFICADO) {
             fase = Fase.SinConexion(mensaje)
         } else {
@@ -343,7 +343,7 @@ class Modelo(app: Application) : AndroidViewModel(app) {
     fun usarEnlace(texto: String) {
         val enlace = Enlace.leer(texto)
         if (enlace == null) {
-            mostrarAviso("Ese no es un código de TVon. En la PC tocá 📱 ON y escaneá el QR que aparece.", true)
+            mostrarAviso("Ese no es un código de TorrentVision. En la PC tocá 📱 ON y escaneá el QR que aparece.", true)
             return
         }
         if (enlace.huella != null) return emparejarCon(enlace, enlace.huella)
@@ -370,7 +370,7 @@ class Modelo(app: Application) : AndroidViewModel(app) {
                 almacen.guardar(Conexion(enlace.base, huella, token))
                 while (conectando) delay(100) // un reintento viejo no tiene la conexión nueva
                 conectar()
-                if (fase == Fase.Lista) mostrarAviso("¡Conectado a TVon!", false)
+                if (fase == Fase.Lista) mostrarAviso("¡Conectado a TorrentVision!", false)
             } catch (e: ErrorApi) {
                 if (fase == Fase.Lista) mostrarAviso(e.message.orEmpty(), true) else fase = Fase.Emparejar(e.message)
             } finally {
@@ -773,7 +773,7 @@ class Modelo(app: Application) : AndroidViewModel(app) {
             val m = Monitores.de(leer { it.obj("/api/pantalla/monitores") })
             monitores = m
             if (!viendo) monitor = m.tvon.coerceIn(0, (m.lista.size - 1).coerceAtLeast(0))
-            if (!m.control) errorControl = "Manejar el mouse y el teclado está desactivado en TVon (📱 ON → Opciones)."
+            if (!m.control) errorControl = "Manejar el mouse y el teclado está desactivado en TorrentVision (📱 ON → Opciones)."
         } catch (e: ErrorApi) {
             errorControl = e.message
         }

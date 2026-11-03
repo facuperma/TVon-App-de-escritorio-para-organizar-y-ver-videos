@@ -191,7 +191,7 @@ class _Puente(QObject):
         pedido = _Pedido(funcion)
         self._pedido.emit(pedido)
         if not pedido.listo.wait(ESPERA_INTERFAZ):
-            raise ErrorRemoto("TVon está ocupado en la PC (¿hay una ventana abierta esperando respuesta?)", 503)
+            raise ErrorRemoto("TorrentVision está ocupado en la PC (¿hay una ventana abierta esperando respuesta?)", 503)
         if pedido.error:
             raise pedido.error
         return pedido.resultado
@@ -584,7 +584,7 @@ class _Manejador(BaseHTTPRequestHandler):
             if not seguridad.ip_permitida(self.client_address[0]):
                 raise ErrorRemoto("Solo se puede entrar desde la red de tu casa o por Tailscale", 403)
             if not seguridad.host_permitido(self.headers.get("Host", "")):
-                raise ErrorRemoto("Entrá con la dirección que muestra TVon (botón ON)", 403)
+                raise ErrorRemoto("Entrá con la dirección que muestra TorrentVision (botón ON)", 403)
             rutas(url.path, consulta)
         except ErrorRemoto as e:
             self._error(str(e), e.codigo)
@@ -599,7 +599,7 @@ class _Manejador(BaseHTTPRequestHandler):
         except Exception:  # noqa: BLE001 - un error no debe tirar el servidor
             try:
                 # Sin detalles internos en la respuesta (no se le dan pistas a nadie)
-                self._error("Error interno en TVon", 500)
+                self._error("Error interno en TorrentVision", 500)
             except OSError:
                 pass
 
@@ -701,12 +701,12 @@ class _Manejador(BaseHTTPRequestHandler):
         destino = destino_libre(carpeta / f"{nombre_seguro(Path(nombre).stem) or 'subtitulo'}{extension}")
         destino.write_bytes(contenido)
         self.remoto.ventana.vigilante.despertar()
-        return {"aviso": f"Subtítulo en Descargas de la PC ({destino.name}): TVon lo pone solo junto a su video"}
+        return {"aviso": f"Subtítulo en Descargas de la PC ({destino.name}): TorrentVision lo pone solo junto a su video"}
 
     def _exigir_sesion(self) -> str:
         token = self._token()
         if not self.remoto.sesion_valida(token):
-            raise ErrorRemoto("Este celular no está conectado: escaneá el código QR de TVon (botón ON)", 401)
+            raise ErrorRemoto("Este celular no está conectado: escaneá el código QR de TorrentVision (botón ON)", 401)
         return token
 
     def _emparejar(self):
@@ -716,7 +716,7 @@ class _Manejador(BaseHTTPRequestHandler):
         datos = self._cuerpo()
         token = self.remoto.emparejar(str(datos.get("codigo", ""))[:100], self.headers.get("User-Agent", "")[:300], ip)
         if token is None:
-            raise ErrorRemoto("El código no es válido o ya se usó: escaneá el QR que muestra TVon ahora (botón ON)", 403)
+            raise ErrorRemoto("El código no es válido o ya se usó: escaneá el QR que muestra TorrentVision ahora (botón ON)", 403)
         un_anio = 365 * 24 * 3600
         # Secure: la sesión solo viaja cifrada (HTTPS)
         self._json({"ok": True}, cabeceras={
@@ -822,7 +822,7 @@ class _Manejador(BaseHTTPRequestHandler):
         exe = ffmpeg()
         if not exe:
             raise ErrorRemoto("Para ver este video en el celular hace falta ffmpeg en la PC "
-                              "(winget install Gyan.FFmpeg y volver a abrir TVon)", 501)
+                              "(winget install Gyan.FFmpeg y volver a abrir TorrentVision)", 501)
         if modo not in ("audio", "video"):
             raise ErrorRemoto("Modo de conversión desconocido")
         segundos = float(desde)
@@ -903,7 +903,7 @@ class _Manejador(BaseHTTPRequestHandler):
 
     def _transmitir(self, consulta: dict):
         if not self.remoto.permite_pantalla:
-            raise ErrorRemoto("Compartir la pantalla está desactivado en TVon (ON → opciones)", 403)
+            raise ErrorRemoto("Compartir la pantalla está desactivado en TorrentVision (ON → opciones)", 403)
         monitor = self._monitor(consulta.get("monitor", 0))
         ancho = min(max(int(consulta.get("ancho", 1280)), 320), 3840)
         calidad = min(max(int(consulta.get("calidad", 60)), 20), 95)
@@ -932,7 +932,7 @@ class _Manejador(BaseHTTPRequestHandler):
 
     def _entrada(self, datos: dict):
         if not self.remoto.permite_control:
-            raise ErrorRemoto("Manejar el mouse y el teclado está desactivado en TVon (ON → opciones)", 403)
+            raise ErrorRemoto("Manejar el mouse y el teclado está desactivado en TorrentVision (ON → opciones)", 403)
         tipo = datos.get("tipo")
         try:
             if tipo == "desplazar":
@@ -1298,7 +1298,7 @@ class _Control:
 
     def _requiere_video(self):
         if not self.visor.es_video:
-            raise ErrorRemoto("No hay un video abierto en TVon", 409)
+            raise ErrorRemoto("No hay un video abierto en TorrentVision", 409)
 
     # Reproductor
 
@@ -1309,7 +1309,7 @@ class _Control:
 
     def accion_esconder_tvon(self):
         self.ventana._pasar_a_segundo_plano()
-        return {"aviso": "TVon quedó junto al reloj; el celular sigue conectado"}
+        return {"aviso": "TorrentVision quedó junto al reloj; el celular sigue conectado"}
 
     def accion_arrancar_con_windows(self, activo):
         try:

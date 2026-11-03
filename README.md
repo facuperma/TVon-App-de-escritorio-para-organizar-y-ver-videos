@@ -1,14 +1,18 @@
-<img src="organizador/icono.png" alt="TVon" width="96">
+<img src="organizador/icono.png" alt="TorrentVision" width="96">
 
-# TVon
+# TorrentVision
 
-Aplicación de escritorio para organizar y ver videos e imágenes por categorías.
+**Torrent para todos.**
+
+Aplicación de escritorio para bajar, organizar y ver películas, series y videos por categorías, con una app para el celular que la maneja desde el sillón.
+
+*TVon es el nombre del proyecto en el código: el programa, la carpeta de datos y el paquete de la app siguen llamándose así por dentro.*
 
 ## Descargar
 
-**[⬇ TVon-Setup-1.7.3.exe](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TVon-Setup-1.7.3.exe)** (34 MB) — para la PC (Windows 10/11, 64 bits)
+**[⬇ TorrentVision-Setup-1.8.0.exe](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-Setup-1.8.0.exe)** (34 MB) — para la PC (Windows 10/11, 64 bits)
 
-**[⬇ TVon-ON-1.1.3.apk](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TVon-ON-1.1.3.apk)** (3 MB) — app para el celular (Android 8 o más nuevo): ver más abajo, en [📱 ON](#-on-manejar-tvon-desde-el-celular)
+**[⬇ TorrentVision-ON-1.1.4.apk](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-ON-1.1.4.apk)** (3 MB) — app para el celular (Android 8 o más nuevo): ver más abajo, en [📱 ON](#-on-manejar-torrentvision-desde-el-celular)
 
 El instalador de la PC: ejecutalo y seguí los pasos: no hace falta instalar Python ni nada más, ni permisos de administrador. Crea accesos directos en el menú Inicio (y en el Escritorio, si lo elegís) y se desinstala desde *Configuración → Aplicaciones*.
 
@@ -39,31 +43,31 @@ Para generar el instalador: `.venv\Scripts\pip install pyinstaller` y `.venv\Scr
 - Al elegir una categoría se selecciona su primer video en vista previa, sin empezar a reproducirse.
 - **⚡ Categoría rápida** (a la derecha de la cantidad de archivos, con algo seleccionado): crea la categoría con el título del video y mueve el video con sus subtítulos a `Videos\Peliculas\<título>`. **+ Nueva categoría** con archivos seleccionados hace lo mismo con el nombre que elijas.
 - Nombres lindos: la lista muestra el título limpio, como la categoría rápida, con el capítulo, el año y la calidad si el archivo los trae («Breaking.Bad.S01E02.720p.WEB-DL.mkv» → «Breaking Bad · S01E02 · 720p», «The.Matrix.1999.1080p.BluRay.mkv» → «The Matrix (1999) · 1080p»). El archivo en el disco no se toca; su ruta aparece al pasar el mouse.
-- Columnas de la lista (**Nombre** y **Carpeta**): se achican, agrandan y mueven arrastrando; clic derecho en la cabecera para ocultar o mostrar cada una. TVon recuerda cómo las dejaste. La carpeta es un vínculo: tocarla abre el Explorador con el video marcado.
-- Volumen: el porcentaje se ve al lado de la barra y, al moverlo, grande sobre el video. TVon arranca al 50 %.
+- Columnas de la lista (**Nombre** y **Carpeta**): se achican, agrandan y mueven arrastrando; clic derecho en la cabecera para ocultar o mostrar cada una. TorrentVision recuerda cómo las dejaste. La carpeta es un vínculo: tocarla abre el Explorador con el video marcado.
+- Volumen: el porcentaje se ve al lado de la barra y, al moverlo, grande sobre el video. TorrentVision arranca al 50 %.
 - Menú superior: **Archivo**, **Vista** (ocultar paneles, pantalla completa), **Configuración**, **Acerca de** (versión) y **Reportar un bug** (abre un issue en GitHub con la versión ya completa).
-- Botones **🌐 Películas** ([ext.to](https://ext.to/)) y **🌐 Subtítulos** ([subdivx.com](https://subdivx.com/)) en la barra superior: abren esas páginas en el navegador. Lo que descargues ahí termina en Descargas y TVon lo mueve solo a Videos.
+- Botones **🌐 Películas** ([ext.to](https://ext.to/)) y **🌐 Subtítulos** ([subdivx.com](https://subdivx.com/)) en la barra superior: abren esas páginas en el navegador. Lo que descargues ahí termina en Descargas y TorrentVision lo mueve solo a Videos.
 
-### 📱 ON: manejar TVon desde el celular
+### 📱 ON: manejar TorrentVision desde el celular
 
 Botón **📱 ON** en la barra superior (o *Configuración → ON*; se pone verde mientras está encendido): abre la ventana de ON, donde se ve si está en OFF y se enciende para mostrar el código QR; escanealo con el celular (Android, en Chrome). El celular y la PC tienen que estar en la misma red wifi. Para tenerlo como app: en Chrome, menú ⋮ → *Agregar a la pantalla principal*.
 
 #### App para Android (recomendada)
 
-**[⬇ TVon-ON-1.1.3.apk](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TVon-ON-1.1.3.apk)** (3 MB, Android 8 o más nuevo). Bajalo en el celular y abrilo; Android pide permiso para *instalar apps de origen desconocido* (al navegador o a Archivos): permitilo solo para esto. Después tocá **📷 Escanear el código QR** con la ventana de ON abierta en la PC.
+**[⬇ TorrentVision-ON-1.1.4.apk](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-ON-1.1.4.apk)** (3 MB, Android 8 o más nuevo). Bajalo en el celular y abrilo; Android pide permiso para *instalar apps de origen desconocido* (al navegador o a Archivos): permitilo solo para esto. Después tocá **📷 Escanear el código QR** con la ventana de ON abierta en la PC.
 
 Si tenías la app 1.1.0, desinstalala antes de instalar la 1.1.3 (cambió la firma) y volvé a escanear el código QR. Desde la 1.1.1 se actualiza encima, sin volver a vincular.
 
 Hace todo lo de la versión web (reproductor, subtítulos, cola, biblioteca, categorías, torrents, dominio público, mouse, teclado en vivo y pantalla de la PC) y además:
 
-- **Sin el aviso «La conexión no es privada»:** el QR trae la huella del certificado de la PC y la app solo acepta ese certificado (*certificate pinning*). Si alguien en la red se hace pasar por la PC, la app corta. Con un TVon anterior (QR sin huella), la app muestra la huella para compararla con la de la ventana ON.
+- **Sin el aviso «La conexión no es privada»:** el QR trae la huella del certificado de la PC y la app solo acepta ese certificado (*certificate pinning*). Si alguien en la red se hace pasar por la PC, la app corta. Con un TorrentVision anterior (QR sin huella), la app muestra la huella para compararla con la de la ventana ON.
 - **Sesión cifrada en el celular** con el Android Keystore, sin copias de seguridad en la nube.
 - **Pantalla de la PC más fluida**: decodificación nativa, sin acumular demora; pellizcar hace zoom, ⛶ la pone a pantalla completa acostada.
 - **🏠 Inicio, como Jellyfin:** las películas y series de la PC con póster, sinopsis, géneros y puntaje; *Seguir viendo*, *A continuación* (el capítulo que sigue), *Agregadas hace poco* y Favoritos; filtros por género y orden. Las series se agrupan solas por temporada.
 - **Ver en el celular:** tocá una película y *📱 Ver en el celular*: llega por la misma conexión cifrada, con subtítulos y siguiendo desde donde quedaste (en la PC o en el celular: el progreso es uno solo). Si el celular no puede reproducir el sonido o el video, la PC lo convierte mientras lo ves (hace falta ffmpeg: `winget install Gyan.FFmpeg`).
-- **Links magnet:** tocá uno en el navegador (o *Compartir → TVon ON*) y va directo a la PC.
-- **Botones de volumen** del celular → volumen de TVon (en Reproductor; se apaga en *Más*).
-- **Se vincula una sola vez:** el celular recuerda la PC (sesión cifrada con el Keystore de Android) y se reconecta solo después de reiniciar TVon o la PC. Si el router le dio otra IP a la PC, la app la vuelve a encontrar en la wifi (y comprueba que sea el mismo certificado). Queda como **dispositivo de confianza** hasta que lo desvincules desde la PC; solo se olvida si pasa **un año sin usarse** (cada uso lo renueva). Los celulares nuevos siguen necesitando el QR de un solo uso. Con celulares vinculados, ON se enciende solo al abrir TVon (salvo que lo apagues en *Encender ON cada vez que se abre TVon*).
+- **Links magnet:** tocá uno en el navegador (o *Compartir → TorrentVision*) y va directo a la PC.
+- **Botones de volumen** del celular → volumen de TorrentVision (en Reproductor; se apaga en *Más*).
+- **Se vincula una sola vez:** el celular recuerda la PC (sesión cifrada con el Keystore de Android) y se reconecta solo después de reiniciar TorrentVision o la PC. Si el router le dio otra IP a la PC, la app la vuelve a encontrar en la wifi (y comprueba que sea el mismo certificado). Queda como **dispositivo de confianza** hasta que lo desvincules desde la PC; solo se olvida si pasa **un año sin usarse** (cada uso lo renueva). Los celulares nuevos siguen necesitando el QR de un solo uso. Con celulares vinculados, ON se enciende solo al abrir TorrentVision (salvo que lo apagues en *Encender ON cada vez que se abre TorrentVision*).
 - Casa y Tailscale: escaneá los dos QR (*Más → Agregar otra conexión*) y la app usa sola la que ande.
 
 Para compilarla: JDK 17 y Android SDK 35; en `android\`, `gradlew assembleRelease` (firma con `android\firma.properties`, que no está en el repositorio).
@@ -75,33 +79,33 @@ Para compilarla: JDK 17 y Android SDK 35; en `android\`, `gradlew assembleReleas
 - **Agregar película:** pegás un **link magnet** y la PC lo baja con 🧲 Torrents (progreso, pausar, reanudar, cancelar); además, películas de dominio público: buscar, ordenar, descargar, la cola de descargas y la descarga automática.
 - **Mouse:** el celular como touchpad, sin mirar la pantalla (ideal con la PC conectada a la tele): deslizar = mover el puntero, tocar = clic, tocar con dos dedos = clic derecho, deslizar con dos dedos = rueda. Botones **Izquierdo** y **Derecho** (manteniendo el izquierdo y deslizando se arrastra; 🔒 lo deja apretado) y velocidad ajustable.
 - **Teclado en vivo:** lo que escribís en el celular aparece en la PC letra por letra, con tildes, ñ, emojis y el autocorrector de Android. También hay modo *Escribir y enviar* y teclas especiales (Enter, Esc, flechas, Alt+Tab, Win, Ctrl+C/V, volumen…).
-- **Pantalla:** si hace falta, ves la pantalla de la PC en el celular y la manejás con el dedo: tocar = clic, dos toques = doble clic, mantener = clic derecho, deslizar = rueda, o el modo *Arrastrar*. Con teclado, teclas especiales (Enter, Esc, flechas, Alt+Tab…) y volumen de Windows. Calidad *Fluida* (25 cuadros por segundo), *Normal* (15) o *Nítida* (10); solo se muestran cuadros completos, sin cortes. Mientras el celular mira la pantalla, TVon lo avisa abajo con un botón para cortar.
-- **Celular → PC:** para ver la pantalla del celular en la PC (o la tele), TVon abre *Proyectar en este equipo* de Windows y el celular transmite con *Transmitir / Smart View* (Miracast). El navegador del celular no puede compartir su pantalla, por eso se usa lo de Windows.
+- **Pantalla:** si hace falta, ves la pantalla de la PC en el celular y la manejás con el dedo: tocar = clic, dos toques = doble clic, mantener = clic derecho, deslizar = rueda, o el modo *Arrastrar*. Con teclado, teclas especiales (Enter, Esc, flechas, Alt+Tab…) y volumen de Windows. Calidad *Fluida* (25 cuadros por segundo), *Normal* (15) o *Nítida* (10); solo se muestran cuadros completos, sin cortes. Mientras el celular mira la pantalla, TorrentVision lo avisa abajo con un botón para cortar.
+- **Celular → PC:** para ver la pantalla del celular en la PC (o la tele), TorrentVision abre *Proyectar en este equipo* de Windows y el celular transmite con *Transmitir / Smart View* (Miracast). El navegador del celular no puede compartir su pantalla, por eso se usa lo de Windows.
 
-**Siempre conectado:** si cerrás la ventana de TVon con ON encendido, TVon queda junto al reloj y el celular sigue manejando el mouse y el teclado; para salir del todo, *Archivo → Salir* o el ícono junto al reloj. Con **Arrancar TVon con Windows** (en la ventana de ON o en *Más* del celular) arranca escondido y con ON encendido, así el celular siempre encuentra la PC. Desde el celular (*Más* o el aviso de arriba) se abre o esconde TVon en la PC. Si TVon ya está abierto, abrirlo de nuevo solo lo trae al frente.
+**Siempre conectado:** si cerrás la ventana de TorrentVision con ON encendido, TorrentVision queda junto al reloj y el celular sigue manejando el mouse y el teclado; para salir del todo, *Archivo → Salir* o el ícono junto al reloj. Con **Arrancar TorrentVision con Windows** (en la ventana de ON o en *Más* del celular) arranca escondido y con ON encendido, así el celular siempre encuentra la PC. Desde el celular (*Más* o el aviso de arriba) se abre o esconde TorrentVision en la PC. Si TorrentVision ya está abierto, abrirlo de nuevo solo lo trae al frente.
 
-**Acceso rápido en el celular:** en Chrome, menú ⋮ → *Agregar a la pantalla principal*: queda el ícono de TVon y abre directo la app.
+**Acceso rápido en el celular:** en Chrome, menú ⋮ → *Agregar a la pantalla principal*: queda el ícono de TorrentVision y abre directo la app.
 
 ### 🔒 Seguridad
 
-- **Conexión cifrada:** el celular y la PC hablan por **HTTPS** (TLS 1.2 o 1.3) con un certificado propio de TVon. La primera vez Chrome avisa «La conexión no es privada» porque no conoce ese certificado: *Configuración avanzada → Continuar*. Para comprobar que es tu PC, la huella del certificado (candado → certificado) tiene que coincidir con la que muestra la ventana de ON.
-- **Quién entra:** solo desde la red de tu casa o por Tailscale; desde internet se rechaza. El código del QR sirve **una sola vez** y cambia cada vez que se enciende ON; con 10 códigos equivocados se frena 10 minutos. Cada celular tiene su propia sesión (cookie *Secure*, *HttpOnly*, *SameSite=Strict*; la PC guarda solo su huella SHA-256). En la ventana de ON, **Dispositivos vinculados** muestra cada uno con *Desvincular* (o *Desvincular todos*). Otras páginas no pueden mandar órdenes a TVon (protección contra CSRF y *DNS rebinding*).
+- **Conexión cifrada:** el celular y la PC hablan por **HTTPS** (TLS 1.2 o 1.3) con un certificado propio de TorrentVision. La primera vez Chrome avisa «La conexión no es privada» porque no conoce ese certificado: *Configuración avanzada → Continuar*. Para comprobar que es tu PC, la huella del certificado (candado → certificado) tiene que coincidir con la que muestra la ventana de ON.
+- **Quién entra:** solo desde la red de tu casa o por Tailscale; desde internet se rechaza. El código del QR sirve **una sola vez** y cambia cada vez que se enciende ON; con 10 códigos equivocados se frena 10 minutos. Cada celular tiene su propia sesión (cookie *Secure*, *HttpOnly*, *SameSite=Strict*; la PC guarda solo su huella SHA-256). En la ventana de ON, **Dispositivos vinculados** muestra cada uno con *Desvincular* (o *Desvincular todos*). Otras páginas no pueden mandar órdenes a TorrentVision (protección contra CSRF y *DNS rebinding*).
 - **Datos guardados:** las claves (OpenSubtitles, el código del QR, la clave del certificado) se guardan **cifradas con DPAPI de Windows**: solo tu usuario en tu PC puede leerlas. De los celulares se guarda solo una huella (SHA-256), nunca la sesión.
-- **Internet:** todo va por HTTPS con el certificado del sitio verificado; TVon no sigue redirecciones a direcciones sin cifrar. Los torrents van con el tráfico cifrado entre pares (puede haber menos fuentes; los demás que comparten igual ven tu IP).
+- **Internet:** todo va por HTTPS con el certificado del sitio verificado; TorrentVision no sigue redirecciones a direcciones sin cifrar. Los torrents van con el tráfico cifrado entre pares (puede haber menos fuentes; los demás que comparten igual ven tu IP).
 - Compartir la pantalla y manejar el mouse y el teclado se pueden apagar en las opciones de ON. La primera vez, Windows pregunta por el firewall: permitilo solo en **redes privadas**.
 
-**Fuera de casa:** con [Tailscale](https://tailscale.com/download) (gratis) instalado en la PC y en el celular con la misma cuenta, en la ventana de ON aparece *🌍 Usarlo fuera de casa* con otro código QR. Así TVon se maneja desde cualquier lado por una conexión cifrada, sin abrir puertos en el router. Si no conecta, permití TVon también en redes públicas en el Firewall de Windows.
+**Fuera de casa:** con [Tailscale](https://tailscale.com/download) (gratis) instalado en la PC y en el celular con la misma cuenta, en la ventana de ON aparece *🌍 Usarlo fuera de casa* con otro código QR. Así TorrentVision se maneja desde cualquier lado por una conexión cifrada, sin abrir puertos en el router. Si no conecta, permití TorrentVision también en redes públicas en el Firewall de Windows.
 
 ### Biblioteca automática
 
-- Los videos de **Videos** y **Documentos** (con subcarpetas) se suman solos a la biblioteca: al abrir TVon y cada minuto. Se saltean carpetas ocultas o de programación (`.venv`, `node_modules`…).
+- Los videos de **Videos** y **Documentos** (con subcarpetas) se suman solos a la biblioteca: al abrir TorrentVision y cada minuto. Se saltean carpetas ocultas o de programación (`.venv`, `node_modules`…).
 - Los videos que terminan de bajarse en **Descargas** se mueven solos a **Videos\Peliculas\<título>** (con sus subtítulos, también los de `Subs\`) y entran a la biblioteca con su categoría. Un `.zip`/`.rar`/`.7z` que trae un video se descomprime solo, y video y subtítulo quedan juntos en esa carpeta. También los de las carpetas que crean los programas de torrents (uTorrent, qBittorrent), si son del último mes; los «sample» se ignoran.
 - Si el programa de torrents sigue compartiendo el archivo, la película aparece igual en la biblioteca apenas termina de bajar, y se mueve a Videos cuando el programa la suelta (conserva categorías y subtítulos).
 - Todo se ajusta en **Configuración → Preferencias** (agregar o quitar carpetas, desactivar el movimiento).
 
 ### 🎞 Fichas de películas y series
 
-TVon busca solo, en segundo plano, la ficha de cada película y serie: póster, sinopsis, año, géneros y puntaje. Se ve debajo del reproductor y en la app del celular. Sin configurar nada sale de Wikipedia (películas) y TVmaze (series); con una clave gratis de [TMDb](https://www.themoviedb.org/settings/api) en *Configuración → Preferencias* sale mejor y en español. Las de dominio público usan los datos del Internet Archive. Lo que se baja (torrents, dominio público, Descargas) recibe su ficha apenas entra a la biblioteca. Si alguna salió mal: clic derecho → *🎞 Corregir ficha…*. Los capítulos se agrupan en series por el nombre (`S01E02`, `Cap 3`).
+TorrentVision busca solo, en segundo plano, la ficha de cada película y serie: póster, sinopsis, año, géneros y puntaje. Se ve debajo del reproductor y en la app del celular. Sin configurar nada sale de Wikipedia (películas) y TVmaze (series); con una clave gratis de [TMDb](https://www.themoviedb.org/settings/api) en *Configuración → Preferencias* sale mejor y en español. Las de dominio público usan los datos del Internet Archive. Lo que se baja (torrents, dominio público, Descargas) recibe su ficha apenas entra a la biblioteca. Si alguna salió mal: clic derecho → *🎞 Corregir ficha…*. Los capítulos se agrupan en series por el nombre (`S01E02`, `Cap 3`).
 
 ### Favoritos
 
@@ -113,10 +117,10 @@ Con un solo archivo seleccionado aparece el botón **＋ Categoría: …** (tamb
 
 ### 🧲 Torrents
 
-Botón **🧲 Torrents** en la barra superior: pegá un link magnet (si lo copiaste, ya aparece pegado), abrí un `.torrent` o soltalo sobre TVon. Muestra la cola con progreso, velocidad y tiempo restante; se puede pausar, reanudar y cancelar (borra lo que había bajado).
+Botón **🧲 Torrents** en la barra superior: pegá un link magnet (si lo copiaste, ya aparece pegado), abrí un `.torrent` o soltalo sobre TorrentVision. Muestra la cola con progreso, velocidad y tiempo restante; se puede pausar, reanudar y cancelar (borra lo que había bajado).
 
 - Baja a una carpeta oculta dentro de Videos; al terminar, la película pasa a **Videos**, entra a la biblioteca y se le buscan subtítulos.
-- Si cerrás TVon mientras baja, sigue en segundo plano con un ícono junto al reloj de Windows (tocándolo vuelve a abrirse) y se cierra solo cuando terminan las descargas. Con *Salir* en ese ícono se frena todo, y lo que quede a medias se retoma al volver a abrir TVon.
+- Si cerrás TorrentVision mientras baja, sigue en segundo plano con un ícono junto al reloj de Windows (tocándolo vuelve a abrirse) y se cierra solo cuando terminan las descargas. Con *Salir* en ese ícono se frena todo, y lo que quede a medias se retoma al volver a abrir TorrentVision.
 - Usa [aria2](https://aria2.github.io) (GPL v2), que viene incluido. La primera vez, Windows pregunta por el firewall para `aria2c.exe`: tocá **Permitir**.
 - Mientras baja, el torrent también se comparte con otros. Al terminar deja de compartir.
 
@@ -129,7 +133,7 @@ Botón **🎞 Dominio público** en la barra superior: busca en la colección de
 - Seleccioná una o varias y **⬇ Descargar** (o doble clic). Se descargan de a una, en la carpeta configurada (por defecto `Videos\TVon`), con barra de progreso.
 - Al terminar se agregan a la biblioteca en la categoría **Dominio público**, con subtítulos en español e inglés: de OpenSubtitles si hay clave configurada; en inglés, si no, los del propio Internet Archive (a veces son transcripción automática).
 - **Descarga automática**: baja sola las más populares hasta el límite de películas o de GB que elijas. La colección completa ocupa más de 10 TB; siempre se dejan al menos 5 GB libres en el disco.
-- Si cerrás TVon a mitad de una descarga, se retoma desde donde quedó al volver a abrirlo.
+- Si cerrás TorrentVision a mitad de una descarga, se retoma desde donde quedó al volver a abrirlo.
 
 ### Series: siguiente capítulo automático
 
@@ -141,9 +145,9 @@ Botón **🎞 Dominio público** en la barra superior: busca en la colección de
 
 ### Vistos y dónde quedaste
 
-- TVon recuerda hasta dónde viste cada video: al volver a abrirlo sigue desde ahí (la tecla **Inicio** lo arranca desde el principio).
+- TorrentVision recuerda hasta dónde viste cada video: al volver a abrirlo sigue desde ahí (la tecla **Inicio** lo arranca desde el principio).
 - Un video cuenta como **visto** al pasar el 90 % (los créditos no hace falta verlos). El nombre va en **verde** si ya lo viste y en **amarillo** si quedó a medias (los que no empezaste, en blanco); cuánto llevás («Vas por 33 % · 5:00») aparece al pasar el mouse.
-- Con algo ya visto, la lista se separa en **Sin ver** y **✓ Vistas**, En **Biblioteca y categorías**, las que tienen algo por ver se ven en amarillo y las que ya viste completas pasan al grupo desplegable **✓ Vistas**, en verde claro (clic en la cabecera para desplegarlo u ocultarlo). Clic derecho en una categoría: **Marcar como vista / no vista** (todos sus videos) o **Quitar el amarillo de pendiente** sin marcarla vista. Clic en la cabecera de un grupo lo oculta o lo muestra (▸ / ▾); con clic derecho, **Vistas** pasa arriba o abajo. TVon lo recuerda.
+- Con algo ya visto, la lista se separa en **Sin ver** y **✓ Vistas**, En **Biblioteca y categorías**, las que tienen algo por ver se ven en amarillo y las que ya viste completas pasan al grupo desplegable **✓ Vistas**, en verde claro (clic en la cabecera para desplegarlo u ocultarlo). Clic derecho en una categoría: **Marcar como vista / no vista** (todos sus videos) o **Quitar el amarillo de pendiente** sin marcarla vista. Clic en la cabecera de un grupo lo oculta o lo muestra (▸ / ▾); con clic derecho, **Vistas** pasa arriba o abajo. TorrentVision lo recuerda.
 - En una serie, al elegir su categoría queda listo el capítulo que dejaste a medias o, si no, el primero sin ver.
 - Clic derecho → **Marcar como visto / no visto** para corregirlo a mano. En el celular los nombres van con los mismos colores, y en los que quedaron a medias dice por dónde vas.
 

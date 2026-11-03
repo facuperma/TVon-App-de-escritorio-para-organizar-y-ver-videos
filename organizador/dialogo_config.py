@@ -14,7 +14,7 @@ class DialogoConfig(QDialog):
     def __init__(self, bib: Biblioteca, parent=None):
         super().__init__(parent)
         self.bib = bib
-        self.setWindowTitle("Configuración — TVon")
+        self.setWindowTitle("Configuración — TorrentVision")
         self.setMinimumWidth(560)
 
         self.carpeta = QLineEdit(bib.config("carpeta_descargas"))
@@ -36,9 +36,9 @@ class DialogoConfig(QDialog):
             'Para los subtítulos creá una cuenta gratis en '
             '<a href="https://www.opensubtitles.com">opensubtitles.com</a> y pedí una clave de API en '
             '<a href="https://www.opensubtitles.com/consumers">opensubtitles.com/consumers</a>.<br>'
-            'Con la clave, TVon baja solo el subtítulo (en el primer idioma) de cada película nueva.<br>'
+            'Con la clave, TorrentVision baja solo el subtítulo (en el primer idioma) de cada película nueva.<br>'
             'La contraseña se guarda solo en esta computadora (archivo biblioteca.db).<br><br>'
-            'Fichas de películas y series (póster, sinopsis, géneros): TVon las busca solas en Wikipedia y '
+            'Fichas de películas y series (póster, sinopsis, géneros): TorrentVision las busca solas en Wikipedia y '
             'TVmaze. Con una clave gratis de <a href="https://www.themoviedb.org/settings/api">TMDb</a> salen '
             'mejores y en español. Clic derecho en un video → <i>Corregir ficha</i> si alguna salió mal.',
             openExternalLinks=True, wordWrap=True, objectName="pista",

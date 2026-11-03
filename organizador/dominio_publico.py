@@ -111,7 +111,7 @@ class VentanaDominioPublico(QWidget):
         super().__init__(None, Qt.Window)
         self.bib = bib
         self.gestor = gestor
-        self.setWindowTitle("Películas de dominio público — TVon")
+        self.setWindowTitle("Películas de dominio público — TorrentVision")
         self.resize(1000, 720)
         self._texto = ""
         self._orden = "populares"
@@ -217,7 +217,7 @@ class VentanaDominioPublico(QWidget):
         capa_auto.addLayout(fila_auto)
         capa_auto.addWidget(QLabel(
             "La colección completa tiene unas 25.000 películas (más de 10 TB). "
-            "Siempre se dejan al menos 5 GB libres en el disco. Las descargas siguen mientras TVon esté abierto.",
+            "Siempre se dejan al menos 5 GB libres en el disco. Las descargas siguen mientras TorrentVision esté abierto.",
             wordWrap=True, objectName="pista"))
         capa_auto.addWidget(self.lbl_uso)
 

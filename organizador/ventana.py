@@ -104,7 +104,7 @@ class Ventana(QMainWindow):
         # Fichas (póster, sinopsis, géneros) de cada película y serie, en segundo plano
         self.buscador_fichas = BuscadorFichas(biblioteca.ruta_db)
         self.buscador_fichas.nueva.connect(self._ficha_nueva)
-        self.setWindowTitle("TVon")
+        self.setWindowTitle("TorrentVision")
         self.resize(1400, 820)
         self.setAcceptDrops(True)
 
@@ -312,7 +312,7 @@ class Ventana(QMainWindow):
         self.acc_torrents = barra.addAction("🧲 Torrents", self._abrir_torrents)
         self.acc_torrents.setToolTip("Descargar películas con un link magnet o un archivo .torrent")
         self.acc_on = barra.addAction("📱 ON", self._abrir_on)
-        self.acc_on.setToolTip("Manejar TVon desde el celular")
+        self.acc_on.setToolTip("Manejar TorrentVision desde el celular")
         barra.addSeparator()
         # Accesos a páginas externas: se abren en el navegador
         for texto, url in (("🌐 Películas", "https://ext.to/"), ("🌐 Subtítulos", "https://subdivx.com/")):
@@ -370,14 +370,15 @@ class Ventana(QMainWindow):
 
     def _acerca_de(self):
         caja = QMessageBox(self)
-        caja.setWindowTitle("Acerca de TVon")
+        caja.setWindowTitle("Acerca de TorrentVision")
         caja.setIconPixmap(QApplication.windowIcon().pixmap(72, 72))
         caja.setTextFormat(Qt.RichText)
         caja.setText(
-            f"<h2>TVon</h2><p>Versión <b>{QApplication.applicationVersion()}</b></p>"
-            "<p>Organizador y reproductor de videos e imágenes.</p>"
+            f"<h2>TorrentVision</h2><p>Versión <b>{QApplication.applicationVersion()}</b></p>"
+            "<p><i>Torrent para todos.</i></p>"
+            "<p>Bajá, organizá y mirá tus películas y series.</p>"
             f"<p>Hecho por <b>{AUTOR}</b></p>"
-            f"<p>© 2026 {AUTOR} · Licencia MIT<br>"
+            f"<p>© 2026 Facundo Gabriel Peralta Marello · Todos los derechos reservados<br>"
             f"<a href='{REPOSITORIO}' style='color:#9fc2ff'>{REPOSITORIO.removeprefix('https://')}</a></p>"
         )
         caja.setInformativeText(f"Qt {VERSION_QT} · Python {platform.python_version()}")
@@ -389,7 +390,7 @@ class Ventana(QMainWindow):
             "**¿Qué pasó?**\n\n\n"
             "**¿Qué esperabas que pasara?**\n\n\n"
             "**Pasos para reproducirlo**\n1. \n2. \n\n"
-            f"---\nTVon {QApplication.applicationVersion()} · {platform.system()} {platform.release()} "
+            f"---\nTorrentVision {QApplication.applicationVersion()} · {platform.system()} {platform.release()} "
             f"({platform.version()}) · Qt {VERSION_QT}"
         )
         consulta = QUrlQuery()
@@ -1333,7 +1334,7 @@ class Ventana(QMainWindow):
         if self.bandeja is None:
             self.bandeja = QSystemTrayIcon(QApplication.windowIcon(), self)
             menu = QMenu(self)
-            menu.addAction("Abrir TVon", self._volver_del_segundo_plano)
+            menu.addAction("Abrir TorrentVision", self._volver_del_segundo_plano)
             menu.addAction("Salir (apaga ON; las descargas siguen al volver a abrirlo)", self._salir_del_todo)
             self.bandeja.setContextMenu(menu)
             self.bandeja.activated.connect(
@@ -1346,12 +1347,12 @@ class Ventana(QMainWindow):
             return
         if self.remoto.activo:
             self.bandeja.showMessage(
-                "TVon sigue con ON encendido",
-                "El celular sigue manejando la PC. Para abrir TVon, tocá el ícono junto al reloj "
-                "o «Abrir TVon» en el celular.", QSystemTrayIcon.Information, 8000)
+                "TorrentVision sigue con ON encendido",
+                "El celular sigue manejando la PC. Para abrir TorrentVision, tocá el ícono junto al reloj "
+                "o «Abrir TorrentVision» en el celular.", QSystemTrayIcon.Information, 8000)
         else:
             self.bandeja.showMessage(
-                "TVon sigue descargando",
+                "TorrentVision sigue descargando",
                 "Se cierra solo cuando terminen los torrents. Para abrirlo, tocá el ícono junto al reloj.",
                 QSystemTrayIcon.Information, 8000)
 
@@ -1378,7 +1379,7 @@ class Ventana(QMainWindow):
     def _actualizar_bandeja(self):
         if not self.bandeja:
             return
-        lineas = ["TVon"] + (["📱 ON encendido"] if self.remoto.activo else [])
+        lineas = ["TorrentVision"] + (["📱 ON encendido"] if self.remoto.activo else [])
         if self._torrents_activos:
             lineas.append(self.acc_torrents.toolTip())
         self.bandeja.setToolTip("\n".join(lineas))
@@ -1386,7 +1387,7 @@ class Ventana(QMainWindow):
         if self.isHidden() and not self._torrents_activos and not self.remoto.activo:
             # Un rato de margen para que se ubique la película y busque subtítulos
             self.bandeja.showMessage("Descargas terminadas",
-                                     "Las películas ya están en tu carpeta de videos. TVon se cierra en un minuto.",
+                                     "Las películas ya están en tu carpeta de videos. TorrentVision se cierra en un minuto.",
                                      QSystemTrayIcon.Information, 8000)
             QTimer.singleShot(60_000, self._cerrar_si_termino)
 

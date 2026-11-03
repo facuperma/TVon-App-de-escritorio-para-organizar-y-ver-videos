@@ -55,10 +55,10 @@ fun PantallaEmparejar(vm: Modelo, mensaje: String?) {
     ) {
         Logo(96)
         TituloTVon(28)
-        Text(mensaje ?: "Manejá TVon desde el celular.", textAlign = TextAlign.Center,
+        Text(mensaje ?: "Manejá TorrentVision desde el celular.", textAlign = TextAlign.Center,
             color = if (mensaje != null) C.error else C.texto)
         Tarjeta {
-            Text("1. En la PC, abrí TVon y tocá 📱 ON.")
+            Text("1. En la PC, abrí TorrentVision y tocá 📱 ON.")
             Text("2. Encendelo y escaneá el código QR con este botón.")
             Pista("El celular y la PC tienen que estar en la misma red wifi (o los dos en Tailscale).")
         }
@@ -76,7 +76,7 @@ fun PantallaEmparejar(vm: Modelo, mensaje: String?) {
             vm.usarEnlace(enlace)
         }
         Pista("🔒 La app comprueba el certificado de tu PC con la huella que viene en el QR: la conexión va " +
-            "cifrada y nadie más puede hacerse pasar por TVon.", Modifier.padding(top = 12.dp))
+            "cifrada y nadie más puede hacerse pasar por TorrentVision.", Modifier.padding(top = 12.dp))
     }
 }
 

@@ -10,18 +10,20 @@
 
 [Setup]
 AppId={{6B0F4C1E-7A2D-4E8B-9C35-5D1A7E2F9B40}
-AppName=TVon
+AppName=TorrentVision
 AppVersion={#Version}
-AppVerName=TVon {#Version}
+AppVerName=TorrentVision {#Version}
 AppPublisher=facuperma
-AppPublisherURL=https://github.com/facuperma/Reproductor-de-videos
+AppPublisherURL=https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos
 DefaultDirName={autopf}\TVon
-DefaultGroupName=TVon
+DefaultGroupName=TorrentVision
+; La carpeta del menú Inicio con el nombre nuevo, aunque antes se haya instalado como TVon
+UsePreviousGroup=no
 DisableProgramGroupPage=yes
 ; Sin permisos de administrador: se instala para el usuario actual
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
-OutputBaseFilename=TVon-Setup-{#Version}
+OutputBaseFilename=TorrentVision-Setup-{#Version}
 SetupIconFile=..\organizador\icono.ico
 UninstallDisplayIcon={app}\TVon.exe
 Compression=lzma2/ultra64
@@ -39,10 +41,14 @@ Name: "escritorio"; Description: "Crear un acceso directo en el Escritorio"; Gro
 [Files]
 Source: "{#Origen}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
+; Los accesos del menú Inicio con el nombre viejo: los reemplazan los de TorrentVision
+[InstallDelete]
+Type: filesandordirs; Name: "{autoprograms}\TVon"
+
 [Icons]
-Name: "{group}\TVon"; Filename: "{app}\TVon.exe"
-Name: "{group}\Desinstalar TVon"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\TVon"; Filename: "{app}\TVon.exe"; Tasks: escritorio
+Name: "{group}\TorrentVision"; Filename: "{app}\TVon.exe"
+Name: "{group}\Desinstalar TorrentVision"; Filename: "{uninstallexe}"
+Name: "{autodesktop}\TorrentVision"; Filename: "{app}\TVon.exe"; Tasks: escritorio
 
 [Run]
-Filename: "{app}\TVon.exe"; Description: "Abrir TVon"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\TVon.exe"; Description: "Abrir TorrentVision"; Flags: nowait postinstall skipifsilent

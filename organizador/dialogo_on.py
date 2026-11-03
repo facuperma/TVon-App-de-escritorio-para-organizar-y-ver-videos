@@ -28,7 +28,7 @@ def pixmap_qr(texto: str, lado: int = 260) -> QPixmap:
 
 def hace(segundos: float | None) -> str:
     if segundos is None:
-        return "sin conectarse desde que se abrió TVon"
+        return "sin conectarse desde que se abrió TorrentVision"
     if segundos < 10:
         return "conectado ahora"
     if segundos < 3600:
@@ -40,7 +40,7 @@ class DialogoOn(QDialog):
     def __init__(self, remoto: Remoto, parent=None):
         super().__init__(parent)
         self.remoto = remoto
-        self.setWindowTitle("ON — Manejar TVon desde el celular")
+        self.setWindowTitle("ON — Manejar TorrentVision desde el celular")
         self.setMinimumWidth(520)
 
         self.btn_interruptor = QPushButton(objectName="interruptor", checkable=True)
@@ -51,11 +51,11 @@ class DialogoOn(QDialog):
         self.lbl_pasos = QLabel(wordWrap=True, objectName="pista")
         self.lbl_pasos.setText(
             "1. Conectá el celular a la misma red wifi que esta PC.<br>"
-            "<b>Con la app TVon ON (Android):</b> abrila y tocá <b>Escanear el código QR</b>. Comprueba sola "
+            "<b>Con la app TorrentVision ON (Android):</b> abrila y tocá <b>Escanear el código QR</b>. Comprueba sola "
             "que es tu PC y no muestra avisos.<br>"
             "<b>Sin la app:</b><br>"
             "2. Escaneá el código con la cámara (o Google Lens) y abrí el enlace en Chrome.<br>"
-            "3. La conexión va <b>cifrada (HTTPS)</b> con un certificado propio de TVon. La primera vez Chrome "
+            "3. La conexión va <b>cifrada (HTTPS)</b> con un certificado propio de TorrentVision. La primera vez Chrome "
             "avisa «La conexión no es privada» porque no lo conoce: tocá <b>Configuración avanzada → "
             "Continuar</b>. Para comprobar que es tu PC, la huella del certificado (candado → certificado) "
             "tiene que empezar igual que la de abajo.<br>"
@@ -69,7 +69,7 @@ class DialogoOn(QDialog):
 
         self.chk_pantalla = QCheckBox("Permitir compartir la pantalla de la PC con el celular")
         self.chk_control = QCheckBox("Permitir manejar el mouse y el teclado desde el celular (touchpad y teclado)")
-        self.chk_inicio = QCheckBox("Encender ON cada vez que se abre TVon (así los celulares vinculados "
+        self.chk_inicio = QCheckBox("Encender ON cada vez que se abre TorrentVision (así los celulares vinculados "
                                     "se reconectan solos)")
         self.chk_pantalla.setChecked(remoto.permite_pantalla)
         self.chk_control.setChecked(remoto.permite_control)
@@ -78,8 +78,8 @@ class DialogoOn(QDialog):
         self.chk_control.toggled.connect(lambda v: self._opcion("on_control", v))
         self.chk_inicio.toggled.connect(lambda v: remoto.guardar_opcion("on_activo", v))
         # Con esto el celular siempre encuentra a TVon (aunque no lo hayas abierto) y puede abrirlo
-        self.chk_windows = QCheckBox("Arrancar TVon con Windows, escondido junto al reloj y con ON encendido")
-        self.chk_windows.setToolTip("Así el celular siempre puede conectarse y abrir TVon en la PC.\n"
+        self.chk_windows = QCheckBox("Arrancar TorrentVision con Windows, escondido junto al reloj y con ON encendido")
+        self.chk_windows.setToolTip("Así el celular siempre puede conectarse y abrir TorrentVision en la PC.\n"
                                     "Cerrar la ventana con ON encendido también lo deja junto al reloj.")
         self.chk_windows.setChecked(inicio_windows.activo())
         self.chk_windows.setEnabled(inicio_windows.DISPONIBLE)
@@ -186,19 +186,19 @@ class DialogoOn(QDialog):
             self.lbl_remoto.setVisible(fuera)
             self.lbl_remoto.setText(
                 "Tailscale está conectado en esta PC. En el celular instalá la app Tailscale, entrá con la misma "
-                "cuenta y dejala conectada: así TVon anda desde cualquier lado, con la conexión cifrada.<br>"
-                "Si no conecta, permití TVon también en redes públicas en el Firewall de Windows." if remota else
-                "Para manejar TVon desde fuera de casa hace falta <a href='https://tailscale.com/download' "
+                "cuenta y dejala conectada: así TorrentVision anda desde cualquier lado, con la conexión cifrada.<br>"
+                "Si no conecta, permití TorrentVision también en redes públicas en el Firewall de Windows." if remota else
+                "Para manejar TorrentVision desde fuera de casa hace falta <a href='https://tailscale.com/download' "
                 "style='color:#9fc2ff'>Tailscale</a> (gratis): una red privada y cifrada entre tus dispositivos.<br>"
                 "1. Instalalo en esta PC y en el celular (Play Store) y entrá con la misma cuenta en los dos.<br>"
                 "2. Volvé a abrir esta ventana: aparece el código para fuera de casa.<br>"
-                "No abras el puerto de TVon en el router: TVon rechaza conexiones que no vengan de tu casa "
+                "No abras el puerto de TorrentVision en el router: TorrentVision rechaza conexiones que no vengan de tu casa "
                 "o de Tailscale.")
         elif self.remoto.error:
             self.lbl_estado.setText(f"<span style='color:#ff8080'>No se pudo encender: {self.remoto.error}</span>")
         else:
             self.lbl_estado.setText(
-                "Con ON encendido, desde el celular manejás TVon: la biblioteca, el reproductor, la cola, "
+                "Con ON encendido, desde el celular manejás TorrentVision: la biblioteca, el reproductor, la cola, "
                 "los subtítulos, las categorías y las descargas. Y si hace falta, ves la pantalla de la PC y "
                 "la manejás con el dedo.")
         self._mostrar_celulares()

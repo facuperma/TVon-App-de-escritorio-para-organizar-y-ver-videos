@@ -25,10 +25,10 @@ import javax.net.ssl.X509TrustManager
 
 class ErrorApi(mensaje: String, val codigo: Int) : Exception(mensaje)
 
-const val SIN_CONEXION = "No hay conexión con la PC. ¿TVon está abierto y con ON encendido? " +
-    "(Con «Arrancar TVon con Windows» en la ventana ON, siempre queda listo)"
-const val OTRO_CERTIFICADO = "La PC no presentó el certificado de TVon que conoce este celular. " +
-    "Si cambiaste de PC o reinstalaste TVon, escaneá el código QR de nuevo. Si no, alguien podría " +
+const val SIN_CONEXION = "No hay conexión con la PC. ¿TorrentVision está abierto y con ON encendido? " +
+    "(Con «Arrancar TorrentVision con Windows» en la ventana ON, siempre queda listo)"
+const val OTRO_CERTIFICADO = "La PC no presentó el certificado de TorrentVision que conoce este celular. " +
+    "Si cambiaste de PC o reinstalaste TorrentVision, escaneá el código QR de nuevo. Si no, alguien podría " +
     "estar haciéndose pasar por tu PC: no sigas."
 private const val CODIGO_CERTIFICADO = -1
 

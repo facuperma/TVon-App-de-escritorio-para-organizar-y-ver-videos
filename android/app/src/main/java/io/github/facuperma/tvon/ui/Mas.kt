@@ -33,17 +33,17 @@ fun PestanaMas(vm: Modelo) {
             .padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
         Tarjeta {
-            TituloTarjeta("🖥 TVon en la PC") { Pista("● ON encendido", color = C.verde) }
-            Pista(if (e?.ventanaVisible == false) "TVon está escondido junto al reloj de la PC." else "TVon está abierto en la PC.")
+            TituloTarjeta("🖥 TorrentVision en la PC") { Pista("● ON encendido", color = C.verde) }
+            Pista(if (e?.ventanaVisible == false) "TorrentVision está escondido junto al reloj de la PC." else "TorrentVision está abierto en la PC.")
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Boton("Abrir TVon en la PC", Modifier.weight(1f), Estilo.PRIMARIO) { vm.hacer("mostrar_tvon") }
+                Boton("Abrir TorrentVision en la PC", Modifier.weight(1f), Estilo.PRIMARIO) { vm.hacer("mostrar_tvon") }
                 Boton("Esconderlo", Modifier.weight(1f)) { vm.hacer("esconder_tvon") }
             }
-            Interruptor("Arrancar TVon con Windows, con ON encendido", e?.arrancaConWindows ?: false) {
+            Interruptor("Arrancar TorrentVision con Windows, con ON encendido", e?.arrancaConWindows ?: false) {
                 vm.hacer("arrancar_con_windows", "activo" to it)
             }
-            Pista("Con esto el celular siempre encuentra la PC y puede abrir TVon, aunque no lo hayas abierto. Si cerrás " +
-                "la ventana de TVon con ON encendido, queda junto al reloj y el mouse y el teclado siguen andando.")
+            Pista("Con esto el celular siempre encuentra la PC y puede abrir TorrentVision, aunque no lo hayas abierto. Si cerrás " +
+                "la ventana de TorrentVision con ON encendido, queda junto al reloj y el mouse y el teclado siguen andando.")
         }
         Tarjeta {
             TituloTarjeta("Biblioteca automática")
@@ -55,15 +55,15 @@ fun PestanaMas(vm: Modelo) {
         Tarjeta {
             TituloTarjeta("Este celular")
             var volumen by remember { mutableStateOf(vm.almacen.teclasVolumen) }
-            Interruptor("Los botones de volumen del celular cambian el volumen de TVon (en Reproductor)", volumen) {
+            Interruptor("Los botones de volumen del celular cambian el volumen de TorrentVision (en Reproductor)", volumen) {
                 volumen = it
                 vm.almacen.teclasVolumen = it
             }
         }
         Tarjeta {
             TituloTarjeta("🔒 Conexión")
-            Pista("Conectado a TVon ${e?.version.orEmpty()} en ${vm.base.removePrefix("https://")}, cifrado (HTTPS) y " +
-                "solo con el certificado de tu PC. App TVon ON ${BuildConfig.VERSION_NAME}.")
+            Pista("Conectado a TorrentVision ${e?.version.orEmpty()} en ${vm.base.removePrefix("https://")}, cifrado (HTTPS) y " +
+                "solo con el certificado de tu PC. App TorrentVision ON ${BuildConfig.VERSION_NAME}.")
             Pista("Huella del certificado: ${huellaLinda(vm.huella)}", color = C.acentoClaro)
             Text("Para usarlo fuera de casa con Tailscale: en la ventana 📱 ON de la PC tocá «🌍 Usarlo fuera de casa» " +
                 "y escaneá ese código. La app prueba sola la conexión que ande.")

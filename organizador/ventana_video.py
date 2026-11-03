@@ -40,7 +40,7 @@ class VentanaVideo(QWidget):
         self.abrir(ruta, tipo, posicion_ms)
 
     def abrir(self, ruta: str, tipo: str, posicion_ms: int = 0):
-        self.setWindowTitle(f"{Path(ruta).name} — TVon")
+        self.setWindowTitle(f"{Path(ruta).name} — TorrentVision")
         self.visor.mostrar(ruta, tipo, self.bib.subtitulos_de(ruta), posicion_ms or self.bib.posicion_guardada(ruta))
 
     def _ajustar_al_video(self, tamano: QSize):
