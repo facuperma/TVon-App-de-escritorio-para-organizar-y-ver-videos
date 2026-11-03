@@ -35,6 +35,7 @@ from .vigilancia import (
     Vigilante, borrar_carpetas_vacias, carpeta_de_categoria, en_uso, mover_video, traer_subtitulos,
 )
 from .subtitulos_online import buscar_para_visor, subtitulos_automaticos
+from .ventana_letterboxd import VentanaLetterboxd
 from .ventana_torrents import VentanaTorrents
 from .ventana_video import VentanaVideo
 from .visor import REPRODUCIR, VISTA_PREVIA, Visor, atajos_reproductor, texto_progreso
@@ -79,6 +80,7 @@ class Ventana(QMainWindow):
         self.ventanas_video: list[VentanaVideo] = []
         self.ventana_dominio: VentanaDominioPublico | None = None
         self.ventana_torrents: VentanaTorrents | None = None
+        self.ventana_letterboxd: VentanaLetterboxd | None = None
         self.aviso: AvisoFlotante | None = None
         self.dialogo_on: DialogoOn | None = None
         # Al cerrar con torrents bajando, TVon sigue junto al reloj hasta que terminan
@@ -311,6 +313,8 @@ class Ventana(QMainWindow):
         barra.addAction("🎞 Dominio público", self._abrir_dominio_publico)
         self.acc_torrents = barra.addAction("🧲 Torrents", self._abrir_torrents)
         self.acc_torrents.setToolTip("Descargar películas con un link magnet o un archivo .torrent")
+        acc_letterboxd = barra.addAction("🎬 Letterboxd", self._abrir_letterboxd)
+        acc_letterboxd.setToolTip("Tu watchlist de Letterboxd y las mejor puntuadas, marcando las que ya tenés")
         self.acc_on = barra.addAction("📱 ON", self._abrir_on)
         self.acc_on.setToolTip("Manejar TorrentVision desde el celular")
         barra.addSeparator()
@@ -1319,6 +1323,13 @@ class Ventana(QMainWindow):
         self.ventana_torrents.raise_()
         self.ventana_torrents.activateWindow()
         return self.ventana_torrents
+
+    def _abrir_letterboxd(self):
+        if self.ventana_letterboxd is None:
+            self.ventana_letterboxd = VentanaLetterboxd(self.bib)
+        self.ventana_letterboxd.show()
+        self.ventana_letterboxd.raise_()
+        self.ventana_letterboxd.activateWindow()
 
     # --- Segundo plano (junto al reloj de Windows) -------------------------------
 
