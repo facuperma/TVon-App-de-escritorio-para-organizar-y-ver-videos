@@ -1,21 +1,51 @@
-MIT License
+TVon y TVon ON
+Copyright (c) 2026 Facundo Gabriel Peralta Marello (GitHub: facuperma / Faierwall)
+Todos los derechos reservados.
 
-Copyright (c) 2026 Faierwall
+Este software (el código fuente de la aplicación de escritorio y de la app de
+Android, los instaladores, el logo y la documentación) es una obra protegida por
+la Ley 11.723 de Propiedad Intelectual de la República Argentina y por los
+tratados internacionales de derecho de autor.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+El código se publica en GitHub solo para que pueda leerse. Publicarlo no otorga
+ninguna licencia de uso.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+Sin autorización previa y por escrito del titular NO está permitido:
+  - copiar o reproducir el código, total o parcialmente;
+  - modificarlo o crear obras derivadas;
+  - distribuirlo, publicarlo en otro sitio, sublicenciarlo o venderlo;
+  - usarlo, o usar cualquier parte de él, con fines comerciales;
+  - quitar o cambiar este aviso.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+Está permitido descargar los instaladores oficiales publicados por el titular
+(TVon-Setup y TVon-ON .apk) e instalarlos para uso personal y no comercial.
+
+Las versiones publicadas antes del 3 de noviembre de 2026 con la licencia MIT
+conservan esa licencia solo para las copias obtenidas en ese momento. Todas las
+versiones posteriores se rigen por este aviso.
+
+Los componentes de terceros que se incluyen o se usan conservan sus propias
+licencias (ver "Componentes de terceros" en el README), entre ellos aria2
+(GPL v2, incluido sin modificar como programa aparte) y PySide6/Qt (LGPL v3).
+
+EL SOFTWARE SE ENTREGA "TAL CUAL", SIN GARANTÍAS DE NINGÚN TIPO. EL TITULAR NO
+SE RESPONSABILIZA POR DAÑOS DERIVADOS DE SU USO.
+
+Para pedir autorización: github.com/facuperma
+
+-------------------------------------------------------------------------------
+
+TVon and TVon ON
+Copyright (c) 2026 Facundo Gabriel Peralta Marello (GitHub: facuperma / Faierwall)
+All rights reserved.
+
+The source code is published on GitHub for viewing only. No license to use it
+is granted. Without the prior written permission of the copyright holder you may
+not copy, modify, create derivative works from, distribute, sublicense, sell or
+use this software, or any part of it, for commercial purposes, nor remove this
+notice. You may download the official installers published by the copyright
+holder and install them for personal, non-commercial use.
+
+Versions released before November 3, 2026 under the MIT License keep that
+license only for copies obtained at that time. Third-party components keep their
+own licenses. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
