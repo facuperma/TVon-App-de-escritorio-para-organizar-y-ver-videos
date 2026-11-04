@@ -73,6 +73,7 @@ fun App(vm: Modelo) {
             is Fase.Emparejar -> PantallaEmparejar(vm, fase.mensaje)
             is Fase.SinConexion -> PantallaSinConexion(vm, fase.mensaje)
             Fase.Lista -> Principal(vm)
+            Fase.Videoteca -> PantallaVideoteca(vm)
         }
         Dialogos(vm)
         Tostada(vm, Modifier.align(Alignment.BottomCenter))

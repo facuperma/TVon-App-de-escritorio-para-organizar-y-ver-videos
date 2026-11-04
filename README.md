@@ -10,9 +10,9 @@ Aplicación de escritorio para bajar, organizar y ver películas, series y video
 
 ## Descargar
 
-**[⬇ TorrentVision-Setup-1.8.3.exe](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-Setup-1.8.3.exe)** (39 MB) — para la PC (Windows 10/11, 64 bits)
+**[⬇ TorrentVision-Setup-1.8.4.exe](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-Setup-1.8.4.exe)** (39 MB) — para la PC (Windows 10/11, 64 bits)
 
-**[⬇ TorrentVision-ON-1.1.5.apk](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-ON-1.1.5.apk)** (3 MB) — app para el celular (Android 8 o más nuevo): ver más abajo, en [📱 ON](#-on-manejar-torrentvision-desde-el-celular)
+**[⬇ TorrentVision-ON-1.1.6.apk](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-ON-1.1.6.apk)** (3 MB) — app para el celular (Android 8 o más nuevo): ver más abajo, en [📱 ON](#-on-manejar-torrentvision-desde-el-celular)
 
 También desde la **[página de TorrentVision](https://facuperma.github.io/TVon-App-de-escritorio-para-organizar-y-ver-videos/#bajar)**: en la compu muestra un QR para bajar la app en el celular.
 
@@ -56,7 +56,7 @@ Botón **📱 ON** en la barra superior (o *Configuración → ON*; se pone verd
 
 #### App para Android (recomendada)
 
-**[⬇ TorrentVision-ON-1.1.5.apk](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-ON-1.1.5.apk)** (3 MB, Android 8 o más nuevo). **O escaneá el QR de la ventana ON con la cámara del celular:** la página que abre ofrece *⬇ Descargar la app* (lleva a la [página de descargas](https://facuperma.github.io/TVon-App-de-escritorio-para-organizar-y-ver-videos/#bajar); sin internet, se baja desde tu PC), *📲 Abrir la app y conectar* (ya vinculada, sin escanear de nuevo) o seguir en el navegador. También podés bajarla de acá, en el celular, y abrirla; Android pide permiso para *instalar apps de origen desconocido* (al navegador o a Archivos): permitilo solo para esto. Después tocá **📷 Escanear el código QR** con la ventana de ON abierta en la PC.
+**[⬇ TorrentVision-ON-1.1.6.apk](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-ON-1.1.6.apk)** (3 MB, Android 8 o más nuevo). **O escaneá el QR de la ventana ON con la cámara del celular:** la página que abre ofrece *⬇ Descargar la app* (lleva a la [página de descargas](https://facuperma.github.io/TVon-App-de-escritorio-para-organizar-y-ver-videos/#bajar); sin internet, se baja desde tu PC), *📲 Abrir la app y conectar* (ya vinculada, sin escanear de nuevo) o seguir en el navegador. También podés bajarla de acá, en el celular, y abrirla; Android pide permiso para *instalar apps de origen desconocido* (al navegador o a Archivos): permitilo solo para esto. Después tocá **📷 Escanear el código QR** con la ventana de ON abierta en la PC.
 
 Si tenías la app 1.1.0, desinstalala antes de instalar la 1.1.3 (cambió la firma) y volvé a escanear el código QR. Desde la 1.1.1 se actualiza encima, sin volver a vincular.
 
@@ -88,6 +88,19 @@ Para compilarla: JDK 17 y Android SDK 35; en `android\`, `gradlew assembleReleas
 **Siempre conectado:** si cerrás la ventana de TorrentVision con ON encendido, TorrentVision queda junto al reloj y el celular sigue manejando el mouse y el teclado; para salir del todo, *Archivo → Salir* o el ícono junto al reloj. Con **Arrancar TorrentVision con Windows** (en la ventana de ON o en *Más* del celular) arranca escondido y con ON encendido, así el celular siempre encuentra la PC. Desde el celular (*Más* o el aviso de arriba) se abre o esconde TorrentVision en la PC. Si TorrentVision ya está abierto, abrirlo de nuevo solo lo trae al frente.
 
 **Acceso rápido en el celular:** en Chrome, menú ⋮ → *Agregar a la pantalla principal*: queda el ícono de TorrentVision y abre directo la app.
+
+### 📱 Sin PC: el celular como videoteca
+
+¿No tenés una PC? En la app, el botón rojo **📱 Usar celular como videoteca** (en la primera pantalla o en ➕ Agregar) hace que el celular baje, guarde y reproduzca las películas solo:
+
+- Se guardan en **Películas/TorrentVision**: se ven en la galería y en Archivos, y no se borran si desinstalás la app.
+- Antes de bajar, compara el tamaño de la película con el lugar libre y siempre deja **1 GB** para el celular.
+- **Solo con wifi** de forma predeterminada (se cambia en ⚙ Ajustes). Las descargas siguen con la pantalla apagada y se ven en la barra de notificaciones.
+- Películas de dominio público del Internet Archive, con sus subtítulos si tienen. Para agregar un subtítulo (.srt o .zip): mantené apretada la película → *Agregar subtítulo*; queda junto a la película con su nombre.
+- Recuerda dónde quedaste (amarillo = a medias, verde = vista), se puede marcar vista o borrar del celular.
+- Cualquier video que copies a esa carpeta también aparece.
+- Para volver a manejar la PC: ⚙ → *Usar con una PC* (las películas quedan en la carpeta).
+- Próximamente: torrents (links magnet) en el celular. El motor de torrent se va a descargar aparte, solo si lo activás, para que la app siga siendo liviana.
 
 ### 🔒 Seguridad
 

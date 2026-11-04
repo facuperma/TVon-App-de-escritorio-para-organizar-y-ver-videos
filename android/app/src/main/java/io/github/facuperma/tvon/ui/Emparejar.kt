@@ -77,6 +77,11 @@ fun PantallaEmparejar(vm: Modelo, mensaje: String?) {
         }
         Pista("🔒 La app comprueba el certificado de tu PC con la huella que viene en el QR: la conexión va " +
             "cifrada y nadie más puede hacerse pasar por TorrentVision.", Modifier.padding(top = 12.dp))
+        Tarjeta(Modifier.padding(top = 12.dp)) {
+            TituloTarjeta("¿No tenés una PC?")
+            Pista("El celular puede bajar las películas, guardarlas con sus subtítulos y reproducirlas solo.")
+            BotonVideoteca(vm)
+        }
     }
 }
 

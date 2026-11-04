@@ -64,6 +64,13 @@ fun PestanaPeliculas(vm: Modelo) {
     LazyColumn(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp), modifier = Modifier.fillMaxSize()) {
         item {
             Tarjeta {
+                TituloTarjeta("📱 Sin la PC")
+                Pista("Bajá y mirá las películas en el celular, guardadas en Películas/TorrentVision.")
+                BotonVideoteca(vm)
+            }
+        }
+        item {
+            Tarjeta {
                 TituloTarjeta("🌐 Buscar en el celular")
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Boton("🌐 Películas", Modifier.weight(1f)) { abrirEnNavegador(contexto, SITIO_PELICULAS) }

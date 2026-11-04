@@ -34,7 +34,8 @@ class MainActivity : ComponentActivity() {
             TemaTVon {
                 App(vm)
                 BackHandler(enabled = vm.fase == Fase.Lista && atras(soloMirar = true)) { atras(soloMirar = false) }
-                val aTodaPantalla = vm.pantallaCompleta || vm.viendoAca != null
+                val aTodaPantalla = vm.pantallaCompleta || vm.viendoAca != null ||
+                    (vm.fase == Fase.Videoteca && vm.videoteca.viendo != null)
                 LaunchedEffect(aTodaPantalla) { pantallaCompleta(aTodaPantalla) }
                 // Con el touchpad o la pantalla de la PC a la vista, el celular no se apaga solo
                 val despierto = vm.fase == Fase.Lista && (vm.pestana == Pestana.MOUSE || vm.viendo)

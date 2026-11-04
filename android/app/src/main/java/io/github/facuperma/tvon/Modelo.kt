@@ -37,6 +37,8 @@ sealed interface Fase {
     data class Emparejar(val mensaje: String? = null) : Fase
     data class SinConexion(val mensaje: String) : Fase
     data object Lista : Fase
+    /** Sin PC: el celular baja, guarda y reproduce las películas. */
+    data object Videoteca : Fase
 }
 
 /** Una opción de la hoja de acciones (abajo). */
@@ -68,6 +70,7 @@ fun json(vararg pares: Pair<String, Any?>): JSONObject = JSONObject().apply {
 
 class Modelo(app: Application) : AndroidViewModel(app) {
     val almacen = Almacen(app)
+    val videoteca = Videoteca(app)
     private var pc: Pc? = null
 
     var fase by mutableStateOf<Fase>(Fase.Cargando)
@@ -175,6 +178,10 @@ class Modelo(app: Application) : AndroidViewModel(app) {
     }
 
     private suspend fun probarConexiones() {
+        if (videoteca.activa) {
+            fase = Fase.Videoteca
+            return
+        }
         val guardadas = almacen.conexiones()
         if (guardadas.isEmpty()) {
             fase = Fase.Emparejar()
@@ -274,6 +281,7 @@ class Modelo(app: Application) : AndroidViewModel(app) {
             if (!enPrimerPlano) continue
             when (fase) {
                 is Fase.SinConexion -> if (tic % 3 == 0) correr { conectar() }
+                Fase.Videoteca -> if (tic % 2 == 0) videoteca.refrescar()
                 Fase.Lista -> {
                     val e = estado
                     if (pestana == Pestana.REPRODUCTOR || e?.apagadoSegundos != null || e?.siguiente != null || tic % 3 == 0) {
@@ -323,6 +331,21 @@ class Modelo(app: Application) : AndroidViewModel(app) {
             else -> {}
         }
         correr { refrescarEstado() }
+    }
+
+    /** El botón rojo: el celular pasa a ser la videoteca (sin PC). */
+    fun usarVideoteca() {
+        dejarDeVer()
+        viendoAca?.jugador?.pause()
+        videoteca.activar()
+        fase = Fase.Videoteca
+    }
+
+    /** Volver a manejar la PC: las películas del celular quedan en su carpeta. */
+    fun dejarVideoteca() {
+        videoteca.desactivar()
+        fase = Fase.Cargando
+        correr { conectar() }
     }
 
     fun alVolver() {
