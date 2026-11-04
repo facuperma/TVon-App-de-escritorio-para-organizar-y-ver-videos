@@ -38,6 +38,9 @@ class Videoteca(private val contexto: Context) {
         private set
     var libre by mutableStateOf(0L)
         private set
+    /** Pestaña de la videoteca: 0 películas, 1 agregar, 2 ajustes. */
+    var pestana by mutableStateOf(0)
+    var enlaceTorrent by mutableStateOf("")
     /** La película que se está viendo (null = la lista). */
     var viendo by mutableStateOf<PeliculaLocal?>(null)
 

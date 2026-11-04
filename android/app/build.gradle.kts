@@ -6,7 +6,7 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
-// La clave para firmar el APK queda fuera del repositorio (firma.properties está en .gitignore)
+// La clave para firmar el APK queda fuera del repositorio (firma.properties estÃ¡ en .gitignore)
 val firma = Properties().apply {
     val archivo = rootProject.file("firma.properties")
     if (archivo.exists()) archivo.inputStream().use { load(it) }
@@ -20,8 +20,8 @@ android {
         applicationId = "io.github.facuperma.tvon"
         minSdk = 26
         targetSdk = 35
-        versionCode = 8
-        versionName = "1.1.6"
+        versionCode = 9
+        versionName = "1.1.7"
     }
 
     signingConfigs {
@@ -67,10 +67,12 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    // Reproductor de video (ver las películas de la PC en el celular), con el mismo cliente HTTP fijo
+    // Torrents en el celular: solo la parte Java. La parte nativa (â‰ˆ 6 MB) se baja aparte, si el usuario la activa
+    implementation("org.libtorrent4j:libtorrent4j:2.1.0-39")
+    // Reproductor de video (ver las pelÃ­culas de la PC en el celular), con el mismo cliente HTTP fijo
     implementation("androidx.media3:media3-exoplayer:1.4.1")
     implementation("androidx.media3:media3-ui:1.4.1")
     implementation("androidx.media3:media3-datasource-okhttp:1.4.1")
-    // Lector de QR de Google Play: no pide permiso de cámara a la app
+    // Lector de QR de Google Play: no pide permiso de cÃ¡mara a la app
     implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
 }

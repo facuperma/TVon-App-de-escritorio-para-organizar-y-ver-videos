@@ -5,6 +5,12 @@
     <uses-permission android:name="android.permission.VIBRATE" />
     <!-- Videoteca del celular: Android 8 y 9 piden permiso para guardar en Películas -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
+    <!-- Torrents en el celular: siguen bajando con la pantalla apagada, con una notificación fija -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <!-- Sin copias de seguridad: la sesión con la PC no sale del celular -->
     <application
@@ -48,5 +54,10 @@
                 <data android:mimeType="text/plain" />
             </intent-filter>
         </activity>
+
+        <service
+            android:name=".ServicioTorrents"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
     </application>
 </manifest>

@@ -48,6 +48,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -61,6 +62,9 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import io.github.facuperma.tvon.Hoja
 import io.github.facuperma.tvon.Modelo
+import io.github.facuperma.tvon.MotorTorrent
+import io.github.facuperma.tvon.ServicioTorrents
+import io.github.facuperma.tvon.Torrents
 import io.github.facuperma.tvon.Opcion
 import io.github.facuperma.tvon.PeliculaLocal
 import io.github.facuperma.tvon.Videoteca
@@ -114,8 +118,13 @@ fun PantallaVideoteca(vm: Modelo) {
     val v = vm.videoteca
     LaunchedEffect(Unit) { v.refrescar() }
     v.viendo?.let { ReproductorLocal(v, it); return }
-    var pestana by remember { mutableStateOf(PestanaVideoteca.BIBLIOTECA) }
-    BackHandler(enabled = pestana != PestanaVideoteca.BIBLIOTECA) { pestana = PestanaVideoteca.BIBLIOTECA }
+    val contexto = LocalContext.current
+    // Si quedaron torrents a medias (se cerró la app o se reinició el celular), siguen bajando
+    LaunchedEffect(Unit) {
+        if (MotorTorrent.instalado(contexto) && Torrents.hayAlgo(contexto)) ServicioTorrents.iniciar(contexto)
+    }
+    val pestana = PestanaVideoteca.entries[v.pestana]
+    BackHandler(enabled = pestana != PestanaVideoteca.BIBLIOTECA) { v.pestana = 0 }
     Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
         Row(
             Modifier.fillMaxWidth().background(C.panel).padding(horizontal = 16.dp, vertical = 8.dp),
@@ -129,7 +138,7 @@ fun PantallaVideoteca(vm: Modelo) {
         }
         Box(Modifier.weight(1f).imePadding()) {
             when (pestana) {
-                PestanaVideoteca.BIBLIOTECA -> Biblioteca(vm) { pestana = PestanaVideoteca.AGREGAR }
+                PestanaVideoteca.BIBLIOTECA -> Biblioteca(vm) { v.pestana = 1 }
                 PestanaVideoteca.AGREGAR -> Agregar(vm)
                 PestanaVideoteca.AJUSTES -> Ajustes(vm)
             }
@@ -137,7 +146,7 @@ fun PantallaVideoteca(vm: Modelo) {
         NavigationBar(containerColor = C.panel, windowInsets = WindowInsets(0, 0, 0, 0)) {
             for (p in PestanaVideoteca.entries) {
                 NavigationBarItem(
-                    selected = pestana == p, onClick = { pestana = p },
+                    selected = pestana == p, onClick = { v.pestana = p.ordinal },
                     icon = { Text(p.icono, fontSize = 18.sp) },
                     label = { Text(p.texto, fontSize = 10.sp, maxLines = 1) },
                     colors = NavigationBarItemDefaults.colors(
@@ -225,6 +234,7 @@ private fun Agregar(vm: Modelo) {
                 }
             }
         }
+        item { TarjetaTorrents(vm) }
         item {
             Tarjeta {
                 TituloTarjeta("🎞 Películas de dominio público")
@@ -271,11 +281,97 @@ private fun Agregar(vm: Modelo) {
                 }
             }
         }
-        item {
-            Tarjeta {
-                TituloTarjeta("🧲 Torrents (links magnet)")
-                Pista("Próximamente: para bajar torrents en el celular, TorrentVision va a descargar aparte el motor de " +
-                    "torrent (≈ 12 MB), solo si lo activás. Así la app sigue siendo liviana para quien no lo usa.")
+    }
+}
+
+/** Torrents en el celular: si el motor no está, se ofrece bajarlo (solo una vez, ≈ 6 MB). */
+@Composable
+private fun TarjetaTorrents(vm: Modelo) {
+    val v = vm.videoteca
+    val contexto = LocalContext.current
+    val foco = LocalFocusManager.current
+    var instalado by remember { mutableStateOf(MotorTorrent.instalado(contexto)) }
+    var bajandoMotor by remember { mutableStateOf<Float?>(null) }
+    // Android 13 en adelante pide permiso para mostrar el avance en las notificaciones
+    val notificaciones = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    val bajar = {
+        foco.clearFocus()
+        val magnet = v.enlaceTorrent.trim()
+        if (!magnet.startsWith("magnet:?", ignoreCase = true)) {
+            vm.mostrarAviso("Pegá un link magnet (empieza con «magnet:?»)", true)
+        } else {
+            if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(contexto,
+                    Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                notificaciones.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+            v.enlaceTorrent = ""
+            vm.bajarTorrentAca(magnet)
+        }
+    }
+    Tarjeta {
+        TituloTarjeta("🧲 Torrents (links magnet)")
+        when {
+            !MotorTorrent.disponible() -> Pista("Este celular no es compatible con el motor de torrent.")
+            !instalado -> {
+                Pista("Para bajar torrents en el celular hace falta el motor de torrent (libtorrent). No viene en la app " +
+                    "para que sea liviana: se baja una sola vez (≈ ${tamano(MotorTorrent.TAMANO_APROX)}) del repositorio " +
+                    "oficial y se comprueba que sea el original.")
+                val p = bajandoMotor
+                if (p != null) {
+                    Pista("Bajando el motor… ${(p * 100).toInt()} %")
+                    Progreso(p)
+                } else {
+                    Boton("⬇ Activar torrents", Modifier.fillMaxWidth(), Estilo.PRIMARIO) {
+                        bajandoMotor = 0f
+                        vm.correr {
+                            try {
+                                MotorTorrent.instalar(contexto) { bajandoMotor = it }
+                                instalado = MotorTorrent.instalado(contexto)
+                                vm.mostrarAviso("Torrents activados", false)
+                            } catch (e: Exception) {
+                                vm.mostrarAviso(e.message ?: "No se pudo bajar el motor: ¿hay internet?", true)
+                            } finally {
+                                bajandoMotor = null
+                            }
+                        }
+                    }
+                }
+            }
+            else -> {
+                Pista("Copiá el link magnet en el navegador y pegalo acá, o tocalo y abrilo con TorrentVision. Se baja " +
+                    "solo la película y sus subtítulos (sin tráileres ni muestras) y, al terminar, pasa a 📚 Películas.")
+                OutlinedTextField(
+                    v.enlaceTorrent, { v.enlaceTorrent = it }, Modifier.fillMaxWidth(), singleLine = true,
+                    colors = campoColores(), placeholder = { Text("magnet:?xt=…") },
+                    keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, keyboardType = KeyboardType.Uri,
+                        imeAction = ImeAction.Go),
+                    keyboardActions = KeyboardActions(onGo = { bajar() }),
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Boton("⬇ Bajar al celular", Modifier.weight(1f), Estilo.PRIMARIO) { bajar() }
+                    Boton("🌐 Buscar", Modifier.weight(1f)) {
+                        try {
+                            contexto.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://ext.to/")))
+                        } catch (e: Exception) {
+                            vm.mostrarAviso("No hay un navegador para abrir el link", true)
+                        }
+                    }
+                }
+                if (Torrents.buscando > 0) Pista("🔎 Buscando los datos del torrent en la red (puede tardar hasta un minuto)…")
+                for (t in Torrents.lista) {
+                    Item(t.nombre, "${(t.progreso * 100).toInt()} % · ${tamano(t.bajado).ifEmpty { "0 MB" }} de ${tamano(t.total)} · ${t.estado}",
+                        { IconoTexto("🧲") }, abajo = { Progreso(t.progreso) }) {
+                        Boton(if (t.pausado) "▶" else "⏸", chico = true) {
+                            if (t.pausado) Torrents.reanudar(t.hash) else Torrents.pausar(t.hash)
+                        }
+                        Boton("✕", chico = true) {
+                            vm.confirmar = Confirmar("¿Cancelar «${t.nombre}»? Se borra lo que se bajó hasta ahora.", "Cancelar descarga") {
+                                Torrents.cancelar(contexto, t.hash)
+                            }
+                        }
+                    }
+                }
+                if (v.soloWifi) Pista("Solo con wifi: con datos móviles los torrents esperan (se cambia en ⚙).")
             }
         }
     }
@@ -302,6 +398,27 @@ private fun Ajustes(vm: Modelo) {
                 Interruptor("Bajar solo con wifi", v.soloWifi) { v.cambiarSoloWifi(it) }
                 Pista(if (v.soloWifi) "Con datos móviles, las descargas esperan a que haya wifi."
                     else "Ojo: una película puede gastar varios GB del plan de datos.")
+            }
+        }
+        item {
+            val contexto = LocalContext.current
+            var instalado by remember { mutableStateOf(MotorTorrent.instalado(contexto)) }
+            Tarjeta {
+                TituloTarjeta("🧲 Motor de torrent")
+                if (!instalado) {
+                    Pista("No está activado. Se activa en ➕ Agregar → Torrents (se baja una sola vez).")
+                } else {
+                    Pista("Activado (libtorrent). Al terminar una película deja de compartirla, para no gastar datos ni batería.")
+                    Boton("Quitar el motor de torrent", Modifier.fillMaxWidth()) {
+                        if (Torrents.hayAlgo(contexto)) {
+                            vm.mostrarAviso("Primero terminá o cancelá los torrents que están bajando", true)
+                        } else {
+                            MotorTorrent.quitar(contexto)
+                            instalado = false
+                            vm.mostrarAviso("Motor quitado. Se puede volver a activar cuando quieras.", false)
+                        }
+                    }
+                }
             }
         }
         item {

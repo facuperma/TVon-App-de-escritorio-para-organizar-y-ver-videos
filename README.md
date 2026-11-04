@@ -10,9 +10,9 @@ Aplicación de escritorio para bajar, organizar y ver películas, series y video
 
 ## Descargar
 
-**[⬇ TorrentVision-Setup-1.8.4.exe](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-Setup-1.8.4.exe)** (39 MB) — para la PC (Windows 10/11, 64 bits)
+**[⬇ TorrentVision-Setup-1.8.5.exe](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-Setup-1.8.5.exe)** (39 MB) — para la PC (Windows 10/11, 64 bits)
 
-**[⬇ TorrentVision-ON-1.1.6.apk](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-ON-1.1.6.apk)** (3 MB) — app para el celular (Android 8 o más nuevo): ver más abajo, en [📱 ON](#-on-manejar-torrentvision-desde-el-celular)
+**[⬇ TorrentVision-ON-1.1.7.apk](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-ON-1.1.7.apk)** (3 MB) — app para el celular (Android 8 o más nuevo): ver más abajo, en [📱 ON](#-on-manejar-torrentvision-desde-el-celular)
 
 También desde la **[página de TorrentVision](https://facuperma.github.io/TVon-App-de-escritorio-para-organizar-y-ver-videos/#bajar)**: en la compu muestra un QR para bajar la app en el celular.
 
@@ -56,7 +56,7 @@ Botón **📱 ON** en la barra superior (o *Configuración → ON*; se pone verd
 
 #### App para Android (recomendada)
 
-**[⬇ TorrentVision-ON-1.1.6.apk](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-ON-1.1.6.apk)** (3 MB, Android 8 o más nuevo). **O escaneá el QR de la ventana ON con la cámara del celular:** la página que abre ofrece *⬇ Descargar la app* (lleva a la [página de descargas](https://facuperma.github.io/TVon-App-de-escritorio-para-organizar-y-ver-videos/#bajar); sin internet, se baja desde tu PC), *📲 Abrir la app y conectar* (ya vinculada, sin escanear de nuevo) o seguir en el navegador. También podés bajarla de acá, en el celular, y abrirla; Android pide permiso para *instalar apps de origen desconocido* (al navegador o a Archivos): permitilo solo para esto. Después tocá **📷 Escanear el código QR** con la ventana de ON abierta en la PC.
+**[⬇ TorrentVision-ON-1.1.7.apk](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-ON-1.1.7.apk)** (3 MB, Android 8 o más nuevo). **O escaneá el QR de la ventana ON con la cámara del celular:** la página que abre ofrece *⬇ Descargar la app* (lleva a la [página de descargas](https://facuperma.github.io/TVon-App-de-escritorio-para-organizar-y-ver-videos/#bajar); sin internet, se baja desde tu PC), *📲 Abrir la app y conectar* (ya vinculada, sin escanear de nuevo) o seguir en el navegador. También podés bajarla de acá, en el celular, y abrirla; Android pide permiso para *instalar apps de origen desconocido* (al navegador o a Archivos): permitilo solo para esto. Después tocá **📷 Escanear el código QR** con la ventana de ON abierta en la PC.
 
 Si tenías la app 1.1.0, desinstalala antes de instalar la 1.1.3 (cambió la firma) y volvé a escanear el código QR. Desde la 1.1.1 se actualiza encima, sin volver a vincular.
 
@@ -100,7 +100,7 @@ Para compilarla: JDK 17 y Android SDK 35; en `android\`, `gradlew assembleReleas
 - Recuerda dónde quedaste (amarillo = a medias, verde = vista), se puede marcar vista o borrar del celular.
 - Cualquier video que copies a esa carpeta también aparece.
 - Para volver a manejar la PC: ⚙ → *Usar con una PC* (las películas quedan en la carpeta).
-- Próximamente: torrents (links magnet) en el celular. El motor de torrent se va a descargar aparte, solo si lo activás, para que la app siga siendo liviana.
+- **Torrents en el celular:** en ➕ Agregar → *Activar torrents* se baja una sola vez el motor (libtorrent, ≈ 6 MB, del repositorio oficial Maven Central y con su huella SHA-256 comprobada); la app sin él pesa lo mismo de siempre. Después pegás un link magnet (o lo tocás en el navegador y lo abrís con TorrentVision) y se baja solo la película y sus subtítulos, sin tráileres, muestras, imágenes ni otros archivos. Sigue con la pantalla apagada (notificación con el avance), se puede pausar o cancelar, retoma sola si se cerró la app y, al terminar, pasa a *Películas/TorrentVision* con un nombre lindo («The.Movie.2020.1080p…» → «The Movie (2020)») y deja de compartir para no gastar datos ni batería. Antes de empezar revisa que entre (película + 1 GB). Android 15 frena estos servicios después de 6 horas por día: si pasa, avisa y sigue al abrir la app. El motor se puede quitar en ⚙ Ajustes.
 
 ### 🔒 Seguridad
 
@@ -242,4 +242,4 @@ Conservan sus propias licencias:
 - [aria2](https://github.com/aria2/aria2) 1.37.0: GPL v2, incluido sin modificar como programa aparte (`organizador\bin\aria2-LICENCIA.txt`). Su código fuente está en github.com/aria2/aria2.
 - [PySide6 / Qt](https://www.qt.io/qt-for-python): LGPL v3, sin modificar.
 - [cryptography](https://github.com/pyca/cryptography): Apache 2.0 / BSD. [segno](https://github.com/heuer/segno): BSD.
-- App de Android: AndroidX, Jetpack Compose, Media3 (ExoPlayer) y OkHttp con licencia Apache 2.0; lector de QR de Google Play Services según los términos de Google.
+- App de Android: AndroidX, Jetpack Compose, Media3 (ExoPlayer) y OkHttp con licencia Apache 2.0; libtorrent4j (MIT) y libtorrent (BSD), que se bajan aparte solo si se activan los torrents; lector de QR de Google Play Services según los términos de Google.

@@ -341,6 +341,16 @@ class Modelo(app: Application) : AndroidViewModel(app) {
         fase = Fase.Videoteca
     }
 
+    /** Un link magnet para bajar en el celular (modo videoteca). */
+    fun bajarTorrentAca(magnet: String) {
+        val app = getApplication<Application>()
+        ServicioTorrents.iniciar(app)
+        correr {
+            val aviso = Torrents.agregar(app, magnet, videoteca.espacioLibre())
+            mostrarAviso(aviso, !aviso.startsWith("Bajando"))
+        }
+    }
+
     /** Volver a manejar la PC: las películas del celular quedan en su carpeta. */
     fun dejarVideoteca() {
         videoteca.desactivar()
@@ -784,6 +794,12 @@ class Modelo(app: Application) : AndroidViewModel(app) {
 
     /** Un link magnet que llegó de otra app (compartir o «abrir con»). */
     fun recibirMagnet(enlace: String) {
+        if (fase == Fase.Videoteca) {
+            // Sin PC: va a la tarjeta de torrents del celular
+            videoteca.enlaceTorrent = enlace
+            videoteca.pestana = 1
+            return
+        }
         enlaceTorrent = enlace
         if (fase == Fase.Lista) irA(Pestana.PELICULAS) else pestana = Pestana.PELICULAS
     }
