@@ -27,7 +27,7 @@ from .descargas import GestorDescargas
 from .dialogo_config import DialogoConfig
 from .dialogo_on import DialogoOn
 from .dominio_publico import VentanaDominioPublico, a_la_papelera, eliminar_video
-from . import fichas
+from . import fichas, paleta
 from .fichas import BuscadorFichas
 from .remoto import Remoto
 from .subtitulos import EXT_SUBTITULOS, subtitulos_junto_a
@@ -400,12 +400,12 @@ class Ventana(QMainWindow):
         caja.setText(
             f"<h2>TorrentVision</h2><p>Versión <b>{QApplication.applicationVersion()}</b></p>"
             "<p><i>Torrent para todos.</i></p>"
-            "<p>Bajá, organizá y mirá tus películas y series.</p>"
             f"<p>Hecho por <b>{AUTOR}</b></p>"
             f"<p>© 2026 Facundo Gabriel Peralta Marello · Todos los derechos reservados<br>"
             f"<a href='{REPOSITORIO}' style='color:#9fc2ff'>{REPOSITORIO.removeprefix('https://')}</a></p>"
         )
         caja.setInformativeText(f"Qt {VERSION_QT} · Python {platform.python_version()}")
+        paleta.preparar(caja)
         caja.exec()
 
     def _reportar_bug(self):
