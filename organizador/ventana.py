@@ -166,7 +166,7 @@ class Ventana(QMainWindow):
         # La carpeta es un vínculo: tocarla abre el Explorador en ese video
         self.lista.viewport().setMouseTracking(True)
         self.lista.currentItemChanged.connect(self._archivo_cambiado)
-        self.lista.itemDoubleClicked.connect(lambda item: self.abrir_en_ventana([item.data(0, ROL)]))
+        self.lista.itemDoubleClicked.connect(self._reproducir_item)
         self.lista.setContextMenuPolicy(Qt.CustomContextMenu)
         self.lista.customContextMenuRequested.connect(self._menu_archivos)
         self.lista.itemSelectionChanged.connect(self._actualizar_boton_titulo)
@@ -250,7 +250,7 @@ class Ventana(QMainWindow):
 
         btn_ant = QPushButton("◀ Anterior")
         btn_sig = QPushButton("Siguiente ▶")
-        btn_ventana = QPushButton("⧉ Abrir en ventana", toolTip="Abrir en una ventana aparte (o doble clic en la lista)")
+        btn_ventana = QPushButton("⧉ Abrir en ventana", toolTip="Abrir en una ventana aparte")
         btn_quitar = QPushButton("Quitar de la biblioteca")
         btn_ant.clicked.connect(lambda: self.mover(-1))
         btn_sig.clicked.connect(lambda: self.mover(1))
@@ -917,6 +917,18 @@ class Ventana(QMainWindow):
         else:
             self.visor.mostrar(None, None)
         self._mostrar_detalles(datos)
+
+    def _reproducir_item(self, item):
+        """Doble clic en la lista: reproduce en el visor principal (la ventana aparte, solo con su botón)."""
+        datos = item.data(0, ROL) if item else None
+        if not datos or datos[2] != "video":
+            return
+        if item is not self.lista.currentItem() or self.visor.ruta_video != datos[1]:
+            self._seleccionar(item, REPRODUCIR)
+        elif self.visor.en_vista_previa():
+            self.visor.empezar()
+        else:
+            self.visor.reproductor.play()
 
     def _mostrar_detalles(self, datos):
         self.detalles.setEnabled(datos is not None)

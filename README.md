@@ -182,7 +182,8 @@ Marcá **⏻ Apagar** en los controles: cuando termine el video (en el visor o e
 
 ### Varios videos a la vez
 
-- **Doble clic** en la lista, el botón **⧉ Abrir en ventana** o clic derecho → **Abrir en ventana nueva** abre el archivo en una ventana aparte, que se puede mover, redimensionar y poner en pantalla completa (F / Esc / doble clic). La ventana toma el tamaño del video (sin pasarse del 85 % de la pantalla) y se puede achicar a gusto.
+- **Doble clic** en la lista reproduce el video en el reproductor principal.
+- El botón **⧉ Abrir en ventana** o clic derecho → **Abrir en ventana nueva** abre el archivo en una ventana aparte, que se puede mover, redimensionar y poner en pantalla completa (F / Esc / doble clic). La ventana toma el tamaño del video (sin pasarse del 85 % de la pantalla) y se puede achicar a gusto.
 - Si el video ya se estaba viendo en el visor principal, sigue desde el mismo punto en la ventana.
 - Cada ventana tiene su propio volumen, subtítulos y atajos. 📌 la mantiene siempre visible por encima de las demás.
 
