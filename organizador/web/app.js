@@ -73,6 +73,15 @@ function mostrarEmparejar(texto) {
 async function emparejar() {
   const params = new URLSearchParams(location.search);
   const codigo = params.get("c");
+  // Android sin la app: antes de gastar el código, ofrecer instalarla (o abrirla, o usar el navegador)
+  if (codigo && /Android/i.test(navigator.userAgent) && !params.has("web")) {
+    $("#instalar-abrir").href = `tvon://${location.host}/?c=${encodeURIComponent(codigo)}&h=${encodeURIComponent(params.get("h") || "")}`;
+    params.set("web", "1");
+    $("#instalar-web").href = `${location.pathname}?${params}`;
+    $("#app").hidden = true;
+    $("#instalar").hidden = false;
+    return false;
+  }
   if (codigo) {
     // El código no queda en el historial ni en la barra de direcciones
     history.replaceState(null, "", location.pathname + location.hash);

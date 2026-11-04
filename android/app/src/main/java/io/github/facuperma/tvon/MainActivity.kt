@@ -82,7 +82,8 @@ class MainActivity : ComponentActivity() {
     /** Un link magnet (o el link del QR de TVon) que llega de otra app. */
     private fun recibir(intent: Intent?) {
         val texto = when (intent?.action) {
-            Intent.ACTION_VIEW -> intent.dataString
+            // tvon://IP:puerto/?c=..&h=.. lo manda la página del QR (botón «Abrir la app y conectar»)
+            Intent.ACTION_VIEW -> intent.dataString?.replaceFirst(Regex("^tvon://", RegexOption.IGNORE_CASE), "https://")
             Intent.ACTION_SEND -> intent.getStringExtra(Intent.EXTRA_TEXT)
             else -> null
         } ?: return

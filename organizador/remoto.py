@@ -64,6 +64,13 @@ TIPOS_VIDEO = {".mp4": "video/mp4", ".m4v": "video/mp4", ".mkv": "video/x-matros
                ".flv": "video/x-flv", ".mpg": "video/mpeg", ".mpeg": "video/mpeg"}
 
 
+def apk_del_celular() -> Path | None:
+    """La APK más nueva: la que viene en el instalador (carpeta apk del programa) o la de la carpeta instalador del repo."""
+    aqui = Path(__file__).parent
+    apks = [a for c in (aqui / "apk", aqui.parent / "instalador") if c.is_dir() for a in c.glob("TorrentVision-ON-*.apk")]
+    return max(apks, key=lambda a: [int(n) for n in re.findall(r"\d+", a.stem)], default=None)
+
+
 def ffmpeg() -> str | None:
     """ffmpeg para convertir lo que el celular no puede reproducir: el que viene con TVon
     (organizador\\bin) o uno instalado (winget install Gyan.FFmpeg)."""
@@ -725,6 +732,8 @@ class _Manejador(BaseHTTPRequestHandler):
     def _estatico(self, ruta: str):
         if ruta in ("/", ""):
             ruta = "/index.html"
+        if ruta == "/torrentvision.apk":
+            return self._apk()
         if m := re.fullmatch(r"/icono-(192|512)\.png", ruta):
             return self._responder(200, _icono(int(m.group(1))), "image/png", {"Cache-Control": "max-age=86400"})
         nombre = ruta.lstrip("/")
@@ -733,6 +742,14 @@ class _Manejador(BaseHTTPRequestHandler):
         if "/" in nombre or "\\" in nombre or not archivo.is_file() or archivo.suffix not in TIPOS:
             raise ErrorRemoto("No existe", 404)
         self._responder(200, archivo.read_bytes(), TIPOS[archivo.suffix], {"Cache-Control": "no-cache"})
+
+    def _apk(self):
+        """La app de Android, para instalarla escaneando el mismo QR (no hace falta sesión ni internet)."""
+        apk = apk_del_celular()
+        if apk is None:
+            raise ErrorRemoto("Esta instalación de TorrentVision no trae la app del celular", 404)
+        self._responder(200, apk.read_bytes(), "application/vnd.android.package-archive",
+                        {"Content-Disposition": f'attachment; filename="{apk.name}"', "Cache-Control": "no-cache"})
 
     # --- Imágenes ----------------------------------------------------------------------
 

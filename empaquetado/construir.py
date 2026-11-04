@@ -56,6 +56,14 @@ def version() -> str:
     return re.search(r'VERSION = "(.+?)"', (RAIZ / "main.py").read_text(encoding="utf-8")).group(1)
 
 
+def apk_celular() -> Path:
+    apks = sorted((RAIZ / "instalador").glob("TorrentVision-ON-*.apk"),
+                  key=lambda a: [int(n) for n in re.findall(r"\d+", a.stem)])
+    if not apks:
+        sys.exit("Falta la APK del celular en instalador/ (android\\gradlew.bat assembleRelease)")
+    return apks[-1]
+
+
 def iscc() -> Path:
     candidatos = [
         Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "Inno Setup 6" / "ISCC.exe",
@@ -83,6 +91,8 @@ def main():
         "--add-data", f"{RAIZ / 'organizador' / 'web'};organizador/web",
         # Torrents
         "--add-data", f"{BIN};organizador/bin",
+        # La APK del celular: se baja escaneando el QR, sin internet
+        "--add-data", f"{apk_celular()};organizador/apk",
         # Chromecast: zeroconf y pychromecast cargan partes propias que PyInstaller no ve solo
         "--collect-submodules", "zeroconf", "--collect-submodules", "pychromecast",
         "--distpath", str(SALIDA / "dist"), "--workpath", str(SALIDA / "build"),

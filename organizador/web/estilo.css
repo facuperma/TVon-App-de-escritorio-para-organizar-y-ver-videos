@@ -314,3 +314,6 @@ input[type=range] { accent-color: var(--acento); height: 28px; }
   .hoja { animation: none; }
   .interruptor span, .interruptor span::after { transition: none; }
 }
+
+.boton-grande { display: block; margin: 18px 0 6px; padding: 14px; border-radius: 12px; background: #2d7ff9; color: #fff; font-weight: 600; text-decoration: none; }
+.enlace-chico { display: inline-block; margin-top: 22px; color: #9fc2ff; font-size: 14px; }
