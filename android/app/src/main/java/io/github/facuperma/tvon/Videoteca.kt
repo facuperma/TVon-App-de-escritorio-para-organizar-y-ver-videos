@@ -12,6 +12,7 @@ import androidx.compose.runtime.setValue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
@@ -41,6 +42,7 @@ class Videoteca(private val contexto: Context) {
     /** Pestaña de la videoteca: 0 películas, 1 agregar, 2 ajustes. */
     var pestana by mutableStateOf(0)
     var enlaceTorrent by mutableStateOf("")
+    var enlaceSubtitulo by mutableStateOf("")
     /** La película que se está viendo (null = la lista). */
     var viendo by mutableStateOf<PeliculaLocal?>(null)
 
@@ -150,9 +152,16 @@ class Videoteca(private val contexto: Context) {
         val nombre = nombreLindo(p.titulo, p.anio)
         val extension = video.getString("name").substringAfterLast('.', "mp4").lowercase()
         encolar(urlArchive(p.identificador, video.getString("name")), "$nombre.$extension", p.titulo)
-        // Subtítulos del ítem: el primero queda con el mismo nombre que el video (así lo encuentra cualquier reproductor)
-        todos.map { it.getString("name") }.filter { it.lowercase().endsWith(".srt") }.take(3).forEachIndexed { i, s ->
-            encolar(urlArchive(p.identificador, s), if (i == 0) "$nombre.srt" else "$nombre.$i.srt", "Subtítulo de ${p.titulo}")
+        // Subtítulos del ítem: los baja la app (el gestor de descargas de Android no guarda .srt en Películas).
+        // El primero queda con el mismo nombre que el video, así lo encuentra cualquier reproductor
+        todos.map { it.getString("name") }.filter { it.lowercase().endsWith(".srt") }.take(3).forEach { s ->
+            try {
+                red.newCall(Request.Builder().url(urlArchive(p.identificador, s)).build()).execute().use { r ->
+                    if (r.isSuccessful) r.body?.bytes()?.let { guardarSubtitulo(nombre, p.titulo, it, s) }
+                }
+            } catch (e: java.io.IOException) {
+                // Sin el subtítulo, la película igual se baja
+            }
         }
         refrescar()
         "Bajando «${p.titulo}» (${tamano(peso)})" + if (soloWifi) " por wifi" else ""
@@ -215,6 +224,11 @@ class Videoteca(private val contexto: Context) {
 
     fun cancelar(d: DescargaLocal) {
         gestor.remove(d.id)
+        // Los subtítulos que ya se habían bajado para esa película no sirven sin ella
+        val base = d.archivo.substringBeforeLast('.')
+        if (base.isNotEmpty()) carpeta.listFiles().orEmpty()
+            .filter { it.extension.lowercase() in SUBTITULOS && it.name.startsWith("$base.") }
+            .forEach { it.delete() }
         refrescar()
     }
 
@@ -228,27 +242,63 @@ class Videoteca(private val contexto: Context) {
 
     /** Un .srt/.vtt (o un .zip con uno adentro) elegido en el celular: queda junto a la película, con su nombre. */
     suspend fun agregarSubtitulo(p: PeliculaLocal, uri: Uri): String = withContext(Dispatchers.IO) {
-        val nombreOrigen = uri.lastPathSegment.orEmpty().lowercase()
-        val entrada = contexto.contentResolver.openInputStream(uri) ?: return@withContext "No se pudo abrir el archivo"
-        val (bytes, extension) = entrada.use { e ->
-            val datos = e.readBytes()
-            if (datos.size >= 2 && datos[0] == 'P'.code.toByte() && datos[1] == 'K'.code.toByte()) {
-                ZipInputStream(datos.inputStream()).use { zip ->
-                    generateSequence { zip.nextEntry }.firstOrNull { it.name.substringAfterLast('.').lowercase() in SUBTITULOS }
-                        ?.let { zip.readBytes() to it.name.substringAfterLast('.').lowercase() }
-                } ?: return@withContext "El .zip no tiene ningún subtítulo (.srt o .vtt)"
-            } else {
-                datos to (if (nombreOrigen.endsWith(".vtt")) "vtt" else "srt")
+        val datos = contexto.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+            ?: return@withContext "No se pudo abrir el archivo"
+        guardarSubtitulo(p.archivo.nameWithoutExtension, p.titulo, datos, uri.lastPathSegment.orEmpty())
+    }
+
+    /** El link de un subtítulo (.srt, .vtt o .zip): se baja al celular y queda junto a la película. */
+    suspend fun bajarSubtitulo(p: PeliculaLocal, enlace: String): String = withContext(Dispatchers.IO) {
+        val url = enlace.trim().toHttpUrlOrNull()
+            ?: return@withContext "Eso no es un link: tiene que empezar con https://"
+        try {
+            // Algunos sitios (subdivx, por ejemplo) solo entregan el archivo si el pedido viene "desde" su página
+            red.newCall(Request.Builder().url(url).header("Referer", "${url.scheme}://${url.host}/")
+                .header("User-Agent", "Mozilla/5.0 (Linux; Android) TorrentVision").build()).execute().use { r ->
+                if (!r.isSuccessful) return@withContext "El sitio no entregó el subtítulo (HTTP ${r.code})"
+                val cuerpo = r.body ?: return@withContext "El sitio no entregó nada"
+                if (cuerpo.contentLength() > 20_000_000) return@withContext "Eso no parece un subtítulo (es muy grande)"
+                val fuente = cuerpo.source()
+                if (fuente.request(20_000_001)) return@withContext "Eso no parece un subtítulo (es muy grande)"
+                val datos = fuente.readByteArray()
+                val nombre = r.header("Content-Disposition")?.let { Regex("""filename\*?=(?:UTF-8'')?"?([^";]+)""").find(it)?.groupValues?.get(1) }
+                    ?: r.request.url.pathSegments.lastOrNull().orEmpty()
+                guardarSubtitulo(p.archivo.nameWithoutExtension, p.titulo, datos, Uri.decode(nombre))
             }
+        } catch (e: java.io.IOException) {
+            "No se pudo bajar el subtítulo: ¿hay internet?"
         }
-        if (bytes.size > 5_000_000) return@withContext "Eso no parece un subtítulo (es muy grande)"
-        val base = p.archivo.nameWithoutExtension
+    }
+
+    private fun guardarSubtitulo(base: String, titulo: String, datos: ByteArray, nombreOrigen: String): String {
+        val origen = nombreOrigen.lowercase()
+        fun empieza(vararg b: Int) = datos.size >= b.size && b.indices.all { datos[it] == b[it].toByte() }
+        val (bytes, extension) = when {
+            empieza(0x50, 0x4B) -> ZipInputStream(datos.inputStream()).use { zip ->
+                // Si trae varios, el más grande (suele ser el completo y no uno de prueba)
+                generateSequence { zip.nextEntry }
+                    .filter { !it.isDirectory && it.name.substringAfterLast('.').lowercase() in SUBTITULOS }
+                    .map { zip.readBytes() to it.name.substringAfterLast('.').lowercase() }
+                    .maxByOrNull { it.first.size }
+            } ?: return "El .zip no tiene ningún subtítulo (.srt o .vtt)"
+            empieza(0x52, 0x61, 0x72, 0x21) || origen.endsWith(".rar") ->
+                return "Es un .rar y el celular solo abre .zip: descomprimilo con una app de archivos y agregá el .srt " +
+                    "manteniendo apretada la película"
+            empieza(0x37, 0x7A, 0xBC, 0xAF) || origen.endsWith(".7z") ->
+                return "Es un .7z y el celular solo abre .zip: descomprimilo con una app de archivos y agregá el .srt " +
+                    "manteniendo apretada la película"
+            String(datos, 0, minOf(datos.size, 512)).trimStart().let { it.startsWith("<!DOCTYPE", true) || it.startsWith("<html", true) } ->
+                return "Ese link abre una página, no el archivo. En el navegador mantené apretado el botón de descarga, " +
+                    "copiá ese link y pegalo acá"
+            else -> datos to (if (origen.endsWith(".vtt") || String(datos, 0, minOf(datos.size, 16)).startsWith("WEBVTT")) "vtt" else "srt")
+        }
+        if (bytes.size > 5_000_000) return "Eso no parece un subtítulo (es muy grande)"
         var destino = File(carpeta, "$base.$extension")
         var n = 1
         while (destino.exists()) destino = File(carpeta, "$base.${n++}.$extension")
         destino.writeBytes(bytes)
         refrescar()
-        "Subtítulo agregado a «${p.titulo}»"
+        return "Subtítulo agregado a «$titulo»"
     }
 
     // --- Dónde quedaste -----------------------------------------------------------------------

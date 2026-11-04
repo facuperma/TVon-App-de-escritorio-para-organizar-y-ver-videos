@@ -174,8 +174,8 @@ private fun Biblioteca(vm: Modelo, irAAgregar: () -> Unit) {
             item {
                 Tarjeta {
                     TituloTarjeta("Todavía no hay películas")
-                    Pista("Buscá películas de dominio público en ➕ Agregar: se bajan a Películas/${Videoteca.CARPETA}. " +
-                        "También aparece acá cualquier video que copies a esa carpeta.")
+                    Pista("Buscá películas de dominio público o pegá un link magnet en ➕ Agregar: se bajan a " +
+                        "Películas/${Videoteca.CARPETA}.")
                     Boton("➕ Agregar películas", Modifier.fillMaxWidth(), Estilo.PRIMARIO) { irAAgregar() }
                 }
             }
@@ -237,6 +237,44 @@ private fun Agregar(vm: Modelo) {
         item { TarjetaTorrents(vm) }
         item {
             Tarjeta {
+                TituloTarjeta("💬 Subtítulos")
+                Pista("Pegá el link del subtítulo (.srt, .vtt o .zip), elegí la película y se baja al celular: queda " +
+                    "junto a la película con su nombre. Si ya lo bajaste, en 📚 Películas mantené apretada la película → " +
+                    "Agregar subtítulo.")
+                val bajarSub = {
+                    foco.clearFocus()
+                    val enlace = v.enlaceSubtitulo.trim()
+                    when {
+                        !enlace.startsWith("http", ignoreCase = true) -> vm.mostrarAviso("Pegá el link del subtítulo (empieza con https://)", true)
+                        v.peliculas.isEmpty() -> vm.mostrarAviso("Primero bajá una película: el subtítulo va junto a ella", true)
+                        else -> vm.hoja = Hoja("¿De qué película es el subtítulo?", v.peliculas.map { p ->
+                            Opcion(p.titulo) {
+                                val aviso = v.bajarSubtitulo(p, enlace)
+                                if (aviso.startsWith("Subtítulo agregado")) v.enlaceSubtitulo = ""
+                                vm.mostrarAviso(aviso, !aviso.startsWith("Subtítulo agregado"))
+                            }
+                        })
+                    }
+                }
+                OutlinedTextField(
+                    v.enlaceSubtitulo, { v.enlaceSubtitulo = it }, Modifier.fillMaxWidth(), singleLine = true,
+                    colors = campoColores(), placeholder = { Text("https://…") },
+                    keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, keyboardType = KeyboardType.Uri,
+                        imeAction = ImeAction.Go),
+                    keyboardActions = KeyboardActions(onGo = { bajarSub() }),
+                )
+                Boton("⬇ Bajar al celular", Modifier.fillMaxWidth(), Estilo.PRIMARIO) { bajarSub() }
+                Boton("🌐 Buscar subtítulos", Modifier.fillMaxWidth()) {
+                    try {
+                        contexto.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://subdivx.com/")))
+                    } catch (e: Exception) {
+                        vm.mostrarAviso("No hay un navegador para abrir el link", true)
+                    }
+                }
+            }
+        }
+        item {
+            Tarjeta {
                 TituloTarjeta("🎞 Películas de dominio público")
                 Pista("De la colección del Internet Archive: libres y gratis. Se bajan con sus subtítulos, si tienen.")
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -266,20 +304,6 @@ private fun Agregar(vm: Modelo) {
         }
         if (v.resultados.size < v.total) {
             item { Boton("Cargar más", Modifier.fillMaxWidth().padding(vertical = 6.dp)) { vm.correr { v.buscar(nueva = false) } } }
-        }
-        item {
-            Tarjeta {
-                TituloTarjeta("💬 Subtítulos")
-                Pista("Bajá el .srt o .zip en el navegador y después, en 📚 Películas, mantené apretada la película → " +
-                    "Agregar subtítulo. Queda junto a la película con su nombre.")
-                Boton("🌐 Buscar subtítulos", Modifier.fillMaxWidth()) {
-                    try {
-                        contexto.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://subdivx.com/")))
-                    } catch (e: Exception) {
-                        vm.mostrarAviso("No hay un navegador para abrir el link", true)
-                    }
-                }
-            }
         }
     }
 }
