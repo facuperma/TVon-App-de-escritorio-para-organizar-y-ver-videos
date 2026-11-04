@@ -66,6 +66,7 @@ Hace todo lo de la versión web (reproductor, subtítulos, cola, biblioteca, cat
 - **🏠 Inicio, como Jellyfin:** las películas y series de la PC con póster, sinopsis, géneros y puntaje; *Seguir viendo*, *A continuación* (el capítulo que sigue), *Agregadas hace poco* y Favoritos; filtros por género y orden. Las series se agrupan solas por temporada.
 - **Ver en el celular:** tocá una película y *📱 Ver en el celular*: llega por la misma conexión cifrada, con subtítulos y siguiendo desde donde quedaste (en la PC o en el celular: el progreso es uno solo). Si el celular no puede reproducir el sonido o el video, la PC lo convierte mientras lo ves (hace falta ffmpeg: `winget install Gyan.FFmpeg`).
 - **Links magnet:** tocá uno en el navegador (o *Compartir → TorrentVision*) y va directo a la PC.
+- **Subtítulos:** en *Agregar → 💬 Subtítulo* pegá el link del .srt o .zip (lo baja la PC) o mandá el archivo que bajaste en el celular: llega a Descargas de la PC y se pone solo junto a su película o capítulo.
 - **Botones de volumen** del celular → volumen de TorrentVision (en Reproductor; se apaga en *Más*).
 - **Se vincula una sola vez:** el celular recuerda la PC (sesión cifrada con el Keystore de Android) y se reconecta solo después de reiniciar TorrentVision o la PC. Si el router le dio otra IP a la PC, la app la vuelve a encontrar en la wifi (y comprueba que sea el mismo certificado). Queda como **dispositivo de confianza** hasta que lo desvincules desde la PC; solo se olvida si pasa **un año sin usarse** (cada uso lo renueva). Los celulares nuevos siguen necesitando el QR de un solo uso. Con celulares vinculados, ON se enciende solo al abrir TorrentVision (salvo que lo apagues en *Encender ON cada vez que se abre TorrentVision*).
 - Casa y Tailscale: escaneá los dos QR (*Más → Agregar otra conexión*) y la app usa sola la que ande.
@@ -123,6 +124,21 @@ Botón **🧲 Torrents** en la barra superior: pegá un link magnet (si lo copia
 - Si cerrás TorrentVision mientras baja, sigue en segundo plano con un ícono junto al reloj de Windows (tocándolo vuelve a abrirse) y se cierra solo cuando terminan las descargas. Con *Salir* en ese ícono se frena todo, y lo que quede a medias se retoma al volver a abrir TorrentVision.
 - Usa [aria2](https://aria2.github.io) (GPL v2), que viene incluido. La primera vez, Windows pregunta por el firewall para `aria2c.exe`: tocá **Permitir**.
 - Mientras baja, el torrent también se comparte con otros. Al terminar deja de compartir.
+- **Solo la película:** los extras (tráiler, sample, featurettes, entrevistas, detrás de escena, escenas eliminadas, cortos) se desmarcan antes de bajar y no entran a la biblioteca. Tampoco se cargan los que ya estén en tus carpetas (quedan en el disco).
+
+### 📺 Chromecast
+
+Botón **📺** en los controles del reproductor (o la tarjeta **📺 Tele** en *Control*, en el celular): elegís la tele y TorrentVision le manda el video que estás viendo, desde donde ibas y con los subtítulos. Mientras se transmite, la PC y el celular manejan la tele: pausa, ±15 s, la barra de tiempo, volumen y *Dejar de transmitir*.
+
+- El Chromecast (o la tele con Google TV) tiene que estar prendido y en la misma red que la PC. La primera vez Windows pregunta por el firewall: tocá **Permitir**.
+- MP4 con video H.264 va tal cual. MKV, AVI, video HEVC o sonido DTS/AC3 los convierte [ffmpeg](https://ffmpeg.org) mientras se ve: si no lo tenés, el panel tiene el botón **Instalar ffmpeg** (usa `winget install Gyan.FFmpeg`).
+- El video se sirve solo a la IP de esa tele y con una dirección nueva en cada transmisión.
+
+### 🎬 Letterboxd
+
+Botón **🎬 Letterboxd** en la barra superior: escribí tu usuario y aparece tu **watchlist**; también están **las 500 mejor puntuadas** (la lista oficial de Letterboxd). Las que ya tenés se marcan en verde (por título y año, así no confunde remakes) y se pueden ocultar. **🔎 Buscar para bajar** copia «Título Año» y abre la página de películas; doble clic abre la ficha en Letterboxd.
+
+Letterboxd no da su API ni deja iniciar sesión desde otras apps: se lee la watchlist pública, así que tiene que ser pública (*Settings → Privacy*).
 
 ### Películas de dominio público
 
@@ -158,7 +174,7 @@ Botón **🎞 Dominio público** en la barra superior: busca en la colección de
 
 ### Eliminar videos
 
-**🗑 Eliminar** (al pie de la lista, con algo seleccionado), clic derecho → **Eliminar del disco** o la tecla **Supr**: manda los archivos a la Papelera de reciclaje con sus subtítulos (también el que elegiste a mano, si es solo de ese video) y los quita de la biblioteca. Si la carpeta de la película queda vacía o solo con subtítulos, se va también; si tiene otra cosa (un .txt, fotos…), se deja. Nunca se borran Videos, Descargas ni las carpetas de la biblioteca. Todo se puede recuperar desde la Papelera.
+**🗑 Eliminar del disco** (el botón rojo junto a *Quitar de la biblioteca*, se habilita al seleccionar algo), clic derecho → **Eliminar del disco** o la tecla **Supr**: manda los archivos a la Papelera de reciclaje con sus subtítulos (también el que elegiste a mano, si es solo de ese video) y los quita de la biblioteca. Si la carpeta de la película queda vacía o solo con subtítulos, se va también; si tiene otra cosa (un .txt, fotos…), se deja. Nunca se borran Videos, Descargas ni las carpetas de la biblioteca. Todo se puede recuperar desde la Papelera.
 
 ### Apagar al terminar
 

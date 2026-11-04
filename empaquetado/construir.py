@@ -83,6 +83,8 @@ def main():
         "--add-data", f"{RAIZ / 'organizador' / 'web'};organizador/web",
         # Torrents
         "--add-data", f"{BIN};organizador/bin",
+        # Chromecast: zeroconf y pychromecast cargan partes propias que PyInstaller no ve solo
+        "--collect-submodules", "zeroconf", "--collect-submodules", "pychromecast",
         "--distpath", str(SALIDA / "dist"), "--workpath", str(SALIDA / "build"),
         "--specpath", str(SALIDA), str(RAIZ / "main.py"),
     ], check=True)

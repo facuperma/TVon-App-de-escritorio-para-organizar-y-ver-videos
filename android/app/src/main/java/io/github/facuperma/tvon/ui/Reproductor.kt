@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import io.github.facuperma.tvon.Cast
 import io.github.facuperma.tvon.Modelo
 import io.github.facuperma.tvon.Subtitulos
 import io.github.facuperma.tvon.textoSincronia
@@ -118,6 +119,8 @@ fun PestanaReproductor(vm: Modelo) {
             }
         }
 
+        e?.cast?.let { TarjetaTele(vm, it, hay) }
+
         e?.subtitulos?.let { TarjetaSubtitulos(vm, it, e.opensubtitles) }
 
         Tarjeta {
@@ -130,6 +133,47 @@ fun PestanaReproductor(vm: Modelo) {
                 Item("${i + 1}. ${v.nombre}", icono = { IconoTexto("🎬") }) {
                     Boton("▶", chico = true) { vm.hacer("cola_reproducir", "ruta" to v.ruta) }
                     Boton("✕", chico = true) { vm.hacer("cola_quitar", "ruta" to v.ruta) }
+                }
+            }
+        }
+    }
+}
+
+/** Mandar el video a la tele (Chromecast): lo hace la PC; el celular elige la tele y la maneja. */
+@Composable
+private fun TarjetaTele(vm: Modelo, c: Cast, hayVideo: Boolean) {
+    Tarjeta {
+        TituloTarjeta("📺 Tele") {
+            Boton(if (c.buscando) "Buscando…" else "🔄 Buscar", chico = true, habilitado = !c.buscando) { vm.hacer("cast_buscar") }
+        }
+        val t = c.transmision
+        when {
+            !c.disponible -> Pista("Este TorrentVision de la PC no tiene Chromecast: actualizalo.")
+            t != null -> {
+                Text("En ${t.dispositivo}: ${t.titulo}", color = Color.White, fontWeight = FontWeight.SemiBold)
+                Pista(tiempo(t.posicion) + " / " + tiempo(t.duracion) +
+                    when (t.estado) { "pausa" -> " · en pausa"; "cargando" -> " · cargando…"; else -> "" })
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                    Redondo("↺15") { vm.hacer("cast_adelantar", "ms" to -15000) }
+                    Redondo(if (t.estado == "pausa") "▶" else "⏸", grande = true) { vm.hacer("cast_play_pausa") }
+                    Redondo("15↻") { vm.hacer("cast_adelantar", "ms" to 15000) }
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Boton("🔉 −", Modifier.weight(1f), chico = true) { vm.hacer("cast_volumen", "valor" to (t.volumen - 10).coerceAtLeast(0)) }
+                    Boton("🔊 +", Modifier.weight(1f), chico = true) { vm.hacer("cast_volumen", "valor" to (t.volumen + 10).coerceAtMost(100)) }
+                    Boton("⏹ Dejar de transmitir", Modifier.weight(2f), chico = true) { vm.hacer("cast_detener") }
+                }
+            }
+            c.teles.isEmpty() -> Pista(if (c.buscando) "Buscando Chromecast en la red de la PC…"
+                else "Tocá 🔄 Buscar. El Chromecast tiene que estar prendido y en la misma red que la PC.")
+            else -> {
+                if (!hayVideo) Pista("Abrí un video (Biblioteca o Inicio) y elegí la tele.")
+                for (tele in c.teles) {
+                    Item(tele.nombre, tele.modelo, { IconoTexto("📺") }) {
+                        Boton("Mandar", chico = true, estilo = Estilo.PRIMARIO, habilitado = hayVideo) {
+                            vm.hacer("cast_iniciar", "dispositivo" to tele.id)
+                        }
+                    }
                 }
             }
         }

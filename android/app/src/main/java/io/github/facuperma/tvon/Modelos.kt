@@ -21,6 +21,12 @@ data class Subtitulos(
 )
 
 data class EnCola(val ruta: String, val nombre: String)
+data class Tele(val id: String, val nombre: String, val modelo: String)
+data class Transmision(
+    val dispositivo: String, val titulo: String, val posicion: Long, val duracion: Long, val estado: String, val volumen: Int,
+)
+/** Chromecast: las teles que encontró la PC y lo que se les está mandando. */
+data class Cast(val disponible: Boolean, val buscando: Boolean, val teles: List<Tele>, val transmision: Transmision?)
 data class Siguiente(val texto: String, val nombre: String)
 
 data class Estado(
@@ -36,6 +42,7 @@ data class Estado(
     val arrancaConWindows: Boolean,
     val moverDescargas: Boolean,
     val opensubtitles: Boolean,
+    val cast: Cast?,
 ) {
     companion object {
         fun de(o: JSONObject) = Estado(
@@ -63,6 +70,17 @@ data class Estado(
             arrancaConWindows = o.optBoolean("arranca_con_windows"),
             moverDescargas = o.optBoolean("mover_descargas"),
             opensubtitles = o.optBoolean("opensubtitles"),
+            cast = o.optJSONObject("cast")?.let { c ->
+                Cast(
+                    disponible = c.optBoolean("disponible"),
+                    buscando = c.optBoolean("buscando"),
+                    teles = c.optJSONArray("dispositivos").objetos { Tele(it.optString("id"), it.optString("nombre"), it.optString("modelo")) },
+                    transmision = c.optJSONObject("transmision")?.let {
+                        Transmision(it.optString("dispositivo"), it.optString("titulo"), it.optLong("posicion"),
+                            it.optLong("duracion"), it.optString("estado"), it.optInt("volumen"))
+                    },
+                )
+            },
         )
     }
 }

@@ -1053,6 +1053,7 @@ class _Control:
             "ventanas": len(ventana.ventanas_video),
             "mover_descargas": self.bib.config("mover_descargas") == "1",
             "opensubtitles": bool(self.bib.config("os_api_key")),
+            "cast": self.ventana.transmisor.estado(),
         }
 
     def biblioteca(self) -> dict:
@@ -1614,6 +1615,34 @@ class _Control:
         self.ventana.gestor.cola_cambiada.emit()
         aviso = f"{len(borrables)} película(s) enviada(s) a la Papelera"
         return {"aviso": aviso + (". No se pudieron mover: " + ", ".join(fallidos) if fallidos else "")}
+
+    # Chromecast: la PC le manda el video a la tele; el celular da las órdenes
+
+    def accion_cast_buscar(self):
+        self.ventana.transmisor.buscar()
+        return {"aviso": "Buscando Chromecast en la red…"}
+
+    def accion_cast_iniciar(self, dispositivo, id=None):
+        video = self.ventana.video_para_cast(None if id is None else int(id))
+        if video is None:
+            raise ErrorRemoto("Abrí un video en TorrentVision o elegilo en la Biblioteca", 409)
+        self.ventana.transmisor.transmitir(str(dispositivo), *video)
+        return {"aviso": "Mandando el video a la tele…"}
+
+    def accion_cast_play_pausa(self):
+        self.ventana.transmisor.play_pausa()
+
+    def accion_cast_adelantar(self, ms):
+        self.ventana.transmisor.adelantar(int(ms))
+
+    def accion_cast_ir_a(self, ms):
+        self.ventana.transmisor.ir_a(int(ms))
+
+    def accion_cast_volumen(self, valor):
+        self.ventana.transmisor.volumen(int(valor))
+
+    def accion_cast_detener(self):
+        self.ventana.transmisor.detener()
 
     # Torrents: el celular manda el link magnet y baja la PC
 

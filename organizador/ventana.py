@@ -26,7 +26,7 @@ from .dominio_publico import VentanaDominioPublico, a_la_papelera, eliminar_vide
 from . import fichas
 from .fichas import BuscadorFichas
 from .remoto import Remoto
-from .subtitulos import EXT_SUBTITULOS
+from .subtitulos import EXT_SUBTITULOS, subtitulos_junto_a
 from .inicio_windows import traer_al_frente
 from .titulos import nombre_lindo, titulo_de
 from .torrents import GestorTorrents
@@ -35,6 +35,8 @@ from .vigilancia import (
     Vigilante, borrar_carpetas_vacias, carpeta_de_categoria, en_uso, mover_video, traer_subtitulos,
 )
 from .subtitulos_online import buscar_para_visor, subtitulos_automaticos
+from .chromecast import Transmisor
+from .ventana_cast import VentanaCast
 from .ventana_letterboxd import VentanaLetterboxd
 from .ventana_torrents import VentanaTorrents
 from .ventana_video import VentanaVideo
@@ -81,6 +83,8 @@ class Ventana(QMainWindow):
         self.ventana_dominio: VentanaDominioPublico | None = None
         self.ventana_torrents: VentanaTorrents | None = None
         self.ventana_letterboxd: VentanaLetterboxd | None = None
+        self.transmisor = Transmisor()  # Chromecast
+        self.ventana_cast: VentanaCast | None = None
         self.aviso: AvisoFlotante | None = None
         self.dialogo_on: DialogoOn | None = None
         # Al cerrar con torrents bajando, TVon sigue junto al reloj hasta que terminan
@@ -207,6 +211,9 @@ class Ventana(QMainWindow):
                                     toolTip="Apaga la computadora cuando termine el video que se está viendo")
         self.chk_apagar.toggled.connect(self._apagar_al_terminar)
         self.visor.agregar_control(self.chk_apagar)
+        btn_cast = QPushButton("📺", toolTip="Transmitir a la tele (Chromecast)")
+        btn_cast.clicked.connect(self._abrir_cast)
+        self.visor.agregar_control(btn_cast)
 
         self.lbl_nombre = QLabel(objectName="titulo")
         self.lbl_nombre.setWordWrap(True)
@@ -1297,6 +1304,7 @@ class Ventana(QMainWindow):
         self.vigilante.detener()
         self.torrents.detener()  # los torrents a medias se retoman al volver a abrir TVon
         self.buscador_fichas.detener()
+        self.transmisor.cerrar()
         self.remoto.detener()
         for ventana in [*self.ventanas_video, self.ventana_dominio, self.ventana_torrents, self.dialogo_on, self.aviso]:
             if ventana:
@@ -1323,6 +1331,31 @@ class Ventana(QMainWindow):
         self.ventana_torrents.raise_()
         self.ventana_torrents.activateWindow()
         return self.ventana_torrents
+
+    def _abrir_cast(self):
+        if self.ventana_cast is None:
+            self.ventana_cast = VentanaCast(self.transmisor, self.video_para_cast)
+        self.ventana_cast.show()
+        self.ventana_cast.raise_()
+        self.ventana_cast.activateWindow()
+
+    def video_para_cast(self, archivo_id: int | None = None) -> tuple[str, int, str | None] | None:
+        """(ruta, posición en ms, subtítulo) de lo que se manda a la tele: el video abierto (que se
+        pausa en la PC) o, desde el celular, uno de la biblioteca desde donde quedó."""
+        v = self.visor
+        if archivo_id is None or (v.ruta_video and self.bib.id_de_ruta(v.ruta_video) == archivo_id):
+            if not v.ruta_video:
+                return None
+            v.reproductor.pause()
+            return v.ruta_video, v.posicion_actual(), v.ruta_sub
+        filas = self.bib.archivos_por_id([archivo_id])
+        if not filas or filas[0][2] != "video":
+            return None
+        ruta = filas[0][1]
+        # El subtítulo elegido para ese video o, si nunca se eligió, el primero que tenga al lado
+        elegido = self.bib.subtitulos_de(ruta)
+        subtitulo = elegido[0] if elegido else next(iter(subtitulos_junto_a(ruta)), None)
+        return ruta, self.bib.posicion_guardada(ruta), subtitulo
 
     def _abrir_letterboxd(self):
         if self.ventana_letterboxd is None:
