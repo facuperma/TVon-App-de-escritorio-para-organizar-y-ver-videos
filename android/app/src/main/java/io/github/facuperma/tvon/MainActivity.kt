@@ -34,6 +34,14 @@ class MainActivity : ComponentActivity() {
             TemaTVon {
                 App(vm)
                 BackHandler(enabled = vm.fase == Fase.Lista && atras(soloMirar = true)) { atras(soloMirar = false) }
+                // Con un tema claro, la hora y la batería van en oscuro (si no, no se ven)
+                val claro = io.github.facuperma.tvon.ui.C.tema.claro
+                LaunchedEffect(claro) {
+                    WindowCompat.getInsetsController(window, window.decorView).apply {
+                        isAppearanceLightStatusBars = claro
+                        isAppearanceLightNavigationBars = claro
+                    }
+                }
                 val aTodaPantalla = vm.pantallaCompleta || vm.viendoAca != null ||
                     (vm.fase == Fase.Videoteca && vm.videoteca.viendo != null)
                 LaunchedEffect(aTodaPantalla) { pantallaCompleta(aTodaPantalla) }

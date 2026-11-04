@@ -10,9 +10,9 @@ Aplicación de escritorio para bajar, organizar y ver películas, series y video
 
 ## Descargar
 
-**[⬇ TorrentVision-Setup-1.8.6.exe](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-Setup-1.8.6.exe)** (39 MB) — para la PC (Windows 10/11, 64 bits)
+**[⬇ TorrentVision-Setup-1.9.0.exe](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-Setup-1.9.0.exe)** (39 MB) — para la PC (Windows 10/11, 64 bits)
 
-**[⬇ TorrentVision-ON-1.1.8.apk](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-ON-1.1.8.apk)** (3 MB) — app para el celular (Android 8 o más nuevo): ver más abajo, en [📱 ON](#-on-manejar-torrentvision-desde-el-celular)
+**[⬇ TorrentVision-ON-1.1.9.apk](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-ON-1.1.9.apk)** (3 MB) — app para el celular (Android 8 o más nuevo): ver más abajo, en [📱 ON](#-on-manejar-torrentvision-desde-el-celular)
 
 También desde la **[página de TorrentVision](https://facuperma.github.io/TVon-App-de-escritorio-para-organizar-y-ver-videos/#bajar)**: en la compu muestra un QR para bajar la app en el celular.
 
@@ -56,7 +56,7 @@ Botón **📱 ON** en la barra superior (o *Configuración → ON*; se pone verd
 
 #### App para Android (recomendada)
 
-**[⬇ TorrentVision-ON-1.1.8.apk](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-ON-1.1.8.apk)** (3 MB, Android 8 o más nuevo). **O escaneá el QR de la ventana ON con la cámara del celular:** la página que abre ofrece *⬇ Descargar la app* (lleva a la [página de descargas](https://facuperma.github.io/TVon-App-de-escritorio-para-organizar-y-ver-videos/#bajar); sin internet, se baja desde tu PC), *📲 Abrir la app y conectar* (ya vinculada, sin escanear de nuevo) o seguir en el navegador. También podés bajarla de acá, en el celular, y abrirla; Android pide permiso para *instalar apps de origen desconocido* (al navegador o a Archivos): permitilo solo para esto. Después tocá **📷 Escanear el código QR** con la ventana de ON abierta en la PC.
+**[⬇ TorrentVision-ON-1.1.9.apk](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-ON-1.1.9.apk)** (3 MB, Android 8 o más nuevo). **O escaneá el QR de la ventana ON con la cámara del celular:** la página que abre ofrece *⬇ Descargar la app* (lleva a la [página de descargas](https://facuperma.github.io/TVon-App-de-escritorio-para-organizar-y-ver-videos/#bajar); sin internet, se baja desde tu PC), *📲 Abrir la app y conectar* (ya vinculada, sin escanear de nuevo) o seguir en el navegador. También podés bajarla de acá, en el celular, y abrirla; Android pide permiso para *instalar apps de origen desconocido* (al navegador o a Archivos): permitilo solo para esto. Después tocá **📷 Escanear el código QR** con la ventana de ON abierta en la PC.
 
 Si tenías la app 1.1.0, desinstalala antes de instalar la 1.1.3 (cambió la firma) y volvé a escanear el código QR. Desde la 1.1.1 se actualiza encima, sin volver a vincular.
 
@@ -212,6 +212,27 @@ Marcá **⏻ Apagar** en los controles: cuando termine el video (en el visor o e
 - También se puede soltar el `.srt` sobre la ventana.
 - **Sincronía de subtítulos**: bajo los controles dice cómo salen («1,5 s antes», «sincronizados»). ◀◀ / ◀ los muestran 0,5 / 0,1 s antes; ▶ / ▶▶, después (también G / H). **🎯 Ahora**: tocalo justo cuando alguien empieza a hablar y el subtítulo más cercano se acomoda a ese momento. ↺ vuelve a como viene el archivo.
 - El archivo de subtítulos y el retraso se recuerdan para cada video.
+
+### 🎨 Apariencia: 12 temas retro
+
+*Configuración → 🎨 Apariencia y temas* en la PC, y *🎨 Apariencia* en el celular (Más, o ⚙ Ajustes en el modo videoteca). Cada tema cambia colores, letra, forma de los botones y la **banda de arriba**: una pantallita con el título que corre (marquesina) y el tiempo, más una animación propia. Se aplican al tocarlos; las animaciones se pueden apagar.
+
+| Tema | Inspirado en | La banda |
+|---|---|---|
+| Azul noche | TorrentVision de siempre | — |
+| Galaxia P2P | los programas para compartir de 2004 | estrellas que pasan y estrellas fugaces |
+| Lámpara de llama | los reproductores con skins de 1999 | ecualizador verde-amarillo-rojo que salta con el video |
+| Luna | el escritorio de 2001 | cielo con nubes y la loma verde |
+| Gel azul | las computadoras transparentes de 2000 | gotas de gel que respiran |
+| Cristal negro | el reproductor de vidrio de 2006 | aurora azul que ondula |
+| Plata cepillada | la jukebox de metal de 2003 | aluminio con un brillo que pasa |
+| Mula verde | las redes de intercambio de 2003 | flechitas de subida y bajada |
+| Fósforo | los monitores de tubo | lluvia de letras y líneas de barrido |
+| Neón Y2K | el cambio de milenio | grilla infinita hacia un sol a rayas |
+| Burbujas Aero | el optimismo de 2007 | burbujas de vidrio que suben |
+| Escritorio 98 | las ventanas grises de 1998 | el protector de pantalla de estrellas |
+
+Son estilos de esa época con diseños propios (sin logos ni marcas). En los temas claros, los colores de *a medias* y *vista* se oscurecen para que se lean.
 
 ### Atajos
 

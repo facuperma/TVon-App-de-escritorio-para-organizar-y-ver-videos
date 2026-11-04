@@ -130,7 +130,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.fila(vm: Modelo, titu
     if (carteles.isEmpty()) return
     item {
         Column {
-        Text(titulo, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 17.sp,
+        Text(titulo, color = C.titulo, fontWeight = FontWeight.SemiBold, fontSize = 17.sp,
             modifier = Modifier.padding(start = 16.dp, top = 14.dp, bottom = 6.dp))
         LazyRow(contentPadding = PaddingValues(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             items(carteles, key = { "${it.tipo}${it.id}${it.clave}" }) { CartelPoster(vm, it, Modifier.width(118.dp)) }
@@ -194,7 +194,7 @@ private fun CartelPoster(vm: Modelo, c: Cartel, modifier: Modifier, antes: () ->
                 Box(Modifier.align(Alignment.BottomStart).padding(6.dp)) { Progreso(it) }
             }
         }
-        Text(c.titulo, color = Color.White, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis,
+        Text(c.titulo, color = C.titulo, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 4.dp))
         val sub = listOfNotNull(c.anio, c.sub.takeIf { it.isNotEmpty() }).joinToString(" · ")
         if (sub.isNotEmpty()) Pista(sub)
@@ -241,10 +241,10 @@ fun PantallaDetalle(vm: Modelo, d: Detalle) {
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().background(C.panel).padding(horizontal = 8.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically) {
-            Text("←", fontSize = 24.sp, color = Color.White,
+            Text("←", fontSize = 24.sp, color = C.titulo,
                 modifier = Modifier.clip(RoundedCornerShape(20.dp)).clickable { vm.cerrarDetalle() }.padding(12.dp))
             Text(when (d) { is Detalle.DeSerie -> d.serie.titulo; is Detalle.DeVideo -> d.ficha.titulo },
-                color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                color = C.titulo, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         when (d) {
             is Detalle.DeSerie -> DetalleSerie(vm, d.serie)
@@ -259,7 +259,7 @@ private fun Cabecera(vm: Modelo, clave: String, poster: Boolean, titulo: String,
     Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
         Poster(vm, clave, poster, titulo, Modifier.width(120.dp))
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(titulo, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 19.sp)
+            Text(titulo, color = C.titulo, fontWeight = FontWeight.Bold, fontSize = 19.sp)
             if (extra.isNotEmpty()) Text(extra, color = C.acentoClaro)
             val linea = listOfNotNull(anio, puntaje?.let { "★ $it" }).joinToString(" · ")
             if (linea.isNotEmpty()) Text(linea)

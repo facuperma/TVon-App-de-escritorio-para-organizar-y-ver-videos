@@ -46,6 +46,11 @@ fun PestanaMas(vm: Modelo) {
                 "la ventana de TorrentVision con ON encendido, queda junto al reloj y el mouse y el teclado siguen andando.")
         }
         Tarjeta {
+            TituloTarjeta("🎨 Apariencia")
+            Pista("12 temas: el azul de siempre y estilos retro de los 2000, con animaciones. Tema actual: ${C.tema.nombre}.")
+            Boton("🎨 Elegir tema", Modifier.fillMaxWidth()) { vm.apariencia = true }
+        }
+        Tarjeta {
             TituloTarjeta("Biblioteca automática")
             Interruptor("Mover a Videos lo que termine de bajarse en Descargas", e?.moverDescargas ?: false) {
                 vm.hacer("mover_descargas", "activo" to it)

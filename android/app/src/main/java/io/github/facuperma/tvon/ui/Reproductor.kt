@@ -77,7 +77,7 @@ fun PestanaReproductor(vm: Modelo) {
                     Pista("Nada en reproducción")
                 }
             }
-            Text(e?.archivo?.nombre ?: "Nada en reproducción", color = Color.White, fontWeight = FontWeight.SemiBold)
+            Text(e?.archivo?.nombre ?: "Nada en reproducción", color = C.titulo, fontWeight = FontWeight.SemiBold)
             Pista(rep?.let { ESTADOS[it.estado].orEmpty() } ?: if (e?.archivo != null) "🖼 Imagen" else "Elegí algo en la Biblioteca")
         }
 
@@ -150,7 +150,7 @@ private fun TarjetaTele(vm: Modelo, c: Cast, hayVideo: Boolean) {
         when {
             !c.disponible -> Pista("Este TorrentVision de la PC no tiene Chromecast: actualizalo.")
             t != null -> {
-                Text("En ${t.dispositivo}: ${t.titulo}", color = Color.White, fontWeight = FontWeight.SemiBold)
+                Text("En ${t.dispositivo}: ${t.titulo}", color = C.titulo, fontWeight = FontWeight.SemiBold)
                 Pista(tiempo(t.posicion) + " / " + tiempo(t.duracion) +
                     when (t.estado) { "pausa" -> " · en pausa"; "cargando" -> " · cargando…"; else -> "" })
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
@@ -219,7 +219,7 @@ private fun TarjetaSubtitulos(vm: Modelo, s: Subtitulos, conClave: Boolean) {
                 .clickable { abierta = !abierta },
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("CC Subtítulos", color = Color.White, fontWeight = FontWeight.SemiBold)
+            Text("CC Subtítulos", color = C.titulo, fontWeight = FontWeight.SemiBold)
             Pista(" · " + (activo ?: "desactivados"), Modifier.weight(1f).padding(start = 4.dp))
             Text(if (abierta) "▾" else "▸", color = C.tenue)
         }
@@ -261,6 +261,6 @@ private fun OpcionSub(texto: String, activa: Boolean, alTocar: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(if (activa) "●" else "○", color = if (activa) C.acentoClaro else C.tenue, modifier = Modifier.width(24.dp))
-        Text(texto, color = if (activa) Color.White else C.texto)
+        Text(texto, color = if (activa) C.titulo else C.texto)
     }
 }

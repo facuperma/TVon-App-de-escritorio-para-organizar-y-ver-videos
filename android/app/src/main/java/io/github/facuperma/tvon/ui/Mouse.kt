@@ -210,7 +210,7 @@ private fun BotonMouse(vm: Modelo, texto: String, boton: String, modifier: Modif
                 }
             },
         contentAlignment = Alignment.Center,
-    ) { Text(texto, color = if (apretado) Color.White else C.texto) }
+    ) { Text(texto, color = if (apretado) C.titulo else C.texto) }
 }
 
 // --- Teclado -----------------------------------------------------------------------------------------
@@ -258,7 +258,7 @@ fun Teclado(vm: Modelo, compacto: Boolean = false) {
     var enVivo by rememberSaveable { mutableStateOf(true) }
     Tarjeta {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("⌨ Teclado", color = Color.White, modifier = Modifier.weight(1f))
+            Text("⌨ Teclado", color = C.titulo, modifier = Modifier.weight(1f))
             Chip("En vivo", enVivo) { enVivo = true }
             Box(Modifier.width(6.dp))
             Chip("Escribir y enviar", !enVivo) { enVivo = false }

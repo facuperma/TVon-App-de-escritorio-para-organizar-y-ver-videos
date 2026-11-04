@@ -28,7 +28,13 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.draw.alpha
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
@@ -42,38 +48,58 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-// Los mismos colores que la app de escritorio (azul marino)
+/** Los colores de la app: salen del tema elegido (⚙ Apariencia), los mismos que en la PC. */
 object C {
-    val fondo = Color(0xFF0F1729)
-    val fondoHondo = Color(0xFF0A1020)
-    val panel = Color(0xFF131D33)
-    val panelClaro = Color(0xFF1F2D4D)
-    val borde = Color(0xFF24334F)
-    val texto = Color(0xFFDBE2EF)
-    val tenue = Color(0xFF97A3B8) // más claro que en la PC: en el celular se lee a la luz del día
-    val acento = Color(0xFF3D7BFD)
-    val acentoClaro = Color(0xFF9FC2FF)
-    val verde = Color(0xFF4ADE80)
-    val vista = Color(0xFF86EFAC)
-    val pendiente = Color(0xFFFACC15)
+    var tema by mutableStateOf(TEMAS[0])
+    var animada by mutableStateOf(true)
+
+    val fondo get() = col(tema.fondo)
+    val fondoHondo get() = col(tema.fondoHondo)
+    val panel get() = col(tema.panel)
+    val panelClaro get() = col(tema.panelClaro)
+    val borde get() = col(tema.borde)
+    val texto get() = col(tema.texto)
+    val tenue get() = col(tema.tenue) // en el celular se lee a la luz del día: un poco más claro que en la PC
+    val acento get() = col(tema.acento)
+    val sobreAcento get() = col(tema.sobreAcento)
+    val acentoClaro get() = if (tema.claro) lerpColor(acento, Color.Black, 0.25f) else lerpColor(acento, Color.White, 0.45f)
+    /** Textos destacados (títulos): casi blanco en los temas oscuros, oscuro en los claros. */
+    val titulo get() = if (tema.claro) col(tema.titulo) else lerpColor(col(tema.titulo), Color.White, 0.35f)
+    val verde get() = if (tema.claro) Color(0xFF16803C) else Color(0xFF4ADE80)
+    val vista get() = if (tema.claro) Color(0xFF16803C) else Color(0xFF86EFAC)
+    val pendiente get() = if (tema.claro) Color(0xFFA15C00) else Color(0xFFFACC15)
     val peligro = Color(0xFFEF4444)
-    val peligroFondo = Color(0xFF5B1D1D)
-    val peligroBorde = Color(0xFF8F2A2A)
-    val peligroTexto = Color(0xFFFFD4D4)
-    val error = Color(0xFFFF8080)
-    val chipActivo = Color(0xFF1F3566)
+    val peligroFondo get() = if (tema.claro) Color(0xFFFDE2E2) else Color(0xFF5B1D1D)
+    val peligroBorde get() = if (tema.claro) Color(0xFFD14343) else Color(0xFF8F2A2A)
+    val peligroTexto get() = if (tema.claro) Color(0xFF8B1111) else Color(0xFFFFD4D4)
+    val error get() = if (tema.claro) Color(0xFFC0262D) else Color(0xFFFF8080)
+    val chipActivo get() = col(tema.seleccion)
+    val esquina get() = tema.radio.dp
+    val letra get() = tema.letra
 }
 
 @Composable
 fun TemaTVon(contenido: @Composable () -> Unit) {
+    val base = if (C.tema.claro) lightColorScheme() else darkColorScheme()
+    val f = C.letra
+    val letra = Typography().let { b ->
+        Typography(
+            bodyLarge = b.bodyLarge.copy(fontFamily = f), bodyMedium = b.bodyMedium.copy(fontFamily = f),
+            bodySmall = b.bodySmall.copy(fontFamily = f), labelLarge = b.labelLarge.copy(fontFamily = f),
+            labelMedium = b.labelMedium.copy(fontFamily = f), labelSmall = b.labelSmall.copy(fontFamily = f),
+            titleLarge = b.titleLarge.copy(fontFamily = f), titleMedium = b.titleMedium.copy(fontFamily = f),
+            titleSmall = b.titleSmall.copy(fontFamily = f), headlineSmall = b.headlineSmall.copy(fontFamily = f),
+        )
+    }
     MaterialTheme(
-        colorScheme = darkColorScheme(
-            primary = C.acento, onPrimary = Color.White, background = C.fondo, onBackground = C.texto,
+        colorScheme = base.copy(
+            primary = C.acento, onPrimary = C.sobreAcento, background = C.fondo, onBackground = C.texto,
             surface = C.panel, onSurface = C.texto, surfaceVariant = C.panelClaro, onSurfaceVariant = C.tenue,
             surfaceContainerHigh = C.panel, surfaceContainerLow = C.panel, surfaceContainer = C.panel,
             outline = C.borde, error = C.peligro, secondaryContainer = C.chipActivo,
-            onSecondaryContainer = Color.White, surfaceContainerHighest = C.panelClaro,
+            onSecondaryContainer = C.titulo, surfaceContainerHighest = C.panelClaro,
         ),
+        typography = letra,
     ) {
         // Sin esto, el texto que no está dentro de un Surface sale negro sobre el fondo azul marino
         CompositionLocalProvider(LocalContentColor provides C.texto, content = contenido)
@@ -86,9 +112,9 @@ fun Tarjeta(modifier: Modifier = Modifier, contenido: @Composable ColumnScope.()
         modifier
             .fillMaxWidth()
             .padding(vertical = 6.dp)
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(C.esquina + 2.dp))
             .background(C.panel)
-            .border(1.dp, C.borde, RoundedCornerShape(12.dp))
+            .border(1.dp, C.borde, RoundedCornerShape(C.esquina + 2.dp))
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
         content = contenido,
@@ -98,7 +124,7 @@ fun Tarjeta(modifier: Modifier = Modifier, contenido: @Composable ColumnScope.()
 @Composable
 fun TituloTarjeta(texto: String, modifier: Modifier = Modifier, extra: @Composable RowScope.() -> Unit = {}) {
     Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(texto, color = Color.White, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+        Text(texto, color = C.titulo, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
         extra()
     }
 }
@@ -114,18 +140,28 @@ fun Boton(
     texto: String, modifier: Modifier = Modifier, estilo: Estilo = Estilo.NORMAL, habilitado: Boolean = true,
     chico: Boolean = false, alTocar: () -> Unit,
 ) {
+    val t = C.tema
     val (fondo, borde, color) = when (estilo) {
-        Estilo.PRIMARIO -> Triple(C.acento, C.acento, Color.White)
+        Estilo.PRIMARIO -> Triple(C.acento, C.acento, C.sobreAcento)
         Estilo.PELIGRO -> Triple(C.peligroFondo, C.peligroBorde, C.peligroTexto)
-        Estilo.NORMAL -> Triple(C.panelClaro, C.borde, C.texto)
+        Estilo.NORMAL -> Triple(C.panelClaro, col(t.botonBorde), col(t.botonTexto))
     }
+    // Los botones comunes llevan el degradé del tema (gel, cromo, metal…); el primario, el acento con brillo
+    val pincel = when {
+        estilo == Estilo.NORMAL -> degrade(t.boton, t.brillo)
+        estilo == Estilo.PRIMARIO && t.brillo -> brilloDe(C.acento)
+        else -> null
+    }
+    val forma = RoundedCornerShape(C.esquina)
     Button(
-        onClick = alTocar, enabled = habilitado, modifier = modifier,
-        shape = RoundedCornerShape(10.dp),
-        border = BorderStroke(1.dp, borde),
+        onClick = alTocar, enabled = habilitado,
+        modifier = if (pincel != null) modifier.alpha(if (habilitado) 1f else .5f).background(pincel, forma) else modifier,
+        shape = forma,
+        border = BorderStroke(if (t.id == "noventa") 2.dp else 1.dp, borde),
         colors = ButtonDefaults.buttonColors(
-            containerColor = fondo, contentColor = color,
-            disabledContainerColor = fondo.copy(alpha = .4f), disabledContentColor = color.copy(alpha = .4f),
+            containerColor = if (pincel != null) Color.Transparent else fondo, contentColor = color,
+            disabledContainerColor = if (pincel != null) Color.Transparent else fondo.copy(alpha = .4f),
+            disabledContentColor = color.copy(alpha = .6f),
         ),
         contentPadding = if (chico) PaddingValues(horizontal = 10.dp, vertical = 4.dp) else PaddingValues(horizontal = 14.dp, vertical = 10.dp),
     ) {
@@ -143,7 +179,7 @@ fun Redondo(
         contentPadding = PaddingValues(0.dp),
         border = BorderStroke(1.dp, if (grande) C.acento else C.borde),
         colors = ButtonDefaults.buttonColors(
-            containerColor = if (grande) C.acento else C.panelClaro, contentColor = if (grande) Color.White else C.texto,
+            containerColor = if (grande) C.acento else C.panelClaro, contentColor = if (grande) C.sobreAcento else C.texto,
             disabledContainerColor = C.panelClaro.copy(alpha = .4f), disabledContentColor = C.tenue,
         ),
     ) { Text(texto, fontSize = if (grande) 28.sp else 16.sp, maxLines = 1) }
@@ -169,7 +205,7 @@ fun Chip(texto: String, activo: Boolean = false, modifier: Modifier = Modifier, 
             .border(1.dp, if (activo) C.acento else C.borde, RoundedCornerShape(20.dp))
             .clickable(onClick = alTocar)
             .padding(horizontal = 12.dp, vertical = 7.dp),
-    ) { Text(texto, color = if (activo) Color.White else C.texto, fontSize = 14.sp, maxLines = 1) }
+    ) { Text(texto, color = if (activo) C.titulo else C.texto, fontSize = 14.sp, maxLines = 1) }
 }
 
 /** Una fila de lista: ícono, nombre, renglón chico y lo que vaya a la derecha. */
@@ -192,9 +228,9 @@ fun Item(
         Modifier
             .fillMaxWidth()
             .padding(vertical = 3.dp)
-            .clip(RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(C.esquina))
             .background(if (elegido) C.chipActivo else C.panel)
-            .border(1.dp, if (elegido) C.acento else C.borde, RoundedCornerShape(10.dp))
+            .border(1.dp, if (elegido) C.acento else C.borde, RoundedCornerShape(C.esquina))
             .then(
                 if (alTocar != null || alMantener != null) Modifier.combinedClickable(
                     onClick = { alTocar?.invoke() },

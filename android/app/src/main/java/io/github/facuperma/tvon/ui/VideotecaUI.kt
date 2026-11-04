@@ -132,10 +132,11 @@ fun PantallaVideoteca(vm: Modelo) {
         ) {
             Logo(28)
             Column(Modifier.weight(1f)) {
-                Text("TorrentVision", fontWeight = FontWeight.Bold, color = Color.White)
+                Text("TorrentVision", fontWeight = FontWeight.Bold, color = C.titulo)
                 Text("📱 Videoteca del celular · ${tamano(v.libre)} libres", color = C.tenue, fontSize = 12.sp)
             }
         }
+        BandaRetro(v.peliculas.firstOrNull { it.empezada }?.titulo ?: v.peliculas.firstOrNull()?.titulo.orEmpty(), true)
         Box(Modifier.weight(1f).imePadding()) {
             when (pestana) {
                 PestanaVideoteca.BIBLIOTECA -> Biblioteca(vm) { v.pestana = 1 }
@@ -150,7 +151,7 @@ fun PantallaVideoteca(vm: Modelo) {
                     icon = { Text(p.icono, fontSize = 18.sp) },
                     label = { Text(p.texto, fontSize = 10.sp, maxLines = 1) },
                     colors = NavigationBarItemDefaults.colors(
-                        selectedTextColor = Color.White, unselectedTextColor = C.tenue, indicatorColor = C.chipActivo,
+                        selectedTextColor = C.titulo, unselectedTextColor = C.tenue, indicatorColor = C.chipActivo,
                     ),
                 )
             }
@@ -409,11 +410,18 @@ private fun Ajustes(vm: Modelo) {
         item {
             Tarjeta {
                 TituloTarjeta("📂 Dónde se guardan")
-                Text("Películas/${Videoteca.CARPETA}", color = Color.White)
+                Text("Películas/${Videoteca.CARPETA}", color = C.titulo)
                 Pista(v.carpeta.path)
                 Pista(listOfNotNull("${v.peliculas.size} películas", tamano(ocupado).ifEmpty { null },
                     "quedan ${tamano(v.libre)} libres").joinToString(" · "))
                 Pista("La carpeta se ve en la galería y en Archivos, y no se borra si desinstalás la app.")
+            }
+        }
+        item {
+            Tarjeta {
+                TituloTarjeta("🎨 Apariencia")
+                Pista("12 temas: el azul de siempre y estilos retro de los 2000, con animaciones. Tema actual: ${C.tema.nombre}.")
+                Boton("🎨 Elegir tema", Modifier.fillMaxWidth()) { vm.apariencia = true }
             }
         }
         item {

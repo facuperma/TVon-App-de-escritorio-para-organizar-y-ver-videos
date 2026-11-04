@@ -75,6 +75,7 @@ fun App(vm: Modelo) {
             Fase.Lista -> Principal(vm)
             Fase.Videoteca -> PantallaVideoteca(vm)
         }
+        if (vm.apariencia) PantallaApariencia(vm)
         Dialogos(vm)
         Tostada(vm, Modifier.align(Alignment.BottomCenter))
     }
@@ -88,7 +89,7 @@ fun TituloTVon(tamano: Int = 17) {
     Text(buildAnnotatedString {
         append("TV")
         withStyle(SpanStyle(color = C.verde, fontWeight = FontWeight.ExtraBold, fontSize = (tamano * 1.45).sp)) { append("ON") }
-    }, fontWeight = FontWeight.Bold, fontSize = tamano.sp, color = Color.White)
+    }, fontWeight = FontWeight.Bold, fontSize = tamano.sp, color = C.titulo)
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -122,6 +123,7 @@ private fun Principal(vm: Modelo) {
                     .background(if (vm.conectado) C.verde else C.peligro)
             )
         }
+        BandaRetro(vm.estado?.archivo?.nombre.orEmpty(), vm.estado?.reproduccion?.estado == "reproduciendo")
         Avisos(vm)
         Box(Modifier.weight(1f).imePadding()) {
             val detalle = vm.detalles.lastOrNull()
@@ -147,7 +149,7 @@ private fun Principal(vm: Modelo) {
                     icon = { Text(p.icono, fontSize = 18.sp) },
                     label = { Text(p.texto, fontSize = 10.sp, maxLines = 1) },
                     colors = NavigationBarItemDefaults.colors(
-                        selectedTextColor = Color.White, unselectedTextColor = C.tenue, indicatorColor = C.chipActivo,
+                        selectedTextColor = C.titulo, unselectedTextColor = C.tenue, indicatorColor = C.chipActivo,
                     ),
                 )
             }
@@ -193,7 +195,7 @@ private fun Banner(titulo: String, sub: String = "", peligro: Boolean = false, b
             .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Text(titulo, fontWeight = FontWeight.Bold, color = Color.White)
+        Text(titulo, fontWeight = FontWeight.Bold, color = C.titulo)
         if (sub.isNotEmpty()) Pista(sub)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { botones() }
     }
@@ -213,7 +215,7 @@ private fun Tostada(vm: Modelo, modifier: Modifier) {
             .clip(RoundedCornerShape(12.dp))
             .background(if (aviso.malo) C.peligroFondo else C.panelClaro)
             .padding(horizontal = 16.dp, vertical = 12.dp)
-    ) { Text(aviso.texto, color = if (aviso.malo) C.peligroTexto else Color.White) }
+    ) { Text(aviso.texto, color = if (aviso.malo) C.peligroTexto else C.titulo) }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -231,7 +233,7 @@ private fun Dialogos(vm: Modelo) {
                     .padding(bottom = 24.dp)
                     .verticalScroll(rememberScrollState())
             ) {
-                Text(hoja.titulo, fontWeight = FontWeight.SemiBold, color = Color.White, modifier = Modifier.padding(bottom = 10.dp))
+                Text(hoja.titulo, fontWeight = FontWeight.SemiBold, color = C.titulo, modifier = Modifier.padding(bottom = 10.dp))
                 for (o in hoja.opciones) OpcionHoja(vm, o)
             }
         }
@@ -240,7 +242,7 @@ private fun Dialogos(vm: Modelo) {
     vm.confirmar?.let { c ->
         AlertDialog(
             onDismissRequest = { vm.confirmar = null },
-            containerColor = C.panel, titleContentColor = Color.White, textContentColor = C.texto,
+            containerColor = C.panel, titleContentColor = C.titulo, textContentColor = C.texto,
             text = { Text(c.texto) },
             confirmButton = {
                 TextButton(onClick = { vm.confirmar = null; vm.correr { c.hacer() } }) { Text(c.si) }
@@ -257,7 +259,7 @@ private fun Dialogos(vm: Modelo) {
         }
         AlertDialog(
             onDismissRequest = { vm.pedirTexto = null },
-            containerColor = C.panel, titleContentColor = Color.White, textContentColor = C.texto,
+            containerColor = C.panel, titleContentColor = C.titulo, textContentColor = C.texto,
             title = { Text(p.titulo, fontSize = 17.sp) },
             text = {
                 OutlinedTextField(
@@ -274,7 +276,7 @@ private fun Dialogos(vm: Modelo) {
     vm.huellaPorConfirmar?.let { h ->
         AlertDialog(
             onDismissRequest = { vm.huellaPorConfirmar = null },
-            containerColor = C.panel, titleContentColor = Color.White, textContentColor = C.texto,
+            containerColor = C.panel, titleContentColor = C.titulo, textContentColor = C.texto,
             title = { Text("¿Es tu PC?") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

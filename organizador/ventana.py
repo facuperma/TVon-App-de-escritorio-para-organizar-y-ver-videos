@@ -9,6 +9,7 @@ from pathlib import Path
 
 from PySide6 import __version__ as VERSION_QT
 from PySide6.QtCore import QByteArray, QEvent, QItemSelectionModel, QPoint, Qt, QTimer, QUrl, QUrlQuery
+from PySide6.QtMultimedia import QMediaPlayer
 from PySide6.QtGui import QAction, QBrush, QColor, QDesktopServices, QFont, QKeySequence, QPixmap, QShortcut
 from PySide6.QtWidgets import (
     QAbstractItemView, QApplication, QCheckBox, QFileDialog, QGroupBox, QHBoxLayout,
@@ -18,6 +19,9 @@ from PySide6.QtWidgets import (
 )
 
 from .aviso import AvisoFlotante
+from .banda_retro import BandaRetro
+from .temas import estilo, tema as buscar_tema
+from .ventana_apariencia import VentanaApariencia
 from .db import CATEGORIA_DOMINIO_PUBLICO, CATEGORIA_FAVORITOS, EXT_IMAGEN, EXT_VIDEO, Biblioteca, orden_natural
 from .descargas import GestorDescargas
 from .dialogo_config import DialogoConfig
@@ -297,6 +301,7 @@ class Ventana(QMainWindow):
         self._crear_menu()
         self._atajos()
         self._crear_on()
+        self.aplicar_tema(self.bib.config("tema"), self.bib.config("tema_animado") != "0", guardar=False)
         self.cargar_filtros()
         self._mostrar_detalles(None)
         self.gestor.iniciar()
@@ -337,6 +342,13 @@ class Ventana(QMainWindow):
         self.buscador.setMaximumWidth(320)
         self.buscador.textChanged.connect(lambda _: self._cargar_archivos())
         barra.addWidget(self.buscador)
+        # La banda de los temas retro: la pantallita con el título que corre y su animación
+        self.addToolBarBreak()
+        self.fila_banda = QToolBar("Banda del tema", movable=False)
+        self.fila_banda.setStyleSheet("QToolBar { padding: 0; margin: 0; border: none; }")
+        self.banda = BandaRetro(self._estado_banda)
+        self.fila_banda.addWidget(self.banda)
+        self.addToolBar(self.fila_banda)
 
     def _crear_menu(self):
         barra = self.menuBar()
@@ -370,6 +382,7 @@ class Ventana(QMainWindow):
 
         config = barra.addMenu("&Configuración")
         config.addAction("Preferencias…", self._abrir_configuracion)
+        config.addAction("🎨 Apariencia y temas…", self._abrir_apariencia)
         config.addAction("📱 ON: manejar desde el celular…", self._abrir_on)
         apagar = config.addAction("Apagar la PC al terminar el video")
         apagar.setCheckable(True)
@@ -572,8 +585,9 @@ class Ventana(QMainWindow):
         estilo = self.style()
         icono_video = estilo.standardIcon(QStyle.SP_MediaPlay)
         icono_imagen = estilo.standardIcon(QStyle.SP_FileDialogContentsView)
-        gris = QBrush(QColor("#7a8599"))
-        color_vinculo = QBrush(QColor("#9fc2ff"))
+        t = buscar_tema(self.bib.config("tema"))
+        gris = QBrush(QColor(t.tenue))
+        color_vinculo = QBrush(QColor(t.vinculo))
         fuente_vinculo = QFont(self.lista.font())
         fuente_vinculo.setUnderline(True)
         progresos = self.bib.progresos()
@@ -1557,6 +1571,34 @@ class Ventana(QMainWindow):
         self.aviso_pantalla.setVisible(cantidad > 0)
 
     # --- Biblioteca automática ----------------------------------------------------
+
+    # --- Apariencia ---------------------------------------------------------------------------
+
+    def _estado_banda(self):
+        visor = getattr(self, "visor", None)
+        if visor is None or not visor.ruta_video:
+            return "", False, 0, 0
+        r = visor.reproductor
+        return (nombre_lindo(Path(visor.ruta_video).name), r.playbackState() == QMediaPlayer.PlayingState,
+                visor.posicion_actual(), r.duration())
+
+    def aplicar_tema(self, id_tema: str | None, animada: bool, guardar: bool = True):
+        t = buscar_tema(id_tema)
+        QApplication.instance().setStyleSheet(estilo(t))
+        # Los colores de «a medias» y «vista» cambian con el tema (en los claros, más oscuros)
+        COLOR_PENDIENTE.setRgb(QColor(t.pendiente).rgb())
+        COLOR_VISTA.setRgb(QColor(t.vista).rgb())
+        self.banda.aplicar(t, animada)
+        self.fila_banda.setVisible(t.animacion != "ninguna")
+        if guardar:
+            self.bib.guardar_config("tema", t.id)
+            self.bib.guardar_config("tema_animado", "1" if animada else "0")
+            self.cargar_filtros()  # vuelve a pintar la lista con los colores del tema
+
+    def _abrir_apariencia(self):
+        dialogo = VentanaApariencia(buscar_tema(self.bib.config("tema")).id, self.bib.config("tema_animado") != "0", self)
+        dialogo.elegido.connect(self.aplicar_tema)
+        dialogo.exec()
 
     def _abrir_configuracion(self):
         if DialogoConfig(self.bib, self).exec():

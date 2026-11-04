@@ -98,7 +98,7 @@ fun PestanaBiblioteca(vm: Modelo) {
                 val pendientes = bib.categorias.count { it.estado == "pendiente" }
                 Tarjeta {
                     Row(Modifier.fillMaxWidth().clickable { categoriasAbiertas = !categoriasAbiertas }) {
-                        Text("🏷 Categorías", color = Color.White, fontWeight = FontWeight.SemiBold)
+                        Text("🏷 Categorías", color = C.titulo, fontWeight = FontWeight.SemiBold)
                         Pista(" · ${bib.categorias.size}" + if (pendientes > 0) " · $pendientes por ver" else "",
                             Modifier.weight(1f).padding(start = 4.dp))
                         Text(if (categoriasAbiertas) "▾" else "▸", color = C.tenue)
@@ -144,7 +144,7 @@ fun PestanaBiblioteca(vm: Modelo) {
                     val abierto = cid in vm.favAbiertos
                     item(key = "grupo-$cid") {
                         Text((if (abierto) "▾ " else "▸ ") + "📁 ${nombres.getValue(cid)} (${grupo.size})",
-                            color = Color.White, fontWeight = FontWeight.SemiBold,
+                            color = C.titulo, fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.fillMaxWidth()
                                 .clickable { vm.favAbiertos = if (abierto) vm.favAbiertos - cid else vm.favAbiertos + cid }
                                 .padding(vertical = 10.dp))
@@ -203,7 +203,7 @@ private fun TarjetaCategoria(vm: Modelo, c: Categoria, elegir: (Categoria) -> Un
             )
             .padding(start = 14.dp, end = 10.dp, top = 8.dp, bottom = 8.dp)
     ) {
-        Text(bib.nombre(c), color = if (color != Color.Transparent) color else Color.White, fontWeight = FontWeight.SemiBold,
+        Text(bib.nombre(c), color = if (color != Color.Transparent) color else C.titulo, fontWeight = FontWeight.SemiBold,
             maxLines = 2, overflow = TextOverflow.Ellipsis)
         Pista("${c.cantidad} archivo(s)" + when (c.estado) { "vista" -> " · ✓ vista"; "pendiente" -> " · por ver"; else -> "" })
     }

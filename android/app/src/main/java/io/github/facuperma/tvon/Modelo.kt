@@ -71,6 +71,9 @@ fun json(vararg pares: Pair<String, Any?>): JSONObject = JSONObject().apply {
 class Modelo(app: Application) : AndroidViewModel(app) {
     val almacen = Almacen(app)
     val videoteca = Videoteca(app)
+    private val prefsApariencia = app.getSharedPreferences("apariencia", android.content.Context.MODE_PRIVATE)
+    /** ⚙ Apariencia abierta (la galería de temas). */
+    var apariencia by mutableStateOf(false)
     private var pc: Pc? = null
 
     var fase by mutableStateOf<Fase>(Fase.Cargando)
@@ -157,6 +160,8 @@ class Modelo(app: Application) : AndroidViewModel(app) {
     var mantenido by mutableStateOf(false)
 
     init {
+        io.github.facuperma.tvon.ui.C.tema = io.github.facuperma.tvon.ui.temaPorId(prefsApariencia.getString("tema", null))
+        io.github.facuperma.tvon.ui.C.animada = prefsApariencia.getBoolean("animada", true)
         correr { conectar() }
         viewModelScope.launch { latido() }
     }
@@ -331,6 +336,16 @@ class Modelo(app: Application) : AndroidViewModel(app) {
             else -> {}
         }
         correr { refrescarEstado() }
+    }
+
+    fun elegirTema(t: io.github.facuperma.tvon.ui.TemaCel) {
+        io.github.facuperma.tvon.ui.C.tema = t
+        prefsApariencia.edit().putString("tema", t.id).apply()
+    }
+
+    fun elegirAnimadas(si: Boolean) {
+        io.github.facuperma.tvon.ui.C.animada = si
+        prefsApariencia.edit().putBoolean("animada", si).apply()
     }
 
     /** El botón rojo: el celular pasa a ser la videoteca (sin PC). */
