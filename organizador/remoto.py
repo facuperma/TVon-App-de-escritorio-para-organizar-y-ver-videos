@@ -8,6 +8,7 @@ El servidor atiende cada pedido en un hilo propio. Todo lo que toca la ventana o
 `_Puente`, que lo ejecuta en el hilo de la interfaz y espera el resultado.
 """
 import base64
+import hashlib
 import ipaddress
 import json
 import re
@@ -212,6 +213,8 @@ class Remoto(QObject):
     estado_cambiado = Signal()          # se encendió o apagó, o cambiaron los celulares conectados
     transmisiones = Signal(int)         # cuántos celulares están viendo la pantalla
     celular_conectado = Signal(str)     # nombre del dispositivo que se acaba de emparejar
+    # Un celular pide vincularse sin QR: id, nombre, IP y el código que tiene que coincidir con el del celular
+    solicitud_vinculo = Signal(str, str, str, str)
 
     def __init__(self, ventana):
         super().__init__()
@@ -409,21 +412,68 @@ class Remoto(QObject):
             with self._cerrojo:
                 self._fallidos.setdefault(ip, []).append(time.time())
             return None
-        token = secrets.token_urlsafe(32)
-        nombre = nombre_dispositivo(agente)
-        huella = seguridad.huella_sesion(token)
-        with self._cerrojo:
-            self._sesiones[huella] = {"huella": huella, "nombre": nombre, "creada": time.strftime("%d/%m/%Y %H:%M"),
-                                      "usada": time.time()}
-        self._guardar_sesiones()
+        token = self._nueva_sesion(nombre_dispositivo(agente))
         # La base es del hilo de la interfaz
         if threading.current_thread() is threading.main_thread():
             self.cambiar_codigo()
         else:
             self.puente.llamar(self.cambiar_codigo)
+        return token
+
+    def _nueva_sesion(self, nombre: str) -> str:
+        """Crea la sesión de un celular (queda vinculado) y devuelve su token."""
+        token = secrets.token_urlsafe(32)
+        huella = seguridad.huella_sesion(token)
+        with self._cerrojo:
+            self._sesiones[huella] = {"huella": huella, "nombre": nombre, "creada": time.strftime("%d/%m/%Y %H:%M"),
+                                      "usada": time.time()}
+        self._guardar_sesiones()
         self.celular_conectado.emit(nombre)
         self.estado_cambiado.emit()
         return token
+
+    # --- Vincular sin QR: el celular lo pide y se aprueba en la PC ----------------------------------
+
+    def codigo_vinculo(self, id_solicitud: str) -> str:
+        """6 números que salen de la huella del certificado y del pedido: el celular calcula los mismos con
+        el certificado que ve. Si alguien en la wifi se hiciera pasar por la PC, no coincidirían."""
+        base = (self.huella_certificado.replace(":", "").upper() + id_solicitud).encode()
+        n = int(hashlib.sha256(base).hexdigest()[:8], 16) % 1_000_000
+        return f"{n // 1000:03d} {n % 1000:03d}"
+
+    def solicitar_vinculo(self, agente: str, nombre: str, ip: str) -> str | None:
+        """Un celular sin vincular pide permiso. Aparece un cartel en la PC; devuelve el id del pedido
+        (None si esa IP ya tiene uno pendiente o pidió demasiadas veces)."""
+        ahora = time.time()
+        with self._cerrojo:
+            self._solicitudes = {i: s for i, s in getattr(self, "_solicitudes", {}).items() if ahora - s["creada"] < 120}
+            if any(s["ip"] == ip and s["estado"] == "pendiente" for s in self._solicitudes.values()):
+                return None
+            self._fallidos.setdefault(ip, []).append(ahora)  # cuenta como intento: no se puede insistir sin fin
+            id_solicitud = secrets.token_hex(8)
+            nombre = (nombre.strip() or nombre_dispositivo(agente))[:60]
+            self._solicitudes[id_solicitud] = {"ip": ip, "nombre": nombre, "estado": "pendiente", "creada": ahora}
+        self.solicitud_vinculo.emit(id_solicitud, nombre, ip, self.codigo_vinculo(id_solicitud))
+        return id_solicitud
+
+    def resolver_vinculo(self, id_solicitud: str, aprobada: bool):
+        """Lo que se tocó en el cartel de la PC."""
+        with self._cerrojo:
+            s = getattr(self, "_solicitudes", {}).get(id_solicitud)
+            if s and s["estado"] == "pendiente":
+                s["estado"] = "aprobada" if aprobada else "rechazada"
+
+    def estado_vinculo(self, id_solicitud: str, ip: str) -> tuple[str, str | None]:
+        """(estado, token): el token se entrega una sola vez, al mismo celular que lo pidió."""
+        with self._cerrojo:
+            s = getattr(self, "_solicitudes", {}).get(id_solicitud)
+            if not s or s["ip"] != ip or time.time() - s["creada"] > 120:
+                return "vencida", None
+            if s["estado"] != "aprobada":
+                return s["estado"], None
+            del self._solicitudes[id_solicitud]
+            nombre = s["nombre"]
+        return "aprobada", self._nueva_sesion(nombre)
 
     def sesion_valida(self, token: str | None) -> bool:
         if not token:
@@ -616,6 +666,8 @@ class _Manejador(BaseHTTPRequestHandler):
     def _get(self, ruta: str, consulta: dict):
         if not ruta.startswith("/api/"):
             return self._estatico(ruta)
+        if ruta == "/api/solicitud":
+            return self._estado_solicitud(consulta)
         self._exigir_sesion()
         control = self.remoto.control
         if ruta == "/api/estado":
@@ -661,6 +713,8 @@ class _Manejador(BaseHTTPRequestHandler):
     def _post(self, ruta: str, _consulta: dict):
         if ruta == "/api/emparejar":
             return self._emparejar()
+        if ruta == "/api/solicitar":
+            return self._solicitar()
         token = self._exigir_sesion()
         # Una cabecera propia: otro sitio no puede mandarla sin permiso (CORS), así no hay CSRF
         if self.headers.get("X-TVon") != "1":
@@ -731,6 +785,27 @@ class _Manejador(BaseHTTPRequestHandler):
         # Secure: la sesión solo viaja cifrada (HTTPS)
         self._json({"ok": True}, cabeceras={
             "Set-Cookie": f"{COOKIE}={token}; Max-Age={un_anio}; Path=/; Secure; HttpOnly; SameSite=Strict"})
+
+    def _solicitar(self):
+        """Un celular sin vincular pide permiso (sin QR). Exige la cabecera propia: una página web no puede."""
+        ip = self.client_address[0]
+        if self.headers.get("X-TVon") != "1":
+            raise ErrorRemoto("Falta la cabecera X-TVon", 403)
+        if self.remoto.demasiados_intentos(ip):
+            raise ErrorRemoto("Demasiados intentos: esperá 10 minutos", 429)
+        datos = self._cuerpo()
+        id_solicitud = self.remoto.solicitar_vinculo(self.headers.get("User-Agent", "")[:300],
+                                                     str(datos.get("nombre", ""))[:60], ip)
+        if id_solicitud is None:
+            raise ErrorRemoto("Ya hay un pedido de este celular esperando en la PC", 409)
+        self._json({"id": id_solicitud})
+
+    def _estado_solicitud(self, consulta: dict):
+        estado, token = self.remoto.estado_vinculo(str(consulta.get("id", ""))[:40], self.client_address[0])
+        cabeceras = {}
+        if token:
+            cabeceras["Set-Cookie"] = f"{COOKIE}={token}; Max-Age={365 * 24 * 3600}; Path=/; Secure; HttpOnly; SameSite=Strict"
+        self._json({"estado": estado}, cabeceras=cabeceras)
 
     def _estatico(self, ruta: str):
         if ruta in ("/", ""):

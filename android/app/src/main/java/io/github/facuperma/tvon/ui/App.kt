@@ -1,6 +1,12 @@
 package io.github.facuperma.tvon.ui
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.ui.graphics.Brush
@@ -71,7 +77,7 @@ fun App(vm: Modelo) {
             .background(C.fondo)
     ) {
         when (val fase = vm.fase) {
-            Fase.Cargando -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Logo(96) }
+            Fase.Cargando -> PantallaCarga()
             is Fase.Emparejar -> PantallaEmparejar(vm, fase.mensaje)
             is Fase.SinConexion -> PantallaSinConexion(vm, fase.mensaje)
             Fase.Lista -> Principal(vm)
@@ -335,5 +341,40 @@ private fun OpcionHoja(vm: Modelo, o: Opcion) {
             Spacer(Modifier.width(8.dp))
             Text(o.marca, color = C.verde)
         }
+    }
+}
+
+/** Mientras abre la app: el logo vivo (respira, flota y una luz gira sobre el anillo, como en la PC) y el eslogan. */
+@Composable
+private fun PantallaCarga() {
+    var t by remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(Unit) {
+        val inicio = withFrameNanos { it }
+        while (true) withFrameNanos { t = (it - inicio) / 1e9f }
+    }
+    Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+        Box(Modifier.size(150.dp).offset(y = (4 * kotlin.math.sin(t * 1.1f)).dp), contentAlignment = Alignment.Center) {
+            Image(painterResource(R.drawable.logo), null,
+                Modifier.size(112.dp).graphicsLayer { alpha = 0.75f + 0.25f * kotlin.math.sin(t * 1.6f) })
+            Canvas(Modifier.size(112.dp)) {
+                val radio = size.minDimension * 0.335f
+                val angulo = (t * 80f) % 360f
+                drawArc(
+                    Brush.sweepGradient(0f to Color(0x004FC3F7), 0.8f to Color(0x004FC3F7), 0.95f to Color(0x9C4FC3F7),
+                        1f to Color(0xE6BEEBFF)),
+                    startAngle = angulo - 72f, sweepAngle = 72f, useCenter = false,
+                    topLeft = androidx.compose.ui.geometry.Offset(center.x - radio, center.y - radio),
+                    size = androidx.compose.ui.geometry.Size(radio * 2, radio * 2),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(5.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round),
+                )
+                val a = Math.toRadians(angulo.toDouble())
+                drawCircle(Color(0xFFDCF5FF), 3.dp.toPx(),
+                    androidx.compose.ui.geometry.Offset(center.x + radio * kotlin.math.cos(a).toFloat(), center.y + radio * kotlin.math.sin(a).toFloat()))
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+        TituloTVon(26)
+        Text("Torrent para todos", color = C.tenue, fontSize = 15.sp, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+            modifier = Modifier.padding(top = 4.dp).graphicsLayer { alpha = 0.6f + 0.4f * kotlin.math.sin(t * 1.6f + 1f) })
     }
 }

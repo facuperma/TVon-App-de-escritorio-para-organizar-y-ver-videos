@@ -91,6 +91,9 @@ class Modelo(app: Application) : AndroidViewModel(app) {
     var aviso by mutableStateOf<Aviso?>(null)
     var huellaPorConfirmar by mutableStateOf<HuellaPorConfirmar?>(null)
     var emparejando by mutableStateOf(false)
+    /** Vincular sin QR en curso: el código que tiene que coincidir con el de la PC y qué está pasando. */
+    var vinculo by mutableStateOf<Vinculo?>(null)
+    private var trabajoVinculo: kotlinx.coroutines.Job? = null
 
     // Reproductor
     var estado by mutableStateOf<Estado?>(null)
@@ -425,6 +428,53 @@ class Modelo(app: Application) : AndroidViewModel(app) {
                 emparejando = false
             }
         }
+    }
+
+    /** Vincular sin QR: busca la PC en la wifi, le pide permiso y espera a que en la PC toquen Permitir. */
+    fun vincularSinQr() {
+        trabajoVinculo?.cancel()
+        trabajoVinculo = viewModelScope.launch {
+            vinculo = Vinculo(null, "Buscando TorrentVision en la wifi…")
+            try {
+                val pcs = descubrirPcs(emptySet(), esperaMs = 2500)
+                if (pcs.isEmpty()) {
+                    vinculo = Vinculo(null, "No encontré TorrentVision en esta wifi. En la PC tiene que estar encendido 📱 ON, " +
+                        "y los dos en la misma red.", fallo = true)
+                    return@launch
+                }
+                val (base, huella) = pcs.entries.first()
+                val pc = Pc(base, huella, null)
+                val nombre = "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}".trim()
+                val id = pc.solicitar(nombre)
+                val codigo = codigoVinculo(huella, id)
+                vinculo = Vinculo(codigo, "Mirá la PC: tocá Permitir si muestra este mismo código.")
+                val fin = System.currentTimeMillis() + 115_000
+                while (System.currentTimeMillis() < fin) {
+                    delay(1500)
+                    val (estado, token) = pc.estadoSolicitud(id)
+                    when (estado) {
+                        "aprobada" -> if (token != null) {
+                            almacen.guardar(Conexion(base, huella, token))
+                            vinculo = null
+                            while (conectando) delay(100)
+                            conectar()
+                            mostrarAviso("¡Vinculado! Desde ahora se conecta solo.", false)
+                            return@launch
+                        }
+                        "rechazada" -> { vinculo = Vinculo(null, "En la PC tocaron Rechazar.", fallo = true); return@launch }
+                        "vencida" -> break
+                    }
+                }
+                vinculo = Vinculo(null, "Pasó el tiempo y nadie lo aprobó en la PC. Probá de nuevo.", fallo = true)
+            } catch (e: ErrorApi) {
+                vinculo = Vinculo(null, e.message.orEmpty(), fallo = true)
+            }
+        }
+    }
+
+    fun cancelarVinculo() {
+        trabajoVinculo?.cancel()
+        vinculo = null
     }
 
     fun desconectar() = correr {

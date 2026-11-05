@@ -3,6 +3,7 @@ package io.github.facuperma.tvon.ui
 import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -21,7 +22,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
@@ -66,6 +69,24 @@ fun PantallaEmparejar(vm: Modelo, mensaje: String?) {
             CircularProgressIndicator(color = C.acento)
         } else {
             Boton("📷 Escanear el código QR", Modifier.fillMaxWidth(), Estilo.PRIMARIO) { escanear(contexto, vm) }
+        }
+        // Sin QR: se pide permiso a la PC y se aprueba allá, comparando un código
+        val v = vm.vinculo
+        if (v == null) {
+            Boton("📡 Vincular sin QR (lo aprobás en la PC)", Modifier.fillMaxWidth()) { vm.vincularSinQr() }
+        } else {
+            Tarjeta {
+                TituloTarjeta("📡 Vincular sin QR")
+                if (v.codigo != null) {
+                    Text(v.codigo, color = C.titulo, fontSize = 34.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.align(Alignment.CenterHorizontally))
+                }
+                Text(v.mensaje, color = if (v.fallo) C.error else C.texto)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (v.fallo) Boton("Probar de nuevo", Modifier.weight(1f), Estilo.PRIMARIO) { vm.vincularSinQr() }
+                    Boton(if (v.fallo) "Cerrar" else "Cancelar", Modifier.weight(1f)) { vm.cancelarVinculo() }
+                }
+            }
         }
         Pista("¿No anda la cámara? Pegá el enlace que aparece debajo del QR:")
         OutlinedTextField(

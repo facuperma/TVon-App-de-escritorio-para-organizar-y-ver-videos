@@ -70,6 +70,14 @@ data class Enlace(val base: String, val codigo: String, val huella: String?) {
 
 fun huellaLinda(hex: String) = hex.chunked(2).joinToString(":")
 
+/** Los 6 números que tienen que coincidir con los del cartel de la PC (salen de su certificado y del pedido). */
+fun codigoVinculo(huella: String, id: String): String {
+    val hex = MessageDigest.getInstance("SHA-256").digest((huella.replace(":", "").uppercase() + id).toByteArray())
+        .joinToString("") { "%02x".format(it) }
+    val n = hex.substring(0, 8).toLong(16) % 1_000_000
+    return "%03d %03d".format(n / 1000, n % 1000)
+}
+
 private fun sha256(datos: ByteArray): String =
     MessageDigest.getInstance("SHA-256").digest(datos).joinToString("") { "%02X".format(it) }
 
@@ -193,6 +201,26 @@ class Pc(val base: String, val huella: String, @Volatile var token: String?) {
         }
     }
 
+    /** Vincular sin QR: le pide permiso a la PC (aparece un cartel allá). Devuelve el id del pedido. */
+    suspend fun solicitar(nombre: String): String = withContext(Dispatchers.IO) {
+        val req = pedido("/api/solicitar")
+            .header("X-TVon", "1")
+            .post(JSONObject().put("nombre", nombre).toString().toRequestBody(JSON))
+            .build()
+        enviar(http, req).use { r ->
+            (leerJson(r) as? JSONObject)?.optString("id")?.takeIf { it.isNotEmpty() }
+                ?: throw ErrorApi("La PC no aceptó el pedido", r.code)
+        }
+    }
+
+    /** («pendiente» | «aprobada» | «rechazada» | «vencida», sesión si se aprobó). */
+    suspend fun estadoSolicitud(id: String): Pair<String, String?> = withContext(Dispatchers.IO) {
+        enviar(http, pedido("/api/solicitud?id=" + Uri.encode(id)).build()).use { r ->
+            val token = r.headers("Set-Cookie").firstNotNullOfOrNull { Regex("""tvon_sesion=([^;]+)""").find(it)?.groupValues?.get(1) }
+            ((leerJson(r) as? JSONObject)?.optString("estado") ?: "vencida") to token
+        }
+    }
+
     /** Canjea el código del QR por una sesión propia de este celular. */
     suspend fun emparejar(codigo: String): String = withContext(Dispatchers.IO) {
         val req = pedido("/api/emparejar")
@@ -253,7 +281,10 @@ suspend fun descubrirPcs(huellas: Set<String>, puerto: Int = 8765, esperaMs: Int
                         val huella = o.getString("huella").uppercase()
                         val p = o.getInt("puerto")
                         val ip = paquete.address.hostAddress ?: continue
-                        if (huella in huellas && p in 1..65535 && !ip.contains(':')) encontradas["https://$ip:$p"] = huella
+                        // Sin huellas conocidas (vincular sin QR) vale cualquiera: después se compara el código
+                        if ((huellas.isEmpty() || huella in huellas) && p in 1..65535 && !ip.contains(':')) {
+                            encontradas["https://$ip:$p"] = huella
+                        }
                     } catch (e: Exception) {
                         // una respuesta que no es de TVon
                     }

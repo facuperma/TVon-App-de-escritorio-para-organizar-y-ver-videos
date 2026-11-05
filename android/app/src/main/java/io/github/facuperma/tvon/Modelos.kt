@@ -5,6 +5,9 @@ import org.json.JSONObject
 
 // Lo que devuelve la API de ON (organizador/remoto.py), ya leído
 
+/** Vincular sin QR: el código a comparar con la PC (null mientras se busca o si falló) y el mensaje. */
+data class Vinculo(val codigo: String?, val mensaje: String, val fallo: Boolean = false)
+
 data class Archivo(val id: Int, val nombre: String, val tipo: String)
 
 data class Reproduccion(

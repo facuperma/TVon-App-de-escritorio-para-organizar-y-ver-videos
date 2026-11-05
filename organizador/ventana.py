@@ -1593,6 +1593,7 @@ class Ventana(QMainWindow):
         self.remoto.transmisiones.connect(self._mostrar_transmision)
         self.remoto.celular_conectado.connect(
             lambda nombre: self.statusBar().showMessage(f"📱 Se conectó un celular: {nombre}", 8000))
+        self.remoto.solicitud_vinculo.connect(self._pedido_de_vinculo)
         # Aviso fijo mientras el celular ve la pantalla, con un botón para cortar
         self.aviso_pantalla = QWidget()
         capa = QHBoxLayout(self.aviso_pantalla)
@@ -1658,6 +1659,19 @@ class Ventana(QMainWindow):
         dialogo = VentanaApariencia(buscar_tema(self.bib.config("tema")).id, self.bib.config("tema_animado") != "0", self)
         dialogo.elegido.connect(self.aplicar_tema)
         dialogo.exec()
+
+    def _pedido_de_vinculo(self, id_solicitud: str, nombre: str, ip: str, codigo: str):
+        """Un celular pide vincularse sin QR: se aprueba acá, comparando el código con el del celular."""
+        caja = QMessageBox(QMessageBox.Question, "Vincular un celular",
+                           f"<b>📱 {nombre}</b> ({ip}) quiere manejar TorrentVision.<br><br>"
+                           f"Código: <span style='font-size: 20pt; font-weight: 700;'>{codigo}</span><br><br>"
+                           "Permitilo solo si es tu celular y muestra <b>este mismo código</b>.", parent=self)
+        permitir = caja.addButton("Permitir", QMessageBox.AcceptRole)
+        caja.addButton("Rechazar", QMessageBox.RejectRole)
+        caja.setWindowModality(Qt.NonModal)
+        caja.finished.connect(lambda _r: self.remoto.resolver_vinculo(id_solicitud, caja.clickedButton() is permitir))
+        caja.show()
+        traer_al_frente(caja)
 
     def _abrir_configuracion(self):
         if DialogoConfig(self.bib, self).exec():
