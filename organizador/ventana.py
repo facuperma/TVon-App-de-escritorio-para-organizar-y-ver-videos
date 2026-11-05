@@ -1037,12 +1037,12 @@ class Ventana(QMainWindow):
 
     def _actualizar_conteos(self):
         """Refresca los números y colores de la columna izquierda sin recargar la lista de archivos:
-        amarillo lo que queda por ver, verde claro lo ya visto."""
+        amarillo si hay un video a medias, verde claro lo ya visto (una categoría nueva queda en blanco)."""
         if self._categorias_vistas() != self._vistas_mostradas:
             self.cargar_filtros()  # alguna categoría cambió de grupo
             return
         conteos = {cid: (nombre, n) for cid, nombre, n in self.bib.listar_categorias()}
-        videos = self.bib.videos_por_categoria()
+        empezadas = self.bib.empezadas_por_categoria()
         sin_pendiente = self._sin_pendiente()
         for i in range(self.lista_filtros.count()):
             item = self.lista_filtros.item(i)
@@ -1055,7 +1055,7 @@ class Ventana(QMainWindow):
                 item.setText(f"  {self._nombre_categoria(dato[1], nombre)}  ({n})")
                 if dato[1] in self._vistas_mostradas:
                     item.setForeground(COLOR_VISTA)
-                elif videos.get(dato[1]) and dato[1] not in sin_pendiente and dato[1] != self.bib.favoritos:
+                elif dato[1] in empezadas and dato[1] not in sin_pendiente and dato[1] != self.bib.favoritos:
                     item.setForeground(COLOR_PENDIENTE)
                 else:
                     item.setData(Qt.ForegroundRole, None)

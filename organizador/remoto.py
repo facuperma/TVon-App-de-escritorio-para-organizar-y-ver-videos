@@ -1075,9 +1075,9 @@ class _Control:
 
     def biblioteca(self) -> dict:
         from .ventana import FILTROS_FIJOS
-        # Como en la PC: «vista» (todo visto), «pendiente» (algo por ver) o nada (sin videos)
+        # Como en la PC: «vista» (todo visto), «pendiente» (algún video a medias) o nada
         vistas, sin_pendiente = self.ventana._categorias_vistas(), self.ventana._sin_pendiente()
-        videos = self.bib.videos_por_categoria()
+        empezadas = self.bib.empezadas_por_categoria()
         archivos_de: dict[int, list[int]] = {}
         por_archivo = self.bib.categorias_por_archivo()
         for aid, cids in por_archivo.items():
@@ -1088,7 +1088,7 @@ class _Control:
         def estado(cid: int) -> str | None:
             if cid in vistas:
                 return "vista"
-            return ("pendiente" if videos.get(cid) and cid not in sin_pendiente and cid != self.bib.favoritos
+            return ("pendiente" if cid in empezadas and cid not in sin_pendiente and cid != self.bib.favoritos
                     else None)
 
         return {
