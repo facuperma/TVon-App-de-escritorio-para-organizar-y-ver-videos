@@ -193,6 +193,7 @@ function irA(pestana) {
   if (pestana === "biblioteca") cargarBiblioteca();
   if (pestana === "peliculas") { if (!app.peliculas.lista.length) buscarPeliculas(1); cargarDescargas(); cargarTorrents(); }
   if (pestana === "pantalla") prepararPantalla();
+  acomodarMouse(pestana);
   if (pestana === "mouse") prepararMouse();
   else mantenerClic(false);
   refrescarEstado();
@@ -218,7 +219,6 @@ async function refrescarEstado() {
   }
 }
 
-let archivoAnterior = null;
 function mostrarEstado() {
   const e = app.estado;
   if (!e) return;
@@ -244,11 +244,6 @@ function mostrarEstado() {
   const estados = { reproduciendo: "▶ Reproduciendo", pausa: "⏸ En pausa", detenido: "⏹ Detenido",
                     vista_previa: "Vista previa: tocá ▶ para empezar" };
   $("#estado-actual").textContent = rep ? estados[rep.estado] : (e.archivo ? "🖼 Imagen" : "Elegí algo en la Biblioteca");
-  const clave = e.archivo ? `${e.archivo.id}|${e.archivo.nombre}` : null;
-  if (clave !== archivoAnterior) {
-    archivoAnterior = clave;
-    refrescarCuadro(true);
-  }
 
   $("#controles").classList.toggle("sin-video", !rep);
   for (const b of $$("#controles button, #controles input")) {
@@ -272,7 +267,75 @@ function mostrarEstado() {
   $("#chk-mover").checked = e.mover_descargas;
 
   mostrarSubtitulos(e.subtitulos, e.opensubtitles);
+  mostrarTele(e.cast, !!rep);
   mostrarCola(e.cola);
+}
+
+// Chromecast: lo hace la PC; desde acá se elige la tele y se maneja
+function mostrarTele(c, hayVideo) {
+  $("#tarjeta-tele").hidden = !c;
+  if (!c) return;
+  const boton = $("#btn-tele-buscar");
+  boton.disabled = c.buscando;
+  boton.textContent = c.buscando ? "Buscando…" : "🔄 Buscar";
+  const caja = $("#tele-contenido");
+  caja.replaceChildren();
+  const pista = (texto) => {
+    const p = document.createElement("p");
+    p.className = "pista";
+    p.textContent = texto;
+    caja.append(p);
+  };
+  const t = c.transmision;
+  if (!c.disponible) return pista("Este TorrentVision de la PC no tiene Chromecast: actualizalo.");
+  if (t) {
+    const titulo = document.createElement("div");
+    titulo.className = "titulo-actual";
+    titulo.textContent = `En ${t.dispositivo}: ${t.titulo}`;
+    caja.append(titulo);
+    pista(`${tiempo(t.posicion)} / ${tiempo(t.duracion)}` +
+      ({ pausa: " · en pausa", cargando: " · cargando…" }[t.estado] || ""));
+    const fila = (clase, botones) => {
+      const d = document.createElement("div");
+      d.className = clase;
+      for (const [texto, cls, nombre, datos] of botones) {
+        const b = document.createElement("button");
+        b.className = cls;
+        b.textContent = texto;
+        b.addEventListener("click", () => accion(nombre, datos).catch(() => {}));
+        d.append(b);
+      }
+      caja.append(d);
+    };
+    fila("botonera", [
+      ["↺15", "redondo", "cast_adelantar", { ms: -15000 }],
+      [t.estado === "pausa" ? "▶" : "⏸", "redondo grande", "cast_play_pausa", {}],
+      ["15↻", "redondo", "cast_adelantar", { ms: 15000 }],
+    ]);
+    fila("botonera chica", [
+      ["🔉 −", "boton", "cast_volumen", { valor: Math.max(0, t.volumen - 10) }],
+      ["🔊 +", "boton", "cast_volumen", { valor: Math.min(100, t.volumen + 10) }],
+      ["⏹ Dejar de transmitir", "boton", "cast_detener", {}],
+    ]);
+    return;
+  }
+  const teles = c.dispositivos || [];
+  if (!teles.length) {
+    return pista(c.buscando ? "Buscando Chromecast en la red de la PC…"
+      : "Tocá 🔄 Buscar. El Chromecast tiene que estar prendido y en la misma red que la PC.");
+  }
+  if (!hayVideo) pista("Abrí un video (Biblioteca) y elegí la tele.");
+  const lista = document.createElement("ul");
+  lista.className = "lista";
+  for (const tele of teles) {
+    const li = item(tele.nombre, tele.modelo, "📺");
+    const b = botonChico("Mandar", () => accion("cast_iniciar", { dispositivo: tele.id }).catch(() => {}));
+    b.classList.add("boton-primario");
+    b.disabled = !hayVideo;
+    li.append(b);
+    lista.append(li);
+  }
+  caja.append(lista);
 }
 
 function mostrarSubtitulos(s, conClave) {
@@ -336,34 +399,6 @@ function mostrarCola(cola) {
     li.append(acciones);
     return li;
   }));
-}
-
-// El cuadro del video que se está viendo, cada tanto
-let cuadroUrl = null, pidiendoCuadro = false;
-async function refrescarCuadro(forzar = false) {
-  const e = app.estado;
-  const viendo = app.pestana === "reproductor" && !document.hidden;
-  if (pidiendoCuadro || !e || (!forzar && !viendo)) return;
-  const rep = e.reproduccion;
-  if (!forzar && !(rep && rep.estado === "reproduciendo")) return;
-  pidiendoCuadro = true;
-  try {
-    const r = await fetch("/api/cuadro.jpg", { cache: "no-store" });
-    const hay = r.status === 200;
-    if (hay) {
-      const url = URL.createObjectURL(await r.blob());
-      $("#cuadro").src = url;
-      if (cuadroUrl) URL.revokeObjectURL(cuadroUrl);
-      cuadroUrl = url;
-    } else if (e.archivo && e.archivo.tipo === "imagen") {
-      $("#cuadro").src = `/api/miniatura?id=${e.archivo.id}`;
-    }
-    const conImagen = hay || (e.archivo && e.archivo.tipo === "imagen");
-    $("#cuadro").hidden = !conImagen;
-    $("#cuadro-vacio").hidden = conImagen;
-  } catch { /* siguiente vuelta */ } finally {
-    pidiendoCuadro = false;
-  }
 }
 
 let volumenTocado = false, relojVolumen;
@@ -1057,6 +1092,23 @@ function encolarEntrada(datos) {
   if (movimiento) cola.pendientes.push(movimiento);
   cola.pendientes.push(datos);
   enviarCola();
+  const izquierdo = (datos.boton || "izquierdo") === "izquierdo";
+  if (izquierdo && (datos.tipo === "clic_aqui" || datos.tipo === "clic" || (datos.tipo === "boton" && datos.apretado === false))) {
+    revisarEscritura();
+  }
+}
+
+// Después de un clic: si en la PC quedó enfocado un campo de texto, se abre el teclado del celular.
+// El navegador solo deja abrirlo poco después de tocar la pantalla: por eso se pregunta enseguida.
+let consultaEscritura = 0;
+async function revisarEscritura() {
+  const n = ++consultaEscritura;
+  while (cola.enviando) await new Promise((r) => setTimeout(r, 30));  // que el clic llegue antes
+  let r;
+  try { r = await api("/api/pantalla/escribiendo"); } catch { return; }  // una PC más vieja no lo sabe
+  if (n !== consultaEscritura || !r.escribiendo) return;  // llegó otro clic
+  const campo = [$("#vivo"), $("#texto")].find((c) => c.offsetParent !== null);
+  campo?.focus();
 }
 
 function moverPuntero(dx, dy) {
@@ -1237,6 +1289,27 @@ async function prepararMouse() {
   }
 }
 
+// El touchpad y el recuadro de escribir son uno solo: van a Control o a Mouse según la pestaña
+function acomodarMouse(pestana) {
+  if (pestana === "reproductor") {
+    $("#hueco-vivo-control").append($("#vivo"));
+    $("#hueco-pad-control").append($("#pad-mouse"));
+    revisarControl();
+  } else {
+    $("#form-texto").before($("#vivo"));
+    $("#hueco-pad-mouse").append($("#pad-mouse"));
+  }
+}
+
+// ¿La PC deja manejar el mouse y el teclado? Si no, la tarjeta de Control no aparece
+async function revisarControl() {
+  try {
+    const r = await api("/api/pantalla/monitores");
+    pantalla.control = r.control;
+    $("#tarjeta-mouse-control").hidden = !r.control;
+  } catch { /* sin conexión: se ve igual y avisa al usarla */ }
+}
+
 function prepararTouchpad() {
   const pad = $("#touchpad");
   const dedos = new Map();  // pointerId -> posición
@@ -1382,7 +1455,7 @@ async function iniciar() {
   // si queda con el foco, Android vuelve a mostrarlo y lleva la página hasta él
   document.addEventListener("pointerdown", (ev) => {
     const activo = document.activeElement;
-    if (activo?.matches("#vivo, #texto") && !ev.target.closest("#teclado")) activo.blur();
+    if (activo?.matches("#vivo, #texto") && !ev.target.closest("#teclado, #vivo, #texto")) activo.blur();
   }, true);
 
   if (!(await emparejar())) return;
@@ -1397,14 +1470,13 @@ async function iniciar() {
   mostrarEstado();
   // Se puede abrir directo en una pestaña: /#biblioteca
   const inicial = location.hash.slice(1);
-  if ($(`#pestana-${inicial}`)) irA(inicial);
+  if ($(`#pestana-${inicial}`)) irA(inicial); else acomodarMouse(app.pestana);
 
   // El estado se pide seguido solo con la app a la vista
   setInterval(() => {
     if (document.hidden || $("#app").hidden) return;
     if (app.pestana === "reproductor" || app.estado?.apagado || app.estado?.siguiente || tic++ % 3 === 0) refrescarEstado();
   }, 1000);
-  setInterval(() => refrescarCuadro(), 1500);
   setInterval(() => {
     if (app.pestana === "peliculas" && !document.hidden) { cargarDescargas(); cargarTorrents(); }
   }, 2000);

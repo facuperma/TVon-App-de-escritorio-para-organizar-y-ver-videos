@@ -31,6 +31,9 @@
   <img src="icono-192.png?v=2" alt="" class="emparejar-logo">
   <h1>Torrent<span class="on">Vision</span></h1>
   <p>Manejá TorrentVision desde el celular. Elegí cómo:</p>
+  <a id="instalar-web" class="boton-grande" href="#">🌐 Usar en el navegador, sin instalar nada</a>
+  <p class="pista">Control, mouse, teclado, biblioteca, cola, subtítulos y Chromecast, desde esta página.</p>
+  <p class="pista" style="margin-top:12px">O con la app (más cómoda, y además sirve sin PC):</p>
   <a id="instalar-bajar" class="boton-grande" href="torrentvision-github">⬇ 1. Descargar la app</a>
   <p class="pista">Se baja de GitHub, la misma versión que tiene tu PC.</p>
   <p class="pista">¿Sin internet? <a id="instalar-pc" href="torrentvision.apk" download="TorrentVision.apk">Bajala desde la PC</a>.</p>
@@ -38,7 +41,6 @@
   <p class="pista">Al abrirla, Android pide permiso para instalar desde el navegador: aceptalo. Si Play Protect avisa, tocá <b>Instalar de todos modos</b> (la app es de TorrentVision y no está en Play Store).</p>
   <a id="instalar-abrir" class="boton-grande" href="#">📲 2. Abrir la app y conectar</a>
   <p class="pista">Si ya la tenés instalada, tocá directo este botón.</p>
-  <a id="instalar-web" class="enlace-chico" href="#">Prefiero usarlo en el navegador, sin instalar</a>
 </section>
 
 <div id="app" hidden>
@@ -72,10 +74,6 @@
     <!-- Reproductor -->
     <section id="pestana-reproductor" class="pestana">
       <div class="tarjeta reproduciendo">
-        <div class="cuadro">
-          <img id="cuadro" alt="">
-          <div id="cuadro-vacio" class="cuadro-vacio">Nada en reproducción</div>
-        </div>
         <div id="titulo-actual" class="titulo-actual">—</div>
         <div id="estado-actual" class="pista"></div>
       </div>
@@ -126,6 +124,19 @@
         <div id="subs-tamanos" class="chips"></div>
         <button id="btn-buscar-subs" data-accion="buscar_subtitulos" class="boton ancho">🌐 Buscar en internet (OpenSubtitles)</button>
       </details>
+
+      <!-- El touchpad y el recuadro de escribir también acá: se maneja la PC sin cambiar de pestaña -->
+      <div id="tarjeta-mouse-control" class="tarjeta">
+        <div class="tarjeta-titulo">🖱 Mouse y teclado</div>
+        <div id="hueco-vivo-control"></div>
+        <div id="hueco-pad-control"></div>
+      </div>
+
+      <div id="tarjeta-tele" class="tarjeta" hidden>
+        <div class="tarjeta-titulo">📺 Tele
+          <button id="btn-tele-buscar" data-accion="cast_buscar" class="boton chico derecha">🔄 Buscar</button></div>
+        <div id="tele-contenido"></div>
+      </div>
 
       <div class="tarjeta">
         <div class="tarjeta-titulo">☰ Cola <span id="cola-cantidad" class="pista"></span>
@@ -208,13 +219,17 @@
     <!-- Mouse y teclado (touchpad) -->
     <section id="pestana-mouse" class="pestana" hidden>
       <p id="mouse-error" class="error" hidden></p>
-      <div id="touchpad" class="touchpad" aria-label="Touchpad">
-        <span class="touchpad-ayuda">Deslizá: mover · tocá: clic · 2 dedos: rueda · tocá con 2 dedos: clic derecho</span>
-      </div>
-      <div class="botones-mouse">
-        <button data-boton="izquierdo">Izquierdo</button>
-        <button id="btn-mantener" title="Deja apretado el botón izquierdo para arrastrar">🔒</button>
-        <button data-boton="derecho">Derecho</button>
+      <div id="hueco-pad-mouse">
+        <div id="pad-mouse">
+          <div id="touchpad" class="touchpad" aria-label="Touchpad">
+            <span class="touchpad-ayuda">Deslizá: mover · tocá: clic · 2 dedos: rueda · tocá con 2 dedos: clic derecho</span>
+          </div>
+          <div class="botones-mouse">
+            <button data-boton="izquierdo">Izquierdo</button>
+            <button id="btn-mantener" title="Deja apretado el botón izquierdo para arrastrar">🔒</button>
+            <button data-boton="derecho">Derecho</button>
+          </div>
+        </div>
       </div>
       <label class="campo fila">Velocidad
         <input id="velocidad" type="range" min="0.5" max="4" step="0.25" value="1.75">
@@ -342,7 +357,7 @@
   </main>
 
   <nav class="pestanas">
-    <button data-pestana="reproductor" class="activa"><span>▶</span>Reproductor</button>
+    <button data-pestana="reproductor" class="activa"><span>▶</span>Control</button>
     <button data-pestana="biblioteca"><span>📚</span>Biblioteca</button>
     <button data-pestana="peliculas"><span>➕</span>Agregar película</button>
     <button data-pestana="mouse"><span>🖱</span>Mouse</button>
