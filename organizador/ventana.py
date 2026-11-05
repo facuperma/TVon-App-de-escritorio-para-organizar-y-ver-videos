@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 
 from .aviso import AvisoFlotante
 from .banda_retro import BandaRetro
+from .limpieza import limpiar_origen
 from .temas import estilo, tema as buscar_tema
 from .ventana_apariencia import VentanaApariencia
 from .db import CATEGORIA_DOMINIO_PUBLICO, CATEGORIA_FAVORITOS, EXT_IMAGEN, EXT_VIDEO, Biblioteca, orden_natural
@@ -1769,6 +1770,9 @@ class Ventana(QMainWindow):
             self.bib.mover_ruta(video.resolve(), nuevo, subtitulos)
             if video.parent.resolve() not in compartidas:
                 traer_subtitulos(video.parent, nuevo)
+                # Lo que quedó en la carpeta del torrent: los subtítulos se rescatan (el reproductor los
+                # encuentra solos junto al video) y el resto, a la Papelera
+                limpiar_origen(video.parent, nuevo, compartidas)
             borrar_carpetas_vacias(video.parent, raiz)
             if retomar and retomar[0] == video.resolve():
                 retomar = (nuevo, retomar[1])
