@@ -16,7 +16,8 @@ from .db import Biblioteca
 from .tareas import en_segundo_plano
 
 ROL = Qt.UserRole
-BUSCAR_TORRENT = "https://ext.to/search/?q={}"
+# El buscador de ext.to, en la categoría Películas (cat=1)
+BUSCAR_TORRENT = "https://ext.to/browse/?cat=1&q={}"
 MAX_TRADUCCIONES = 120  # por vez: Wikidata es gratis, no hay que abusar
 
 

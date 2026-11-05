@@ -187,6 +187,19 @@ private fun Biblioteca(vm: Modelo, irAAgregar: () -> Unit) {
                 p.empezada -> "${(p.posicion * 100 / p.duracion.coerceAtLeast(1))} %"
                 else -> null
             }
+            val opciones = {
+                vm.hoja = Hoja(p.titulo, listOf(
+                    Opcion("▶ Ver") { v.viendo = p },
+                    Opcion("⏮ Ver desde el principio") { v.guardarProgreso(p, 0, p.duracion); v.refrescar(); v.viendo = v.peliculas.firstOrNull { it.archivo == p.archivo } },
+                    Opcion("💬 Agregar subtítulo (.srt o .zip)") { paraSubtitulo = p; elegir.launch("*/*") },
+                    Opcion(if (p.vista) "Marcar como no vista" else "✓ Marcar como vista") { v.marcarVista(p, !p.vista) },
+                    Opcion("🗑 Eliminar del celular", peligro = true,
+                        confirmar = "¿Eliminar «${p.titulo}» y sus subtítulos de este celular? Se libera el lugar y no se puede deshacer.") {
+                        v.borrar(p)
+                        vm.mostrarAviso("Eliminada: ${p.titulo}", false)
+                    },
+                ))
+            }
             Item(
                 p.titulo,
                 listOfNotNull(tamano(p.tamano), estado, if (p.subtitulos.isNotEmpty()) "💬 ${p.subtitulos.size}" else null)
@@ -194,21 +207,13 @@ private fun Biblioteca(vm: Modelo, irAAgregar: () -> Unit) {
                 { IconoTexto("🎞") },
                 colorNombre = when { p.vista -> C.vista; p.empezada -> C.pendiente; else -> C.texto },
                 alTocar = { v.viendo = p },
-                alMantener = {
-                    vm.hoja = Hoja(p.titulo, listOf(
-                        Opcion("▶ Ver") { v.viendo = p },
-                        Opcion("⏮ Ver desde el principio") { v.guardarProgreso(p, 0, p.duracion); v.refrescar(); v.viendo = v.peliculas.firstOrNull { it.archivo == p.archivo } },
-                        Opcion("💬 Agregar subtítulo (.srt o .zip)") { paraSubtitulo = p; elegir.launch("*/*") },
-                        Opcion(if (p.vista) "Marcar como no vista" else "✓ Marcar como vista") { v.marcarVista(p, !p.vista) },
-                        Opcion("🗑 Borrar del celular", peligro = true, confirmar = "¿Borrar «${p.titulo}» y sus subtítulos del celular?") {
-                            v.borrar(p)
-                            vm.mostrarAviso("Borrada: ${p.titulo}", false)
-                        },
-                    ))
-                },
-            )
+                alMantener = opciones,
+            ) {
+                // Las opciones a la vista (ver, subtítulo, eliminar del celular…), además de manteniendo apretado
+                Boton("⋮", chico = true) { opciones() }
+            }
         }
-        if (v.peliculas.isNotEmpty()) item { Pista("Mantené apretada una película para más opciones.", Modifier.padding(vertical = 6.dp)) }
+        if (v.peliculas.isNotEmpty()) item { Pista("Tocá una película para verla; con ⋮ (o manteniéndola apretada), sus opciones.", Modifier.padding(vertical = 6.dp)) }
     }
 }
 
