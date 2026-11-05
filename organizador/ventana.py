@@ -441,6 +441,7 @@ class Ventana(QMainWindow):
     # --- Modo Fullscreen: toda la app a pantalla completa ---------------------------------------
 
     _video_completo = False   # pantalla completa del video (tecla F): solo el reproductor
+    _banda_con_tema = True    # la banda de arriba (según el tema); se esconde en pantalla completa
     _modo_fullscreen = False  # la app entera, sin barra de tareas ni borde de arriba (F11)
 
     def alternar_modo_fullscreen(self):
@@ -495,6 +496,8 @@ class Ventana(QMainWindow):
                   self.menuBar()):
             # Al salir, los paneles que se ocultaron desde el menú Vista siguen ocultos
             w.setVisible(not completa and (w not in self._paneles or self._paneles[w].isChecked()))
+        # La banda del tema (título que corre) tampoco: en pantalla completa se ve solo la película
+        self.fila_banda.setVisible(not completa and self._banda_con_tema)
         if completa:
             if not self._modo_fullscreen:
                 self._estaba_maximizada = self.isMaximized()
@@ -1649,7 +1652,8 @@ class Ventana(QMainWindow):
         COLOR_PENDIENTE.setRgb(QColor(t.pendiente).rgb())
         COLOR_VISTA.setRgb(QColor(t.vista).rgb())
         self.banda.aplicar(t, animada)
-        self.fila_banda.setVisible(t.animacion != "ninguna")
+        self._banda_con_tema = t.animacion != "ninguna"
+        self.fila_banda.setVisible(self._banda_con_tema and not self._video_completo)
         if guardar:
             self.bib.guardar_config("tema", t.id)
             self.bib.guardar_config("tema_animado", "1" if animada else "0")

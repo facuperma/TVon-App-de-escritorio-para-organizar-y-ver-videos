@@ -101,7 +101,7 @@ fun PestanaMouse(vm: Modelo) {
 }
 
 @Composable
-private fun Touchpad(vm: Modelo, modifier: Modifier) {
+fun Touchpad(vm: Modelo, modifier: Modifier) {
     var activo by remember { mutableStateOf(false) }
     val foco = LocalFocusManager.current
     Box(
@@ -170,7 +170,7 @@ private fun Touchpad(vm: Modelo, modifier: Modifier) {
 }
 
 @Composable
-private fun BotonesMouse(vm: Modelo) {
+fun BotonesMouse(vm: Modelo) {
     Row(Modifier.fillMaxWidth().height(64.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         BotonMouse(vm, "Izquierdo", "izquierdo", Modifier.weight(1f))
         Box(

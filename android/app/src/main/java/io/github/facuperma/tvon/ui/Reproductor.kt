@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -119,9 +120,17 @@ fun PestanaReproductor(vm: Modelo) {
             }
         }
 
-        e?.cast?.let { TarjetaTele(vm, it, hay) }
-
         e?.subtitulos?.let { TarjetaSubtitulos(vm, it, e.opensubtitles) }
+
+        // El touchpad en el medio: se maneja el mouse de la PC sin cambiar de pestaña
+        Tarjeta {
+            TituloTarjeta("🖱 Mouse")
+            vm.errorControl?.let { Text(it, color = C.error) }
+            Touchpad(vm, Modifier.height(240.dp))
+            BotonesMouse(vm)
+        }
+
+        e?.cast?.let { TarjetaTele(vm, it, hay) }
 
         Tarjeta {
             val cola = e?.cola.orEmpty()
