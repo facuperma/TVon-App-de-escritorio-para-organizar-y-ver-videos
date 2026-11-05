@@ -268,6 +268,11 @@ class Ventana(QMainWindow):
         fila_nav.addStretch()
         fila_nav.addWidget(btn_quitar)
         fila_nav.addWidget(self.btn_eliminar)
+        # Que esta fila no obligue a la ventana a ser más ancha que la pantalla (con la escala de
+        # Windows al 125 % no entraba y la ventana se abría corrida, con el título afuera):
+        # si falta lugar, los botones se achican
+        for b in (btn_ant, btn_sig, btn_ventana, btn_quitar, self.btn_eliminar):
+            b.setMinimumWidth(36)
 
         self.detalles = QWidget()
         capa_det = QVBoxLayout(self.detalles)
@@ -482,6 +487,34 @@ class Ventana(QMainWindow):
             boton.adjustSize()
             boton.move(self.width() - boton.width() - 12, 8)
             boton.raise_()
+
+    def showEvent(self, e):
+        super().showEvent(e)
+        # Windows a veces la abre más grande que la pantalla (con la escala al 125 %, 1400x820 no
+        # entra) o corrida afuera: la barra de título y el costado quedan fuera de la vista.
+        QTimer.singleShot(0, self.encajar_en_pantalla)
+
+    def encajar_en_pantalla(self):
+        """Si la ventana (normal, no maximizada ni a pantalla completa) no entra entera en la
+        pantalla, la achica a lo que haya disponible y la centra."""
+        if self.windowState() & (Qt.WindowMaximized | Qt.WindowFullScreen | Qt.WindowMinimized):
+            return
+        pantalla = self.screen() or QApplication.primaryScreen()
+        if pantalla is None:
+            return
+        libre = pantalla.availableGeometry()
+        marco = self.frameGeometry()
+        if libre.contains(marco):
+            return
+        borde_x = marco.width() - self.width()
+        borde_y = marco.height() - self.height()
+        ancho = min(self.width(), libre.width() - borde_x)
+        alto = min(self.height(), libre.height() - borde_y)
+        self.resize(max(ancho, self.minimumWidth()), max(alto, self.minimumHeight()))
+        marco = self.frameGeometry()
+        x = libre.x() + max(0, (libre.width() - marco.width()) // 2)
+        y = libre.y() + max(0, (libre.height() - marco.height()) // 2)
+        self.move(x, y)
 
     def resizeEvent(self, e):
         super().resizeEvent(e)
