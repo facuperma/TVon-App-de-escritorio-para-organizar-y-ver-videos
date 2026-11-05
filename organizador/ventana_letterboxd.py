@@ -2,6 +2,7 @@
 (también si la tenés con el título en otro idioma)."""
 import json
 import re
+import requests
 from urllib.parse import quote_plus
 
 from PySide6.QtCore import Qt, QUrl
@@ -15,6 +16,7 @@ from . import archive, letterboxd
 from .temas import tema
 from .db import Biblioteca
 from .tareas import en_segundo_plano
+from bs4 import BeautifulSoup
 
 ROL = Qt.UserRole
 # El buscador de ext.to, en la categoría Películas (cat=1)

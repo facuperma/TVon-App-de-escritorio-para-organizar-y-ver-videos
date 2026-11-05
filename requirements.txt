@@ -2,3 +2,5 @@ PySide6>=6.8
 segno>=1.6
 cryptography>=43
 PyChromecast>=14
+requests>=2.32
+beautifulsoup4>=4.12
