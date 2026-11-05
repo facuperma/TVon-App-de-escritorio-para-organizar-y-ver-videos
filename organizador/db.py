@@ -144,6 +144,11 @@ class Biblioteca:
                 encontrada INTEGER NOT NULL DEFAULT 0,
                 buscada    REAL NOT NULL DEFAULT (julianday('now'))
             );
+            -- Lo que se quitó de la biblioteca a mano: la vigilancia de carpetas no lo vuelve a agregar
+            -- (solo vuelve si se lo agrega a mano con «Agregar archivos…»).
+            CREATE TABLE IF NOT EXISTS quitados (
+                ruta TEXT PRIMARY KEY
+            );
             """
         )
         self.con.commit()
@@ -242,17 +247,24 @@ class Biblioteca:
 
     # --- Archivos ---------------------------------------------------------
 
-    def agregar_archivos(self, rutas: list[Path]) -> int:
+    def agregar_archivos(self, rutas: list[Path], a_mano: bool = False) -> int:
         """Agrega archivos soportados; devuelve cuántos eran nuevos. Los extras de las películas
-        (tráiler, muestra, entrevistas…) no se agregan."""
+        (tráiler, muestra, entrevistas…) no se agregan, ni lo que se quitó de la biblioteca,
+        salvo que se lo agregue a mano (a_mano=True: «Agregar archivos…»)."""
+        quitados = {r for (r,) in self.con.execute("SELECT ruta FROM quitados")}
         nuevos = 0
         for ruta in rutas:
             tipo = tipo_de(ruta)
             if tipo is None or (tipo == "video" and es_extra(ruta)):
                 continue
+            completa = str(ruta.resolve())
+            if completa in quitados:
+                if not a_mano:
+                    continue
+                self.con.execute("DELETE FROM quitados WHERE ruta = ?", (completa,))
             cur = self.con.execute(
                 "INSERT OR IGNORE INTO archivos (ruta, nombre, tipo) VALUES (?, ?, ?)",
-                (str(ruta.resolve()), ruta.name, tipo),
+                (completa, ruta.name, tipo),
             )
             nuevos += cur.rowcount
         self.con.commit()
@@ -504,8 +516,13 @@ class Biblioteca:
         )
         self.con.commit()
 
-    def quitar_archivos(self, archivo_ids: list[int]) -> None:
-        """Quita varios archivos de la biblioteca (no los borra del disco)."""
+    def quitar_archivos(self, archivo_ids: list[int], recordar: bool = True) -> None:
+        """Quita varios archivos de la biblioteca (no los borra del disco). Con recordar, quedan anotados
+        para que la vigilancia de carpetas no los vuelva a agregar."""
+        if recordar:
+            self.con.executemany(
+                "INSERT OR IGNORE INTO quitados (ruta) SELECT ruta FROM archivos WHERE id = ?",
+                [(a,) for a in archivo_ids])
         self.con.executemany("DELETE FROM archivos WHERE id = ?", [(a,) for a in archivo_ids])
         self.con.commit()
 
@@ -515,5 +532,5 @@ class Biblioteca:
         extras = [aid for aid, ruta in self.con.execute("SELECT id, ruta FROM archivos WHERE tipo = 'video'")
                   if es_extra(Path(ruta))]
         if extras:
-            self.quitar_archivos(extras)
+            self.quitar_archivos(extras, recordar=False)
         return len(extras)

@@ -75,7 +75,7 @@ function mostrarEmparejar(texto) {
    y la descarga queda en pausa para siempre. */
 async function bajarApp(ev) {
   ev.preventDefault();
-  const boton = $("#instalar-bajar"), avance = $("#instalar-avance");
+  const boton = $("#instalar-pc"), avance = $("#instalar-avance");
   boton.style.pointerEvents = "none";
   try {
     const r = await fetch("torrentvision.apk", { cache: "no-store" });
@@ -100,7 +100,7 @@ async function bajarApp(ev) {
     enlace.remove();
     avance.textContent = "✓ Bajada. Abrila desde la notificación o desde Descargas para instalarla.";
   } catch (e) {
-    avance.textContent = "No se pudo bajar desde la PC (" + e.message + "). Probá con el link de GitHub de abajo.";
+    avance.textContent = "No se pudo bajar desde la PC (" + e.message + "). Probá con el botón de arriba (GitHub).";
   } finally {
     boton.style.pointerEvents = "";
   }
@@ -110,7 +110,7 @@ async function emparejar() {
   const params = new URLSearchParams(location.search);
   const codigo = params.get("c");
   // Android sin la app: antes de gastar el código, ofrecer instalarla (o abrirla, o usar el navegador)
-  $("#instalar-bajar").onclick = bajarApp;
+  $("#instalar-pc").onclick = bajarApp;  // el botón grande baja de GitHub; este, desde la PC sin internet
   if (codigo && /Android/i.test(navigator.userAgent) && !params.has("web")) {
     $("#instalar-abrir").href = `tvon://${location.host}/?c=${encodeURIComponent(codigo)}&h=${encodeURIComponent(params.get("h") || "")}`;
     params.set("web", "1");

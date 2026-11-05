@@ -97,7 +97,7 @@ def eliminar_peliculas(bib: Biblioteca, identificadores: list[str], soltar) -> l
             soltar(ruta)
             fallidos += eliminar_archivos(ruta)
             if (aid := bib.id_de_ruta(str(Path(ruta).resolve()))) is not None:
-                bib.quitar_archivos([aid])
+                bib.quitar_archivos([aid], recordar=False)
         bib.actualizar_descarga(ident, estado="eliminada")
     return fallidos
 

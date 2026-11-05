@@ -10,13 +10,13 @@ Aplicación de escritorio para bajar, organizar y ver películas, series y video
 
 ## Descargar
 
-**[⬇ TorrentVision-Setup-1.10.5.exe](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-Setup-1.10.5.exe)** (39 MB) — para la PC (Windows 10/11, 64 bits)
+**[⬇ TorrentVision-Setup-1.10.6.exe](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-Setup-1.10.6.exe)** (39 MB) — para la PC (Windows 10/11, 64 bits)
 
 **[⬇ TorrentVision-Android-1.1.15.apk](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-Android-1.1.15.apk)** (3 MB) — app para el celular (Android 8 o más nuevo): ver más abajo, en [📱 ON](#-on-manejar-torrentvision-desde-el-celular)
 
 También desde la **[página de TorrentVision](https://facuperma.github.io/TVon-App-de-escritorio-para-organizar-y-ver-videos/#bajar)**: en la compu muestra un QR para bajar la app en el celular.
 
-**¿Es el original?** En la [página de descargas](https://facuperma.github.io/TVon-App-de-escritorio-para-organizar-y-ver-videos/#bajar), el botón **🔒 Bajar verificado** lo comprueba solo: baja el archivo, calcula su huella SHA-256 y la compara con la publicada en [`instalador/SHA256.txt`](instalador/SHA256.txt); solo si coincide te deja guardarlo, y si no, te avisa que no lo instales. A mano: `certutil -hashfile TorrentVision-Setup-1.10.5.exe SHA256` (en PowerShell: `Get-FileHash`) y compará con `SHA256.txt`.
+**¿Es el original?** En la [página de descargas](https://facuperma.github.io/TVon-App-de-escritorio-para-organizar-y-ver-videos/#bajar), el botón **🔒 Bajar verificado** lo comprueba solo: baja el archivo, calcula su huella SHA-256 y la compara con la publicada en [`instalador/SHA256.txt`](instalador/SHA256.txt); solo si coincide te deja guardarlo, y si no, te avisa que no lo instales. A mano: `certutil -hashfile TorrentVision-Setup-1.10.6.exe SHA256` (en PowerShell: `Get-FileHash`) y compará con `SHA256.txt`.
 
 El instalador de la PC: ejecutalo y seguí los pasos: no hace falta instalar Python ni nada más, ni permisos de administrador. Crea accesos directos en el menú Inicio (y en el Escritorio, si lo elegís) y se desinstala desde *Configuración → Aplicaciones*.
 
@@ -122,6 +122,7 @@ Para compilarla: JDK 17 y Android SDK 35; en `android\`, `gradlew assembleReleas
 - Los videos de **Videos** y **Documentos** (con subcarpetas) se suman solos a la biblioteca: al abrir TorrentVision y cada minuto. Se saltean carpetas ocultas o de programación (`.venv`, `node_modules`…).
 - Los videos que terminan de bajarse en **Descargas** se mueven solos a **Videos\Peliculas\<título>** (con sus subtítulos, también los de `Subs\`) y entran a la biblioteca con su categoría. Un `.zip`/`.rar`/`.7z` que trae un video se descomprime solo, y video y subtítulo quedan juntos en esa carpeta. También los de las carpetas que crean los programas de torrents (uTorrent, qBittorrent), si son del último mes; los «sample» se ignoran.
 - Si el programa de torrents sigue compartiendo el archivo, la película aparece igual en la biblioteca apenas termina de bajar, y se mueve a Videos cuando el programa la suelta (conserva categorías y subtítulos).
+- Lo que **quitás de la biblioteca** no vuelve solo: queda anotado y la vigilancia de carpetas lo saltea. Para sumarlo de nuevo, *Archivo → Agregar archivos…* y elegilo a mano.
 - Todo se ajusta en **Configuración → Preferencias** (agregar o quitar carpetas, desactivar el movimiento).
 
 ### 🎞 Fichas de películas y series

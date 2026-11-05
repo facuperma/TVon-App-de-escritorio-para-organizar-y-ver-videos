@@ -1211,7 +1211,7 @@ class Ventana(QMainWindow):
                                              (str(sub), ruta)).fetchone()[0] if sub else 0
                 if sub and sub.exists() and sub.suffix.lower() in EXT_SUBTITULOS and not otros and not a_la_papelera(sub):
                     fallidos.append(sub.name)
-        self.bib.quitar_archivos(borrados)
+        self.bib.quitar_archivos(borrados, recordar=False)  # se borraron del disco: si vuelven, que entren
         # La carpeta de la película se va también si no le quedó nada más que subtítulos
         for carpeta in dict.fromkeys(Path(ruta).parent for aid, ruta, _ in seleccion if aid in borrados):
             self._borrar_carpeta_sobrante(carpeta)
@@ -1821,7 +1821,7 @@ class Ventana(QMainWindow):
         patrones = " ".join(f"*{e}" for e in sorted(EXT_VIDEO | EXT_IMAGEN))
         rutas, _ = QFileDialog.getOpenFileNames(self, "Agregar archivos", "", f"Videos e imágenes ({patrones})")
         if rutas:
-            self._importado(self.bib.agregar_archivos([Path(r) for r in rutas]))
+            self._importado(self.bib.agregar_archivos([Path(r) for r in rutas], a_mano=True))
 
     def _agregar_carpeta(self):
         carpeta = QFileDialog.getExistingDirectory(self, "Agregar carpeta (incluye subcarpetas)")
