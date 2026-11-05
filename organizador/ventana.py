@@ -401,7 +401,7 @@ class Ventana(QMainWindow):
             f"<h2>TorrentVision</h2><p>Versión <b>{QApplication.applicationVersion()}</b></p>"
             "<p><i>Torrent para todos.</i></p>"
             f"<p>Hecho por <b>{AUTOR}</b></p>"
-            f"<p>© 2026 Facundo Gabriel Peralta Marello · Todos los derechos reservados<br>"
+            f"<p>© 2026 {AUTOR} · Todos los derechos reservados<br>"
             f"<a href='{REPOSITORIO}' style='color:#9fc2ff'>{REPOSITORIO.removeprefix('https://')}</a></p>"
         )
         caja.setInformativeText(f"Qt {VERSION_QT} · Python {platform.python_version()}")
@@ -1385,7 +1385,7 @@ class Ventana(QMainWindow):
 
     def _abrir_letterboxd(self):
         if self.ventana_letterboxd is None:
-            self.ventana_letterboxd = VentanaLetterboxd(self.bib)
+            self.ventana_letterboxd = VentanaLetterboxd(self.bib, self.gestor, self.torrents)
         self.ventana_letterboxd.show()
         self.ventana_letterboxd.raise_()
         self.ventana_letterboxd.activateWindow()

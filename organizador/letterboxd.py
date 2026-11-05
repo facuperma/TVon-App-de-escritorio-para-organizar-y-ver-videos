@@ -9,7 +9,9 @@ import re
 import time
 import unicodedata
 
-from .red import ErrorRed, bajar_bytes
+from urllib.request import Request
+
+from .red import AGENTE, ErrorRed, _abrir, bajar_bytes, pedir_json
 from .titulos import titulo_de
 
 MEJOR_PUNTUADAS = "https://letterboxd.com/official/list/letterboxds-top-500-films/"
@@ -55,11 +57,35 @@ def _peliculas(base: str, max_paginas: int) -> list[dict]:
     return pelis
 
 
+# Partes de letterboxd.com que no son usuarios
+_NO_USUARIOS = {"film", "films", "list", "lists", "official", "members", "people", "search", "settings", "activity",
+                "journal", "pro", "about", "sign-in", "create-account", "tag", "director", "actor"}
+
+
+def _link_corto(texto: str) -> str:
+    """boxd.it/xxxx (el link de «Compartir» de Letterboxd) lleva al perfil: se sigue hasta ahí."""
+    url = texto if texto.startswith("http") else "https://" + texto
+    if not re.fullmatch(r"https://boxd\.it/[A-Za-z0-9]{2,12}/?", url):
+        raise ErrorLetterboxd("Ese link no es de Letterboxd")
+    try:
+        with _abrir(Request(url, headers={"User-Agent": AGENTE}), 20) as r:
+            return r.geturl()
+    except (ErrorRed, OSError) as e:
+        raise ErrorLetterboxd(f"No se pudo abrir el link de Letterboxd: {e}") from e
+
+
 def usuario_valido(texto: str) -> str:
-    """El usuario, aunque se pegue el link del perfil («letterboxd.com/fulano/»)."""
-    usuario = texto.strip().rstrip("/").rsplit("/", 1)[-1]
-    if not re.fullmatch(r"[A-Za-z0-9_]{2,30}", usuario):
-        raise ErrorLetterboxd("Escribí tu usuario de Letterboxd (el que aparece en letterboxd.com/usuario)")
+    """El usuario: escrito, o sacado del link del perfil o de la watchlist («letterboxd.com/fulano/watchlist/»),
+    o del link corto que da Letterboxd al compartir («boxd.it/…»)."""
+    t = texto.strip()
+    if "boxd.it/" in t:
+        t = _link_corto(t[t.index("boxd.it/"):].split()[0])
+    if m := re.search(r"letterboxd\.com/@?([A-Za-z0-9_]{2,30})(?:[/?#]|$)", t):
+        t = m.group(1)
+    usuario = t.strip("/@ ")
+    if not re.fullmatch(r"[A-Za-z0-9_]{2,30}", usuario) or usuario.lower() in _NO_USUARIOS:
+        raise ErrorLetterboxd("Escribí tu usuario de Letterboxd o pegá el link de tu perfil "
+                              "(letterboxd.com/usuario o el link corto boxd.it/…)")
     return usuario
 
 
@@ -92,5 +118,32 @@ def claves_biblioteca(nombres_archivo: list[str]) -> set[str]:
     return claves
 
 
-def en_biblioteca(peli: dict, claves: set[str]) -> bool:
-    return clave(peli["titulo"], peli["anio"]) in claves or clave(peli["titulo"]) in claves
+def en_biblioteca(peli: dict, claves: set[str], otros_titulos: list[str] = ()) -> bool:
+    """Si ya está: por su título o por cualquiera de sus títulos en otros idiomas («El padrino»)."""
+    for titulo in [peli["titulo"], *otros_titulos]:
+        if clave(titulo, peli["anio"]) in claves or clave(titulo) in claves:
+            return True
+    return False
+
+
+WIKIDATA = "https://www.wikidata.org/w/api.php"
+IDIOMAS = "es|en|pt|it|fr|de|ja|ko|zh|ru|sv|da|pl"
+
+
+def titulos_en_otros_idiomas(titulo: str, anio: str) -> list[str]:
+    """Los títulos de la película en otros idiomas, según Wikidata (que es libre y no pide clave):
+    «The Godfather» (1972) → «El padrino», «Il padrino», «Le Parrain»… Se elige la película cuya
+    descripción dice ese año (así no se confunde con el libro, el juego o la remake)."""
+    r = pedir_json(WIKIDATA, {"action": "wbsearchentities", "search": titulo, "language": "en", "type": "item",
+                              "limit": 7, "format": "json"}, timeout=15)
+    elegido = next((c["id"] for c in r.get("search", [])
+                    if anio and anio in (c.get("description") or "") and "film" in (c.get("description") or "")),
+                   None)
+    if elegido is None:
+        return []
+    e = pedir_json(WIKIDATA, {"action": "wbgetentities", "ids": elegido, "props": "labels|aliases",
+                              "languages": IDIOMAS, "format": "json"}, timeout=15)["entities"][elegido]
+    nombres = {v["value"] for v in e.get("labels", {}).values()}
+    nombres |= {a["value"] for lista in e.get("aliases", {}).values() for a in lista}
+    nombres.discard(titulo)
+    return sorted(nombres)[:40]

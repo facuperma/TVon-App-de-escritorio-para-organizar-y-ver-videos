@@ -10,13 +10,13 @@ Aplicación de escritorio para bajar, organizar y ver películas, series y video
 
 ## Descargar
 
-**[⬇ TorrentVision-Setup-1.9.3.exe](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-Setup-1.9.3.exe)** (39 MB) — para la PC (Windows 10/11, 64 bits)
+**[⬇ TorrentVision-Setup-1.9.4.exe](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-Setup-1.9.4.exe)** (39 MB) — para la PC (Windows 10/11, 64 bits)
 
 **[⬇ TorrentVision-ON-1.1.10.apk](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-ON-1.1.10.apk)** (3 MB) — app para el celular (Android 8 o más nuevo): ver más abajo, en [📱 ON](#-on-manejar-torrentvision-desde-el-celular)
 
 También desde la **[página de TorrentVision](https://facuperma.github.io/TVon-App-de-escritorio-para-organizar-y-ver-videos/#bajar)**: en la compu muestra un QR para bajar la app en el celular.
 
-**¿Es el original?** En [`instalador/SHA256.txt`](instalador/SHA256.txt) está la huella SHA-256 de cada archivo. En la PC: `certutil -hashfile TorrentVision-Setup-1.9.3.exe SHA256` (en PowerShell: `Get-FileHash`) y compará que sea igual. Si no coincide, no lo instales.
+**¿Es el original?** En [`instalador/SHA256.txt`](instalador/SHA256.txt) está la huella SHA-256 de cada archivo. En la PC: `certutil -hashfile TorrentVision-Setup-1.9.4.exe SHA256` (en PowerShell: `Get-FileHash`) y compará que sea igual. Si no coincide, no lo instales.
 
 El instalador de la PC: ejecutalo y seguí los pasos: no hace falta instalar Python ni nada más, ni permisos de administrador. Crea accesos directos en el menú Inicio (y en el Escritorio, si lo elegís) y se desinstala desde *Configuración → Aplicaciones*.
 
@@ -156,7 +156,7 @@ Botón **📺** en los controles del reproductor (o la tarjeta **📺 Tele** en 
 
 ### 🎬 Letterboxd
 
-Botón **🎬 Letterboxd** en la barra superior: escribí tu usuario y aparece tu **watchlist**; también están **las 500 mejor puntuadas** (la lista oficial de Letterboxd). Las que ya tenés se marcan en verde (por título y año, así no confunde remakes) y se pueden ocultar. **🔎 Buscar para bajar** copia «Título Año» y abre la página de películas; doble clic abre la ficha en Letterboxd.
+Botón **🎬 Letterboxd** en la barra superior: escribí tu usuario, o pegá el link de tu perfil (letterboxd.com/usuario, el de tu watchlist o el link corto boxd.it/… de «Compartir»), y aparece tu **watchlist**; también están **las 500 mejor puntuadas** (la lista oficial de Letterboxd). Las que ya tenés se marcan en verde (por título y año, así no confunde remakes), **aunque las tengas con el título en otro idioma**: «The Godfather» reconoce tu «El Padrino (1972)» buscando sus títulos en Wikidata (libre, sin clave; se guarda para no volver a preguntar). Se pueden ocultar. **Doble clic** (o *⬇ Bajarla*): si es de dominio público la baja gratis del Internet Archive; si no, abre la búsqueda del torrent ya hecha y, cuando copiás el link magnet, TorrentVision te pregunta y la pone a bajar.
 
 Letterboxd no da su API ni deja iniciar sesión desde otras apps: se lee la watchlist pública, así que tiene que ser pública (*Settings → Privacy*).
 

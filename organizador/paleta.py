@@ -34,7 +34,7 @@ def _muestra() -> str | None:
 
 class _Prueba(QWidget):
     def __init__(self, ruta: str):
-        super().__init__(None, Qt.Window)
+        super().__init__(None, Qt.Window | Qt.WindowStaysOnTopHint)
         self.setAttribute(Qt.WA_DeleteOnClose)
         self.ruta = ruta
         self.setWindowTitle("TorrentVision")
@@ -76,7 +76,10 @@ class _Ojo(QObject):
             if ruta:
                 ventana = _Prueba(ruta)
                 _abiertas.append(ventana)
+                self.parent().accept()
                 ventana.show()
+                ventana.raise_()
+                ventana.activateWindow()
             return True
         return False
 
