@@ -217,10 +217,13 @@ class VentanaLetterboxd(QWidget):
                 self.descargas.despertar()
             return self.estado.setText(f"Bajando «{p['titulo']}» del Internet Archive (🎞 Dominio público)")
         texto = f"{p['titulo']} {p['anio']}".strip()
-        QDesktopServices.openUrl(QUrl(BUSCAR_TORRENT.format(quote_plus(texto))))
+        # Copiado también, por si la página no muestra la búsqueda hecha: se pega con Ctrl+V en su buscador
+        QGuiApplication.clipboard().setText(texto)
+        busqueda = self.bib.config("letterboxd_busqueda") or BUSCAR_TORRENT
+        QDesktopServices.openUrl(QUrl(busqueda.format(quote_plus(texto))))
         self._esperando = p
-        self.estado.setText(f"Se abrió la búsqueda de «{texto}». Elegí el torrent y copiá su link magnet: "
-                            "TorrentVision lo toma solo y la pone a bajar.")
+        self.estado.setText(f"Se abrió la búsqueda y se copió «{texto}» (si no aparece buscada, pegalo con Ctrl+V "
+                            "en el buscador). Copiá el link magnet del torrent: TorrentVision lo toma solo.")
 
     def _portapapeles(self):
         """Si después de buscar una película se copia un link magnet, se ofrece bajarlo."""

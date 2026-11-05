@@ -10,13 +10,13 @@ Aplicación de escritorio para bajar, organizar y ver películas, series y video
 
 ## Descargar
 
-**[⬇ TorrentVision-Setup-1.9.4.exe](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-Setup-1.9.4.exe)** (39 MB) — para la PC (Windows 10/11, 64 bits)
+**[⬇ TorrentVision-Setup-1.9.5.exe](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-Setup-1.9.5.exe)** (39 MB) — para la PC (Windows 10/11, 64 bits)
 
 **[⬇ TorrentVision-ON-1.1.10.apk](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-ON-1.1.10.apk)** (3 MB) — app para el celular (Android 8 o más nuevo): ver más abajo, en [📱 ON](#-on-manejar-torrentvision-desde-el-celular)
 
 También desde la **[página de TorrentVision](https://facuperma.github.io/TVon-App-de-escritorio-para-organizar-y-ver-videos/#bajar)**: en la compu muestra un QR para bajar la app en el celular.
 
-**¿Es el original?** En [`instalador/SHA256.txt`](instalador/SHA256.txt) está la huella SHA-256 de cada archivo. En la PC: `certutil -hashfile TorrentVision-Setup-1.9.4.exe SHA256` (en PowerShell: `Get-FileHash`) y compará que sea igual. Si no coincide, no lo instales.
+**¿Es el original?** En [`instalador/SHA256.txt`](instalador/SHA256.txt) está la huella SHA-256 de cada archivo. En la PC: `certutil -hashfile TorrentVision-Setup-1.9.5.exe SHA256` (en PowerShell: `Get-FileHash`) y compará que sea igual. Si no coincide, no lo instales.
 
 El instalador de la PC: ejecutalo y seguí los pasos: no hace falta instalar Python ni nada más, ni permisos de administrador. Crea accesos directos en el menú Inicio (y en el Escritorio, si lo elegís) y se desinstala desde *Configuración → Aplicaciones*.
 
