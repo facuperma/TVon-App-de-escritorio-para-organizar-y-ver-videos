@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.sp
 import io.github.facuperma.tvon.Cartel
 import io.github.facuperma.tvon.Detalle
 import io.github.facuperma.tvon.FichaVideo
+import io.github.facuperma.tvon.Confirmar
 import io.github.facuperma.tvon.Hoja
 import io.github.facuperma.tvon.Modelo
 import io.github.facuperma.tvon.Opcion
@@ -363,12 +364,15 @@ private fun DetalleVideo(vm: Modelo, f: FichaVideo) {
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Boton("🎞 Corregir la ficha", Modifier.weight(1f)) { corregirFicha(vm, f.clave, f.titulo) }
-            Boton("🗑 Borrar…", Modifier.weight(1f)) {
-                vm.hoja = Hoja(f.titulo, opcionesBorrar(vm, f.id, f.titulo) {
+            Boton("🗑 Eliminar de la PC", Modifier.weight(1f), Estilo.PELIGRO, habilitado = f.existe) {
+                vm.confirmar = Confirmar("¿Eliminar «${f.titulo}» de la PC? Va a la Papelera de reciclaje (se puede " +
+                    "recuperar desde ahí) y también se borran sus subtítulos.", "Eliminar") {
+                    vm.accion("eliminar", "ids" to listOf(f.id))
+                    vm.mostrarAviso("Eliminada de la PC: ${f.titulo}", false)
                     vm.detalles = vm.detalles.dropLast(1)
                     if (vm.detalles.isNotEmpty()) vm.refrescarDetalles()
                     vm.cargarInicio()
-                })
+                }
             }
         }
         Pista(if (f.subtitulos.isEmpty()) "Sin subtítulos junto al video (buscalos desde ▶ Control → CC)."
