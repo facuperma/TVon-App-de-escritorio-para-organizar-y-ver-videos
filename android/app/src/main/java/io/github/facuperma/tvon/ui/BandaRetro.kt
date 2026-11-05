@@ -165,6 +165,48 @@ private fun DrawScope.dibujar(animacion: String, t: Float, sonando: Boolean) {
             }
             drawPath(loma, Brush.verticalGradient(listOf(Color(0xFF6FCF3A), Color(0xFF2C8A13)), h * .3f, h))
         }
+        "noche" -> {
+            // El campo de noche: la loma bajo la luna, estrellas que titilan y luciérnagas
+            drawRect(Brush.verticalGradient(listOf(Color(0xFF060D24), Color(0xFF13285A), Color(0xFF22407A))))
+            for (i in 0 until 50) {
+                val brillo = 0.35f + 0.65f * (0.5f + 0.5f * sin(t * (1.2f + azar(i + 60)) + i))
+                drawCircle(Color(0xFFE1EBFF).copy(alpha = brillo), 0.6f + azar(i + 120) * 1.1f,
+                    Offset(azar(i) * w, 1 + azar(i + 300) * h * 0.75f))
+            }
+            val luna = Offset(w * 0.64f, h * 0.3f)
+            drawCircle(Brush.radialGradient(listOf(Color(0x5AC8DCFF), Color(0x00C8DCFF)), luna, h * 0.9f), h * 0.9f, luna)
+            drawCircle(Color(0xFFF4F1DC), h * 0.26f, luna)
+            drawCircle(Color(0x6EC8C4AA), h * 0.06f, luna + Offset(-h * 0.07f, -h * 0.05f))
+            for (i in 0 until 4) {
+                val r = 16f + azar(i + 700) * 18f
+                val x = ((azar(i + 740) * w + t * (3 + i * 2)) % (w + 4 * r)) - 2 * r
+                val y = 4 + azar(i + 780) * h * 0.35f + r * 0.3f
+                for ((dx, dy, f) in listOf(Triple(0f, 0f, 1f), Triple(r * .7f, 2f, .8f), Triple(-r * .6f, 3f, .7f))) {
+                    drawOval(Color(0xD73A4A78), Offset(x + dx - r * .5f * f, y + dy - r * .22f * f), Size(r * f, r * .44f * f))
+                }
+            }
+            val loma = Path().apply {
+                moveTo(w * .45f, h)
+                cubicTo(w * .6f, h * .35f, w * .82f, h * .2f, w, h * .45f)
+                lineTo(w, h); close()
+            }
+            drawPath(loma, Brush.verticalGradient(listOf(Color(0xFF2F6A2A), Color(0xFF0C2A0E)), h * .3f, h))
+            drawPath(loma, Color(0x6EAAC8E6), style = Stroke(1f))
+            for (i in 0 until 8) {
+                val luz = sin(t * 1.3f + i * 1.7f).coerceAtLeast(0f)
+                if (luz > 0.05f) {
+                    val c = Offset(w * (0.55f + 0.43f * ((i * 0.618f) % 1f)) + 6 * sin(t * 0.7f + i),
+                        h * (0.65f + 0.28f * ((i * 0.37f) % 1f)) + 2 * kotlin.math.cos(t * 0.9f + i * 2))
+                    drawCircle(Color(0xFFDCFF78).copy(alpha = 0.3f * luz), 3.5f, c)
+                    drawCircle(Color(0xFFF0FFAA).copy(alpha = 0.95f * luz), 1.3f, c)
+                }
+            }
+            val fase = (t % 11f) / 11f
+            if (fase < 0.06f) {
+                val x = w * (0.8f - fase / 0.06f * 0.35f)
+                drawLine(Color(0xCCDCEBFF), Offset(x, 3 + fase * 120), Offset(x + 40, fase * 120 - 4), 1.5f)
+            }
+        }
         "gotas" -> {
             drawRect(Brush.verticalGradient(listOf(Color(0xFFF4F6FA), Color(0xFFD3D8E2))))
             var y = 0f

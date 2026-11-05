@@ -165,6 +165,18 @@ TEMAS: list[Tema] = [
          boton_borde="#003c74", boton_texto="#000000", letra="Tahoma", radio=4,
          lcd_fondo="#0a5fd8", lcd_texto="#ffffff", lcd_letra="Tahoma", claro=True),
 
+    Tema("luna_noche", "Luna de noche", "El escritorio de 2001, de noche", "La misma esencia de las ventanas "
+         "de 2001 en modo oscuro: barra azul profundo, botones redondeados que se encienden en naranja y el "
+         "botón verde de siempre. En la banda, el campo de noche: la loma bajo la luna, estrellas y luciérnagas.",
+         "noche",
+         fondo="#1b2130", fondo_hondo="#11151f", panel="#232b3c", panel_claro="#2d374c", borde="#3c5686",
+         texto="#e4e9f3", tenue="#9aa6bd", acento="#3d82ea", acento_texto="#ffffff", seleccion="#2a5cb8",
+         hover="#2b3b5e", titulo="#a9caff",
+         barra=_degrade("#2c66cc", "#123f98", "#0a327e", "#123f98"),
+         boton=_degrade("#3e4a60", "#2e3749", "#232a39"), boton_hover=_degrade("#4a4a4c", "#4a3d2c", "#5a4320"),
+         boton_borde="#5f82bd", boton_texto="#eef2fa", letra="Tahoma", radio=4,
+         lcd_fondo="#0a2a66", lcd_texto="#ffffff", lcd_letra="Tahoma"),
+
     Tema("gel", "Gel azul", "Las computadoras transparentes de 2000", "Gris perla con botones de gel azul "
          "que brillan como caramelo. En la banda, gotas de gel que respiran.", "gotas",
          fondo="#e9eaee", fondo_hondo="#f7f7f9", panel="#f2f2f5", panel_claro="#ffffff", borde="#a9aebb",
@@ -248,6 +260,7 @@ TEMAS: list[Tema] = [
 # Forma y menús de los temas de arriba
 _FORMAS = {
     "galaxia": ("pildora", "cristal"), "llama": ("recto", "biselado"), "luna": ("pildora", "clasico"),
+    "luna_noche": ("pildora", "clasico"),
     "gel": ("circulo", "cristal"), "cristal": ("circulo", "cristal"), "plata": ("ovalo", "clasico"),
     "mula": ("pildora", "clasico"), "fosforo": ("recto", "lcd"), "neon": ("ovalo", "neon"),
     "aero": ("circulo", "cristal"), "noventa": ("recto", "biselado"),
@@ -280,6 +293,13 @@ QPushButton:hover { border: 2px solid #f8b048; padding: 5px 11px; }
 QPushButton:pressed { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #e5e3dc, stop:1 #f6f4ec); }
 QPushButton#primario { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #8fd16a, stop:0.5 #3c9d27,
     stop:1 #2f8a1c); color: #ffffff; border: 1px solid #1f6b11; font-weight: 700; }
+""",
+    "luna_noche": """
+QPushButton { border: 1px solid #5f82bd; border-radius: 4px; }
+QPushButton:hover { border: 2px solid #f0a040; padding: 5px 11px; color: #ffffff; }
+QPushButton:pressed { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #1d2330, stop:1 #2e3749); }
+QPushButton#primario { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #6fb84f, stop:0.5 #2f8a1c,
+    stop:1 #1f6b11); color: #ffffff; border: 1px solid #144d0a; font-weight: 700; }
 """,
     "gel": """
 QPushButton { border: 1px solid #1d5fb8; color: #06224d; }
@@ -533,7 +553,7 @@ def estilo(t: Tema) -> str:
     """La hoja de estilo completa de la app para el tema."""
     r = t.radio
     rc = max(0, r - 2)
-    barra_texto = "#ffffff" if t.id in ("luna", "noventa") else t.texto
+    barra_texto = "#ffffff" if t.id in ("luna", "luna_noche", "noventa") else t.texto
     return f"""
 QWidget {{ background: {t.fondo}; color: {t.texto}; font-size: 10pt; font-family: "{t.letra}"; }}
 QToolBar {{ background: {t.barra}; border: none; padding: 6px; spacing: 6px; }}

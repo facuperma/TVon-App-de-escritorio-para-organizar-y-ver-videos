@@ -237,6 +237,78 @@ class BandaRetro(QWidget):
         p.setBrush(verde)
         p.drawPath(loma)
 
+    def _noche(self, p: QPainter, t: Tema, _sonando: bool):
+        """El campo de noche: cielo azul profundo, la luna con su halo, estrellas que titilan, nubes
+        oscuras que pasan despacio, la loma iluminada por la luna y luciérnagas sobre el pasto."""
+        w, h = self.width(), self.height()
+        cielo = QLinearGradient(0, 0, 0, h)
+        cielo.setColorAt(0, _color("#060d24"))
+        cielo.setColorAt(0.7, _color("#13285a"))
+        cielo.setColorAt(1, _color("#22407a"))
+        p.fillRect(self.rect(), cielo)
+        if not self._particulas:
+            # Estrellas fijas (x, y, tamaño, fase) y nubes (x, y, radio, velocidad) en _columnas
+            self._particulas = [[self._azar.uniform(0, w), self._azar.uniform(1, h * 0.75), self._azar.uniform(0.5, 1.3),
+                                 self._azar.uniform(0, 6.28)] for _ in range(max(40, w // 14))]
+            self._columnas = [[self._azar.uniform(0, w), self._azar.uniform(2, h * 0.45), self._azar.uniform(20, 44),
+                               self._azar.uniform(0.06, 0.18)] for _ in range(max(4, w // 260))]
+        p.setPen(Qt.NoPen)
+        for s in self._particulas:
+            brillo = 0.35 + 0.65 * (0.5 + 0.5 * math.sin(self.t * (1.2 + s[2]) + s[3]))
+            p.setBrush(QColor(225, 235, 255, int(255 * brillo)))
+            p.drawEllipse(QPointF(s[0], s[1]), s[2] * 0.7, s[2] * 0.7)
+        # La luna, con halo
+        luna = QPointF(w * 0.56, h * 0.27)
+        halo = QRadialGradient(luna, h * 0.9)
+        halo.setColorAt(0, QColor(200, 220, 255, 90))
+        halo.setColorAt(1, QColor(200, 220, 255, 0))
+        p.setBrush(halo)
+        p.drawEllipse(luna, h * 0.9, h * 0.9)
+        p.setBrush(_color("#f4f1dc"))
+        p.drawEllipse(luna, h * 0.26, h * 0.26)
+        p.setBrush(QColor(200, 196, 170, 110))
+        p.drawEllipse(QPointF(luna.x() - h * 0.07, luna.y() - h * 0.05), h * 0.06, h * 0.06)
+        p.drawEllipse(QPointF(luna.x() + h * 0.09, luna.y() + h * 0.07), h * 0.04, h * 0.04)
+        # Nubes oscuras con el borde de abajo iluminado
+        for c in self._columnas:
+            c[0] += c[3]
+            if c[0] - c[2] * 2 > w:
+                c[0] = -c[2] * 2
+            for dx, dy, r in ((0, 0, 1), (c[2] * 0.7, 2, 0.8), (-c[2] * 0.6, 3, 0.7)):
+                centro = QPointF(c[0] + dx, c[1] + dy + 6)
+                p.setBrush(QColor(170, 190, 230, 110))
+                p.drawEllipse(centro + QPointF(0, 1.2), c[2] * 0.5 * r, c[2] * 0.22 * r)
+                p.setBrush(QColor(58, 74, 120, 215))
+                p.drawEllipse(centro, c[2] * 0.5 * r, c[2] * 0.22 * r)
+        # La loma: la misma curva del escritorio de día, en verde de noche con el filo plateado
+        loma = QPainterPath(QPointF(w * 0.35, h))
+        loma.cubicTo(QPointF(w * 0.55, h * 0.35), QPointF(w * 0.8, h * 0.2), QPointF(w, h * 0.45))
+        loma.lineTo(w, h)
+        loma.closeSubpath()
+        verde = QLinearGradient(0, h * 0.3, 0, h)
+        verde.setColorAt(0, _color("#2f6a2a"))
+        verde.setColorAt(1, _color("#0c2a0e"))
+        p.setBrush(verde)
+        p.setPen(QPen(QColor(170, 200, 230, 110), 1))
+        p.drawPath(loma)
+        # Luciérnagas que se prenden y apagan sobre el pasto
+        p.setPen(Qt.NoPen)
+        for i in range(10):
+            fx = w * (0.45 + 0.53 * ((i * 0.618) % 1)) + 6 * math.sin(self.t * 0.7 + i)
+            fy = h * (0.62 + 0.3 * ((i * 0.37) % 1)) + 2 * math.cos(self.t * 0.9 + i * 2)
+            luz = max(0.0, math.sin(self.t * 1.3 + i * 1.7))
+            if luz > 0.05:
+                p.setBrush(QColor(220, 255, 120, int(70 * luz)))
+                p.drawEllipse(QPointF(fx, fy), 3.2, 3.2)
+                p.setBrush(QColor(240, 255, 170, int(240 * luz)))
+                p.drawEllipse(QPointF(fx, fy), 1.1, 1.1)
+        # Una estrella fugaz de vez en cuando
+        fase = (self.t % 11) / 11
+        if fase < 0.06:
+            x = w * (0.75 - fase / 0.06 * 0.4)
+            p.setPen(QPen(QColor(220, 235, 255, 200), 1.2))
+            p.drawLine(QPointF(x, 3 + fase * 120), QPointF(x + 34, fase * 120 - 4))
+
     def _gotas(self, p: QPainter, t: Tema, _sonando: bool):
         """Gotas de gel azul que «respiran» (crecen y se achican)."""
         w, h = self.width(), self.height()

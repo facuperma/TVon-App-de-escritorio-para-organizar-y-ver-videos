@@ -31,7 +31,7 @@ def vista_previa(t: Tema, ancho: int = 236, alto: int = 140) -> QPixmap:
     barra = QRectF(0, 0, ancho, 22)
     p.fillRect(barra, pincel(t.barra, barra))
     p.setFont(QFont(t.letra, 7))
-    p.setPen(QColor("#ffffff" if t.id in ("luna", "noventa") else t.texto))
+    p.setPen(QColor("#ffffff" if t.id in ("luna", "luna_noche", "noventa") else t.texto))
     p.drawText(QPointF(8, 15), "🎞 Torrents  📱 ON  🎨")
     lcd = QRectF(0, 22, ancho, 16)
     p.fillRect(lcd, QColor(t.lcd_fondo))

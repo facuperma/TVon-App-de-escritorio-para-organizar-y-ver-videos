@@ -67,6 +67,11 @@ private val CATALOGO = listOf(
         "nubes", 0xFFECE9D8, 0xFFFFFFFF, 0xFFF6F4EA, 0xFFFFFFFF, 0xFF7F9DB9, 0xFF000000, 0xFF5A5A5A, 0xFF316AC5,
         0xFFFFFFFF, 0xFFC1D2EE, 0xFF0A246A, listOf(0xFF3D95FF, 0xFF0A5FD8, 0xFF0050C8), listOf(0xFFFFFFFF, 0xFFD6D0C5),
         0xFF003C74, 0xFF000000, 0xFF0A5FD8, 0xFFFFFFFF, radio = 6, claro = true),
+    TemaCel("luna_noche", "Luna de noche", "El escritorio de 2001, de noche",
+        "Las ventanas de 2001 en modo oscuro: barra azul profundo y botones redondeados. Arriba, el campo de noche con la luna, estrellas y luciérnagas.",
+        "noche", 0xFF1B2130, 0xFF11151F, 0xFF232B3C, 0xFF2D374C, 0xFF3C5686, 0xFFE4E9F3, 0xFF9AA6BD, 0xFF3D82EA,
+        0xFFFFFFFF, 0xFF2A5CB8, 0xFFA9CAFF, listOf(0xFF2C66CC, 0xFF123F98, 0xFF0A327E), listOf(0xFF3E4A60, 0xFF232A39),
+        0xFF5F82BD, 0xFFEEF2FA, 0xFF0A2A66, 0xFFFFFFFF, radio = 6),
     TemaCel("gel", "Gel azul", "Las computadoras transparentes de 2000",
         "Gris perla con botones de gel azul que brillan como caramelo y gotas que respiran.", "gotas",
         0xFFE9EAEE, 0xFFF7F7F9, 0xFFF2F2F5, 0xFFFFFFFF, 0xFFA9AEBB, 0xFF111111, 0xFF5F6470, 0xFF1F7AE0, 0xFFFFFFFF,
@@ -163,6 +168,7 @@ private val CATALOGO = listOf(
 /** Forma de los botones y estilo de los menús de cada tema: los mismos que en la PC (temas.py). */
 private val FORMAS = mapOf(
     "galaxia" to ("pildora" to "cristal"), "llama" to ("recto" to "biselado"), "luna" to ("pildora" to "clasico"),
+    "luna_noche" to ("pildora" to "clasico"),
     "gel" to ("circulo" to "cristal"), "cristal" to ("circulo" to "cristal"), "plata" to ("ovalo" to "clasico"),
     "mula" to ("pildora" to "clasico"), "fosforo" to ("recto" to "lcd"), "neon" to ("ovalo" to "neon"),
     "aero" to ("circulo" to "cristal"), "noventa" to ("recto" to "biselado"), "casete" to ("ovalo" to "clasico"),

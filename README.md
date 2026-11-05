@@ -223,7 +223,7 @@ Marcá **⏻ Apagar** en los controles: cuando termine el video (en el visor o e
 - **Sincronía de subtítulos**: bajo los controles dice cómo salen («1,5 s antes», «sincronizados»). ◀◀ / ◀ los muestran 0,5 / 0,1 s antes; ▶ / ▶▶, después (también G / H). **🎯 Ahora**: tocalo justo cuando alguien empieza a hablar y el subtítulo más cercano se acomoda a ese momento. ↺ vuelve a como viene el archivo.
 - El archivo de subtítulos y el retraso se recuerdan para cada video.
 
-### 🎨 Apariencia: 22 temas retro
+### 🎨 Apariencia: 23 temas retro
 
 *Vista → 🎨 Apariencia y temas* en la PC, y *🎨 Apariencia* en el celular (Más, o ⚙ Ajustes en el modo videoteca). Cada tema cambia colores, letra, forma de los botones y la **banda de arriba**: una pantallita con el título que corre (marquesina) y el tiempo, más una animación propia. Se aplican al tocarlos; las animaciones se pueden apagar.
 
@@ -233,6 +233,7 @@ Marcá **⏻ Apagar** en los controles: cuando termine el video (en el visor o e
 | Galaxia P2P | los programas para compartir de 2004 | estrellas que pasan y estrellas fugaces |
 | Lámpara de llama | los reproductores con skins de 1999 | ecualizador verde-amarillo-rojo que salta con el video |
 | Luna | el escritorio de 2001 | cielo con nubes y la loma verde |
+| Luna de noche | el escritorio de 2001, en modo oscuro | el campo de noche: la loma bajo la luna, estrellas y luciérnagas |
 | Gel azul | las computadoras transparentes de 2000 | gotas de gel que respiran |
 | Cristal negro | el reproductor de vidrio de 2006 | aurora azul que ondula |
 | Plata cepillada | la jukebox de metal de 2003 | aluminio con un brillo que pasa |
