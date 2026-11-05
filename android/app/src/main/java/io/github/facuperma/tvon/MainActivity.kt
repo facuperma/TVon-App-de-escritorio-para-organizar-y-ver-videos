@@ -1,6 +1,7 @@
 package io.github.facuperma.tvon
 
 import android.content.Intent
+import android.net.Uri
 import android.content.pm.ActivityInfo
 import android.os.Bundle
 import android.view.KeyEvent
@@ -99,7 +100,11 @@ class MainActivity : ComponentActivity() {
         val magnet = Regex("""magnet:\?\S+""").find(texto)?.value
         when {
             magnet != null -> vm.recibirMagnet(magnet)
-            Enlace.leer(texto) != null -> vm.usarEnlace(texto)
+            // Un link de conexión que llega de otra app o de una página: se pregunta antes (podría no ser tu PC)
+            Enlace.leer(texto) != null -> vm.confirmar = Confirmar(
+                "¿Conectar con la PC ${Uri.parse(texto).host}? Aceptá solo si acabás de escanear el QR de TU PC.",
+                "Conectar",
+            ) { vm.usarEnlace(texto) }
             else -> vm.mostrarAviso("TorrentVision ON solo recibe links magnet o el enlace del QR de TorrentVision", true)
         }
     }

@@ -41,9 +41,22 @@ data class Enlace(val base: String, val codigo: String, val huella: String?) {
             val host = uri.host?.removePrefix("[")?.removeSuffix("]") ?: return null
             // Como en la PC: solo una IP (un nombre de dominio puede ser una página haciéndose pasar por TVon)
             if (host != "localhost" && !esIp(host)) return null
+            // Y solo de la red de casa o de Tailscale: un link de internet no puede llevar la app a otro lado
+            if (host != "localhost" && !esPrivada(host)) return null
             val codigo = uri.getQueryParameter("c")?.takeIf { it.isNotBlank() } ?: return null
             val huella = uri.getQueryParameter("h")?.uppercase()?.takeIf { it.matches(Regex("[0-9A-F]{64}")) }
             return Enlace("https://${uri.encodedAuthority}", codigo, huella)
+        }
+
+        /** 10.x, 172.16-31.x, 192.168.x, 100.64-127.x (Tailscale), fd.. (IPv6 local) o localhost. */
+        fun esPrivada(host: String): Boolean = try {
+            val ip = InetAddress.getByName(host)
+            val b = ip.address.map { it.toInt() and 0xFF }
+            ip.isLoopbackAddress || ip.isSiteLocalAddress || ip.isLinkLocalAddress ||
+                (b.size == 4 && b[0] == 100 && b[1] in 64..127) ||
+                (b.size == 16 && (b[0] and 0xFE) == 0xFC)
+        } catch (e: Exception) {
+            false
         }
 
         private fun esIp(host: String): Boolean {

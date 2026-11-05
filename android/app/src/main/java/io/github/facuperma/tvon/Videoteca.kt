@@ -242,8 +242,8 @@ class Videoteca(private val contexto: Context) {
 
     /** Un .srt/.vtt (o un .zip con uno adentro) elegido en el celular: queda junto a la película, con su nombre. */
     suspend fun agregarSubtitulo(p: PeliculaLocal, uri: Uri): String = withContext(Dispatchers.IO) {
-        val datos = contexto.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-            ?: return@withContext "No se pudo abrir el archivo"
+        val entrada = contexto.contentResolver.openInputStream(uri) ?: return@withContext "No se pudo abrir el archivo"
+        val datos = entrada.use { leerHasta(it, 20_000_000) } ?: return@withContext "Eso no parece un subtítulo (es muy grande)"
         guardarSubtitulo(p.archivo.nameWithoutExtension, p.titulo, datos, uri.lastPathSegment.orEmpty())
     }
 
@@ -270,15 +270,27 @@ class Videoteca(private val contexto: Context) {
         }
     }
 
+    /** Lee hasta [maximo] bytes; si hay más, null (un .zip armado para inflarse no traba la app). */
+    private fun leerHasta(entrada: java.io.InputStream, maximo: Int): ByteArray? {
+        val salida = java.io.ByteArrayOutputStream()
+        val buf = ByteArray(64 * 1024)
+        while (true) {
+            val n = entrada.read(buf)
+            if (n < 0) return salida.toByteArray()
+            salida.write(buf, 0, n)
+            if (salida.size() > maximo) return null
+        }
+    }
+
     private fun guardarSubtitulo(base: String, titulo: String, datos: ByteArray, nombreOrigen: String): String {
         val origen = nombreOrigen.lowercase()
         fun empieza(vararg b: Int) = datos.size >= b.size && b.indices.all { datos[it] == b[it].toByte() }
         val (bytes, extension) = when {
             empieza(0x50, 0x4B) -> ZipInputStream(datos.inputStream()).use { zip ->
                 // Si trae varios, el más grande (suele ser el completo y no uno de prueba)
-                generateSequence { zip.nextEntry }
+                generateSequence { zip.nextEntry }.take(200)
                     .filter { !it.isDirectory && it.name.substringAfterLast('.').lowercase() in SUBTITULOS }
-                    .map { zip.readBytes() to it.name.substringAfterLast('.').lowercase() }
+                    .mapNotNull { e -> leerHasta(zip, 5_000_000)?.let { it to e.name.substringAfterLast('.').lowercase() } }
                     .maxByOrNull { it.first.size }
             } ?: return "El .zip no tiene ningún subtítulo (.srt o .vtt)"
             empieza(0x52, 0x61, 0x72, 0x21) || origen.endsWith(".rar") ->

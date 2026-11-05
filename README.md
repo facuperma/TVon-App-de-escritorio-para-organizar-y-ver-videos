@@ -10,11 +10,13 @@ Aplicación de escritorio para bajar, organizar y ver películas, series y video
 
 ## Descargar
 
-**[⬇ TorrentVision-Setup-1.9.2.exe](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-Setup-1.9.2.exe)** (39 MB) — para la PC (Windows 10/11, 64 bits)
+**[⬇ TorrentVision-Setup-1.9.3.exe](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-Setup-1.9.3.exe)** (39 MB) — para la PC (Windows 10/11, 64 bits)
 
-**[⬇ TorrentVision-ON-1.1.9.apk](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-ON-1.1.9.apk)** (3 MB) — app para el celular (Android 8 o más nuevo): ver más abajo, en [📱 ON](#-on-manejar-torrentvision-desde-el-celular)
+**[⬇ TorrentVision-ON-1.1.10.apk](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-ON-1.1.10.apk)** (3 MB) — app para el celular (Android 8 o más nuevo): ver más abajo, en [📱 ON](#-on-manejar-torrentvision-desde-el-celular)
 
 También desde la **[página de TorrentVision](https://facuperma.github.io/TVon-App-de-escritorio-para-organizar-y-ver-videos/#bajar)**: en la compu muestra un QR para bajar la app en el celular.
+
+**¿Es el original?** En [`instalador/SHA256.txt`](instalador/SHA256.txt) está la huella SHA-256 de cada archivo. En la PC: `certutil -hashfile TorrentVision-Setup-1.9.3.exe SHA256` (en PowerShell: `Get-FileHash`) y compará que sea igual. Si no coincide, no lo instales.
 
 El instalador de la PC: ejecutalo y seguí los pasos: no hace falta instalar Python ni nada más, ni permisos de administrador. Crea accesos directos en el menú Inicio (y en el Escritorio, si lo elegís) y se desinstala desde *Configuración → Aplicaciones*.
 
@@ -56,7 +58,7 @@ Botón **📱 ON** en la barra superior (o *Configuración → ON*; se pone verd
 
 #### App para Android (recomendada)
 
-**[⬇ TorrentVision-ON-1.1.9.apk](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-ON-1.1.9.apk)** (3 MB, Android 8 o más nuevo). **O escaneá el QR de la ventana ON con la cámara del celular:** la página que abre ofrece *⬇ Descargar la app* (lleva a la [página de descargas](https://facuperma.github.io/TVon-App-de-escritorio-para-organizar-y-ver-videos/#bajar); sin internet, se baja desde tu PC), *📲 Abrir la app y conectar* (ya vinculada, sin escanear de nuevo) o seguir en el navegador. También podés bajarla de acá, en el celular, y abrirla; Android pide permiso para *instalar apps de origen desconocido* (al navegador o a Archivos): permitilo solo para esto. Después tocá **📷 Escanear el código QR** con la ventana de ON abierta en la PC.
+**[⬇ TorrentVision-ON-1.1.10.apk](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-ON-1.1.10.apk)** (3 MB, Android 8 o más nuevo). **O escaneá el QR de la ventana ON con la cámara del celular:** la página que abre ofrece *⬇ Descargar la app* (lleva a la [página de descargas](https://facuperma.github.io/TVon-App-de-escritorio-para-organizar-y-ver-videos/#bajar); sin internet, se baja desde tu PC), *📲 Abrir la app y conectar* (ya vinculada, sin escanear de nuevo) o seguir en el navegador. También podés bajarla de acá, en el celular, y abrirla; Android pide permiso para *instalar apps de origen desconocido* (al navegador o a Archivos): permitilo solo para esto. Después tocá **📷 Escanear el código QR** con la ventana de ON abierta en la PC.
 
 Si tenías la app 1.1.0, desinstalala antes de instalar la 1.1.3 (cambió la firma) y volvé a escanear el código QR. Desde la 1.1.1 se actualiza encima, sin volver a vincular.
 
@@ -102,6 +104,10 @@ Para compilarla: JDK 17 y Android SDK 35; en `android\`, `gradlew assembleReleas
 - **Torrents en el celular:** en ➕ Agregar → *Activar torrents* se baja una sola vez el motor (libtorrent, ≈ 6 MB, del repositorio oficial Maven Central y con su huella SHA-256 comprobada); la app sin él pesa lo mismo de siempre. Después pegás un link magnet (o lo tocás en el navegador y lo abrís con TorrentVision) y se baja solo la película y sus subtítulos, sin tráileres, muestras, imágenes ni otros archivos. Sigue con la pantalla apagada (notificación con el avance), se puede pausar o cancelar, retoma sola si se cerró la app y, al terminar, pasa a *Películas/TorrentVision* con un nombre lindo («The.Movie.2020.1080p…» → «The Movie (2020)») y deja de compartir para no gastar datos ni batería. Antes de empezar revisa que entre (película + 1 GB). Android 15 frena estos servicios después de 6 horas por día: si pasa, avisa y sigue al abrir la app. El motor se puede quitar en ⚙ Ajustes.
 
 ### 🔒 Seguridad
+
+- **TorrentVision nunca ejecuta lo que baja.** Además, de los torrents no se bajan programas ni accesos directos (.exe, .msi, .bat, .cmd, .ps1, .vbs, .js, .lnk, .scr, .jar, .dll, .iso…): un torrent que solo trae eso se cancela. En el celular se baja únicamente el video y sus subtítulos.
+- **Celular:** la app solo se conecta a PCs de la red de casa o de Tailscale y comprueba el certificado de tu PC; si el link de conexión llega desde otra app o una página, pregunta antes. El motor de torrent se baja del repositorio oficial y se comprueba su huella SHA-256. Los .zip de subtítulos tienen un límite de tamaño al descomprimirse.
+- **En la PC**, el canal entre copias de TorrentVision (para no abrirlo dos veces) solo acepta a tu usuario de Windows.
 
 - **Conexión cifrada:** el celular y la PC hablan por **HTTPS** (TLS 1.2 o 1.3) con un certificado propio de TorrentVision. La primera vez Chrome avisa «La conexión no es privada» porque no conoce ese certificado: *Configuración avanzada → Continuar*. Para comprobar que es tu PC, la huella del certificado (candado → certificado) tiene que coincidir con la que muestra la ventana de ON.
 - **Quién entra:** solo desde la red de tu casa o por Tailscale; desde internet se rechaza. El código del QR sirve **una sola vez** y cambia cada vez que se enciende ON; con 10 códigos equivocados se frena 10 minutos. Cada celular tiene su propia sesión (cookie *Secure*, *HttpOnly*, *SameSite=Strict*; la PC guarda solo su huella SHA-256). En la ventana de ON, **Dispositivos vinculados** muestra cada uno con *Desvincular* (o *Desvincular todos*). Otras páginas no pueden mandar órdenes a TorrentVision (protección contra CSRF y *DNS rebinding*).

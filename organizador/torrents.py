@@ -25,6 +25,13 @@ from .db import EXT_VIDEO, Biblioteca
 from .titulos import es_extra
 from .vigilancia import destino_libre
 
+# Lo que puede ejecutarse con un doble clic: un torrent de película no lo necesita nunca
+EXT_PELIGROSAS = {
+    ".exe", ".msi", ".msp", ".bat", ".cmd", ".com", ".scr", ".pif", ".cpl", ".ps1", ".psm1", ".vbs", ".vbe",
+    ".js", ".jse", ".wsf", ".wsh", ".hta", ".lnk", ".url", ".jar", ".dll", ".reg", ".inf", ".chm", ".iso",
+    ".img", ".vhd", ".appx", ".msix", ".sh", ".apk",
+}
+
 ARIA2 = Path(__file__).parent / "bin" / "aria2c.exe"
 # Empieza con «.»: el escaneo de la biblioteca no entra, así no aparecen películas a medio bajar
 CARPETA_TEMPORAL = ".torrents (descargando)"
@@ -254,7 +261,7 @@ class GestorTorrents(QObject):
                     aria2.llamar("removeDownloadResult", d["gid"])
                 continue
             if d["status"] in ("active", "waiting", "paused") and d.get("bittorrent"):
-                self._sin_extras(aria2, d)
+                self._filtrar_archivos(aria2, d)
             if d["status"] == "complete" and nombre:
                 self._terminar(aria2, d, temporal, videos)
                 continue
@@ -272,15 +279,24 @@ class GestorTorrents(QObject):
         self.estado.emit(lista)
 
     @staticmethod
-    def _sin_extras(aria2: Aria2, descarga: dict):
-        """Desmarca los extras de la película (tráiler, muestra, entrevistas…) para que no se bajen.
-        Si todos los videos parecen extras, no se toca nada. aria2 retoma la descarga solo."""
+    def _filtrar_archivos(aria2: Aria2, descarga: dict):
+        """Desmarca los extras de la película (tráiler, muestra, entrevistas…) y cualquier programa o
+        acceso directo (.exe, .bat, .lnk…), para que no se bajen. Si todos los videos parecen extras,
+        los videos se dejan. Si el torrent no trae nada más que programas, se cancela.
+        aria2 retoma la descarga solo."""
         archivos = descarga.get("files") or []
         videos = [f for f in archivos if Path(f["path"]).suffix.lower() in EXT_VIDEO]
         extras = [f for f in videos if es_extra(Path(f["path"]), int(f["length"]))]
-        if not extras or len(extras) == len(videos) or all(f["selected"] == "false" for f in extras):
+        if len(extras) == len(videos):
+            extras = []
+        peligrosos = [f for f in archivos if Path(f["path"]).suffix.lower() in EXT_PELIGROSAS]
+        fuera = [f for f in extras + peligrosos if f["selected"] == "true"]
+        if not fuera:
             return
-        elegidos = [f["index"] for f in archivos if f not in extras and f["selected"] == "true"]
+        elegidos = [f["index"] for f in archivos if f not in fuera and f["selected"] == "true"]
+        if not elegidos:
+            aria2.llamar("remove", descarga["gid"])
+            return
         aria2.llamar("changeOption", descarga["gid"], {"select-file": ",".join(elegidos)})
 
     def _terminar(self, aria2: Aria2, descarga: dict, temporal: Path, videos: Path):

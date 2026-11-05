@@ -15,7 +15,7 @@ from organizador.inicio_windows import ARGUMENTO
 from organizador.tema import ESTILO
 from organizador.ventana import Ventana
 
-VERSION = "1.9.2"
+VERSION = "1.9.3"
 INSTANCIA = "TVon-una-sola-vez"
 
 # Empaquetado con PyInstaller, los recursos están en sys._MEIPASS
@@ -60,6 +60,7 @@ def main():
     ventana = Ventana(biblioteca)
     servidor = QLocalServer()
     QLocalServer.removeServer(INSTANCIA)
+    servidor.setSocketOptions(QLocalServer.UserAccessOption)  # otros usuarios de la PC no pueden hablarle
     servidor.listen(INSTANCIA)
     servidor.newConnection.connect(lambda: _pedido_de_otra_instancia(servidor, ventana))
     if segundo_plano:
