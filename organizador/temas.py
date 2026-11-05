@@ -3,7 +3,7 @@
 Cada tema es una paleta, una letra, una forma de botón y una animación para la banda de arriba.
 Son estilos inspirados en esa época, con nombres y diseños propios (sin logos ni marcas de nadie).
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 
 @dataclass(frozen=True)
@@ -37,19 +37,79 @@ class Tema:
     lcd_texto: str = "#00ff66"
     lcd_letra: str = "Lucida Console"
     claro: bool = False   # tema claro (texto oscuro): para elegir colores de estado legibles
+    # La forma de los botones: «recto», «pildora» (bordes del todo redondos), «ovalo» (esquinas elípticas)
+    # o «circulo» (los del reproductor redondos, con Play como un orbe grande)
+    forma: str = "recto"
+    # Los menús desplegables: «clasico», «biselado» (en relieve, de 1998), «cristal» (vidrio con brillo),
+    # «neon» (borde de luz) o «lcd» (pantallita verde)
+    menu: str = "clasico"
 
     # Colores de estado de la lista (a medias / vista / vínculo), legibles sobre el fondo del tema
     @property
     def pendiente(self) -> str:
-        return "#a15c00" if self.claro else "#facc15"
+        """«A medias»: amarillo (o naranja/fucsia si el texto del tema ya es amarillo), legible sobre su fondo."""
+        return color_estado(self, (48, 32, 320))
 
     @property
     def vista(self) -> str:
-        return "#16803c" if self.claro else "#86efac"
+        """«Vista»: verde (o celeste/azul si el texto del tema ya es verde), legible sobre su fondo."""
+        return color_estado(self, (140, 190, 215), evitar=self.pendiente)
 
     @property
     def vinculo(self) -> str:
-        return self.acento if self.claro else "#9fc2ff"
+        return color_estado(self, (215, 200, 260), evitar=self.vista)
+
+
+def _luminancia(hexa: str) -> float:
+    """Luminancia relativa (WCAG) de un color #rrggbb."""
+    def canal(c: int) -> float:
+        c = c / 255
+        return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+    r, g, b = (int(hexa[i:i + 2], 16) for i in (1, 3, 5))
+    return 0.2126 * canal(r) + 0.7152 * canal(g) + 0.0722 * canal(b)
+
+
+def contraste(a: str, b: str) -> float:
+    la, lb = sorted((_luminancia(a), _luminancia(b)), reverse=True)
+    return (la + 0.05) / (lb + 0.05)
+
+
+def _tono(hexa: str) -> tuple[float, float]:
+    """(tono en grados, «viveza» 0-1): saturación por brillo, alta solo en colores vivos y claros (#39ff6a)."""
+    import colorsys
+    r, g, b = (int(hexa[i:i + 2], 16) / 255 for i in (1, 3, 5))
+    h, s, v = colorsys.rgb_to_hsv(r, g, b)
+    return h * 360, s * v
+
+
+def _hls(tono: float, luz: float, sat: float) -> str:
+    import colorsys
+    r, g, b = colorsys.hls_to_rgb(tono / 360, luz, sat)
+    return "#%02x%02x%02x" % (round(r * 255), round(g * 255), round(b * 255))
+
+
+def color_estado(t: "Tema", tonos: tuple[float, ...], evitar: str | None = None) -> str:
+    """El color de un estado de la lista (a medias, vista…) calculado para el fondo del tema: el primer tono
+    que no se confunda con el texto normal (ni con el otro estado), con la luz justa para leerse bien
+    (contraste 4.5:1 como mínimo) sobre la lista y sobre el fondo."""
+    texto_tono, texto_sat = _tono(t.texto)
+    evitar_tono = _tono(evitar)[0] if evitar else None
+
+    def lejos(a: float, b: float) -> bool:
+        d = abs(a - b) % 360
+        return min(d, 360 - d) >= 40
+
+    elegido = next((h for h in tonos if (texto_sat < 0.4 or lejos(h, texto_tono))
+                    and (evitar_tono is None or lejos(h, evitar_tono))), tonos[-1])
+    fondos = (t.panel, t.fondo)
+    oscuro = _luminancia(t.panel) < 0.2
+    # Desde el color más vivo, se aclara (fondo oscuro) u oscurece (fondo claro) hasta que se lea
+    pasos = [0.62 + i * 0.03 for i in range(12)] if oscuro else [0.42 - i * 0.03 for i in range(12)]
+    for luz in pasos:
+        c = _hls(elegido, max(0.05, min(0.95, luz)), 0.9)
+        if all(contraste(c, f) >= 4.5 for f in fondos):
+            return c
+    return _hls(elegido, 0.9 if oscuro else 0.15, 0.9)
 
 
 def _brillo(arriba: str, abajo: str, corte: float = 0.5, medio: str | None = None) -> str:
@@ -183,11 +243,212 @@ TEMAS: list[Tema] = [
          lcd_fondo="#000000", lcd_texto="#ffffff", lcd_letra="MS Sans Serif", claro=True),
 ]
 
+# Forma y menús de los temas de arriba
+_FORMAS = {
+    "galaxia": ("pildora", "cristal"), "llama": ("recto", "biselado"), "luna": ("pildora", "clasico"),
+    "gel": ("circulo", "cristal"), "cristal": ("circulo", "cristal"), "plata": ("ovalo", "clasico"),
+    "mula": ("pildora", "clasico"), "fosforo": ("recto", "lcd"), "neon": ("ovalo", "neon"),
+    "aero": ("circulo", "cristal"), "noventa": ("recto", "biselado"),
+}
+TEMAS = [replace(t, forma=_FORMAS[t.id][0], menu=_FORMAS[t.id][1]) if t.id in _FORMAS else t for t in TEMAS]
+
+# Diez más: cassette, vinilo, arcade, osciloscopio, océano, fuego, caramelo, teletexto, radio y videoclub
+TEMAS += [
+    Tema("casete", "Casete 85", "Los walkman y los casetes de los 80", "Beige, naranja y marrón de cinta. "
+         "En la banda, un casete con sus dos carretes girando mientras suena.", "casete",
+         fondo="#efe3c8", fondo_hondo="#fbf4e4", panel="#f6ead2", panel_claro="#fffaf0", borde="#b98c55",
+         texto="#3b2414", tenue="#7a5a3c", acento="#e0661f", acento_texto="#ffffff", seleccion="#c9762f",
+         hover="#f1d9b5", titulo="#8a3a10",
+         barra=_degrade("#3b2414", "#6b3d1e", "#e0661f", horizontal=True),
+         boton=_degrade("#fff7e6", "#e8cfa6"), boton_hover=_degrade("#fffaf0", "#f3c58a"),
+         boton_borde="#9b6a3a", boton_texto="#3b2414", letra="Arial Rounded MT Bold", radio=6,
+         lcd_fondo="#2a1a10", lcd_texto="#ffb347", lcd_letra="Arial Rounded MT Bold", claro=True,
+         forma="ovalo", menu="clasico"),
+
+    Tema("vinilo", "Disquería", "Los tocadiscos y la madera", "Madera oscura, dorado y negro de vinilo. "
+         "En la banda gira un disco con sus surcos y la púa encima.", "vinilo",
+         fondo="#1c120c", fondo_hondo="#0f0905", panel="#2a1b12", panel_claro="#3a2618", borde="#6b4a2a",
+         texto="#f1e2c8", tenue="#b39470", acento="#d4a24c", acento_texto="#1c120c", seleccion="#7a5222",
+         hover="#33221a", titulo="#f3c771",
+         barra=_degrade("#5a3820", "#3a2414", "#24160c"),
+         boton=_brillo("#4a3220", "#24160c", 0.5, "#3a2618"), boton_hover=_brillo("#6a4a2a", "#3a2414", 0.5, "#523620"),
+         boton_borde="#d4a24c", boton_texto="#f3e3c2", letra="Georgia", radio=16,
+         lcd_fondo="#0f0905", lcd_texto="#f3c771", lcd_letra="Georgia", forma="circulo", menu="cristal"),
+
+    Tema("arcade", "Arcade 8 bits", "Los fichines de los 80", "Negro de sala de juegos, colores chillones y "
+         "letra de pixel. En la banda marchan los marcianitos.", "pixeles",
+         fondo="#0a0a14", fondo_hondo="#000000", panel="#11112a", panel_claro="#1c1c40", borde="#ff2e88",
+         texto="#f2f2ff", tenue="#8f8fc8", acento="#ffe14d", acento_texto="#14002a", seleccion="#ff2e88",
+         hover="#22224a", titulo="#3cf2ff",
+         barra="#000000", boton="#14143a", boton_hover="#2a2a6a", boton_borde="#3cf2ff", boton_texto="#ffe14d",
+         letra="Consolas", radio=0, borde_boton="2px solid",
+         lcd_fondo="#000000", lcd_texto="#ffe14d", lcd_letra="Consolas", forma="recto", menu="lcd"),
+
+    Tema("osciloscopio", "Osciloscopio", "Los aparatos de laboratorio", "Gris verdoso de instrumento, una "
+         "cuadrícula y la onda que se dibuja en la pantalla, más alta cuando hay sonido.", "osciloscopio",
+         fondo="#1d2420", fondo_hondo="#111613", panel="#252e29", panel_claro="#303b35", borde="#4d5d53",
+         texto="#d6e6dc", tenue="#8fa79a", acento="#7cff9a", acento_texto="#06210f", seleccion="#2f5a3d",
+         hover="#2c3631", titulo="#a6ffbb",
+         barra=_degrade("#3a4640", "#252e29", "#1a201c"),
+         boton=_degrade("#46534c", "#2e3833"), boton_hover=_degrade("#56665d", "#36423b"),
+         boton_borde="#7a8c82", boton_texto="#e2f0e7", letra="Tahoma", radio=3, borde_boton="2px outset",
+         lcd_fondo="#06140b", lcd_texto="#7cff9a", lcd_letra="Lucida Console", forma="recto", menu="biselado"),
+
+    Tema("oceano", "Océano", "Los protectores de pantalla de peces", "Azul profundo de mar, turquesa y "
+         "espuma. En la banda, olas que van y vienen y burbujas que suben.", "olas",
+         fondo="#06243a", fondo_hondo="#031624", panel="#0a3150", panel_claro="#114268", borde="#1f6f96",
+         texto="#d8f3ff", tenue="#7fb3cc", acento="#2fe0d0", acento_texto="#022a26", seleccion="#147a9c",
+         hover="#0e3c5e", titulo="#9cf1ff",
+         barra=_degrade("#0e5a86", "#083b5c", "#04243a"),
+         boton=_brillo("#3aa3d0", "#0d4f75", 0.5, "#2786b2"), boton_hover=_brillo("#5fd6e8", "#11708f", 0.5, "#3cb4cc"),
+         boton_borde="#5fd6e8", boton_texto="#ffffff", letra="Trebuchet MS", radio=18,
+         lcd_fondo="#031624", lcd_texto="#9cf1ff", lcd_letra="Trebuchet MS", forma="pildora", menu="cristal"),
+
+    Tema("fuego", "Fuego", "Las visualizaciones de música de 2000", "Negro con brasas: rojo, naranja y "
+         "amarillo. En la banda, llamas que crecen con lo que suena.", "fuego",
+         fondo="#140604", fondo_hondo="#080201", panel="#200a06", panel_claro="#33100a", borde="#7a2310",
+         texto="#ffe6d6", tenue="#d08a6a", acento="#ff6a1a", acento_texto="#1a0500", seleccion="#a8320f",
+         hover="#2c0e08", titulo="#ffc04d",
+         barra=_degrade("#3a0a04", "#7a1a08", "#ff6a1a", horizontal=True),
+         boton=_brillo("#ff9a4d", "#a8320f", 0.5, "#e0641f"), boton_hover=_brillo("#ffc04d", "#d04a12", 0.5, "#ff8a2a"),
+         boton_borde="#ffc04d", boton_texto="#1a0500", letra="Impact", radio=8,
+         lcd_fondo="#080201", lcd_texto="#ffc04d", lcd_letra="Impact", forma="ovalo", menu="neon"),
+
+    Tema("caramelo", "Caramelo", "Las computadoras de colores de 1999", "Rosa chicle, frutilla y blanco "
+         "translúcido, todo redondo como un caramelo. En la banda flotan corazones.", "corazones",
+         fondo="#ffe8f3", fondo_hondo="#fff6fb", panel="#fff0f7", panel_claro="#ffffff", borde="#f29ac4",
+         texto="#4a0f2c", tenue="#a3567b", acento="#ff3d8b", acento_texto="#ffffff", seleccion="#ff7ab0",
+         hover="#ffd6ea", titulo="#c2185b",
+         barra=_degrade("#ffd1e6", "#ff9ec9", "#ff6fa8"),
+         boton=_brillo("#ffffff", "#ff9ec9", 0.5, "#ffe0ef"), boton_hover=_brillo("#ffffff", "#ff6fa8", 0.5, "#ffd1e6"),
+         boton_borde="#ff3d8b", boton_texto="#4a0f2c", letra="Comic Sans MS", radio=20,
+         lcd_fondo="#ff3d8b", lcd_texto="#ffffff", lcd_letra="Comic Sans MS", claro=True,
+         forma="circulo", menu="cristal"),
+
+    Tema("teletexto", "Teletexto", "Las páginas de texto de la tele", "Negro y los siete colores puros de la "
+         "tele, en bloques. En la banda pasan las páginas con su número.", "teletexto",
+         fondo="#000000", fondo_hondo="#000000", panel="#000000", panel_claro="#0a0a0a", borde="#0000ff",
+         texto="#ffffff", tenue="#00ffff", acento="#ffff00", acento_texto="#000000", seleccion="#0000ff",
+         hover="#1a1a1a", titulo="#ffff00",
+         barra="#0000ff", boton="#000000", boton_hover="#ff00ff", boton_borde="#00ff00", boton_texto="#00ffff",
+         letra="Courier New", radio=0, borde_boton="2px solid",
+         lcd_fondo="#000000", lcd_texto="#ffff00", lcd_letra="Courier New", forma="recto", menu="lcd"),
+
+    Tema("radio", "Radio a válvulas", "Las radios de madera con dial", "Nogal, bronce y un dial ámbar "
+         "iluminado. En la banda, la aguja recorre las emisoras.", "dial",
+         fondo="#2b1a10", fondo_hondo="#1a0f08", panel="#3a2416", panel_claro="#4a301d", borde="#8a6038",
+         texto="#f5e3c4", tenue="#c4a07a", acento="#ffb84d", acento_texto="#2b1a10", seleccion="#8a5a28",
+         hover="#45301f", titulo="#ffcf7a",
+         barra=_degrade("#6a4224", "#4a2c16", "#2b1a10"),
+         boton=_brillo("#c8a06a", "#7a5430", 0.5, "#a88050"), boton_hover=_brillo("#e8c08a", "#9a6a3a", 0.5, "#c89a60"),
+         boton_borde="#ffcf7a", boton_texto="#2b1a10", letra="Palatino Linotype", radio=14,
+         lcd_fondo="#3a2008", lcd_texto="#ffcf7a", lcd_letra="Palatino Linotype", forma="ovalo", menu="biselado"),
+
+    Tema("vhs", "Videoclub", "Los casetes de video y el «PLAY»", "Azul de pantalla de video, letras blancas "
+         "con sombra y franjas de tracking que pasan por la banda.", "vhs",
+         fondo="#0b1a8a", fondo_hondo="#06106a", panel="#0f22a0", panel_claro="#1630b8", borde="#5a74ff",
+         texto="#ffffff", tenue="#b6c2ff", acento="#ffffff", acento_texto="#0b1a8a", seleccion="#3f5cff",
+         hover="#1a32c0", titulo="#ffffff",
+         barra=_degrade("#06106a", "#0b1a8a"), boton="#0b1a8a", boton_hover="#2a46e0", boton_borde="#ffffff",
+         boton_texto="#ffffff", letra="Lucida Console", radio=2, borde_boton="2px solid",
+         lcd_fondo="#06106a", lcd_texto="#ffffff", lcd_letra="Lucida Console", forma="recto", menu="lcd"),
+]
+
 POR_ID = {t.id: t for t in TEMAS}
 
 
 def tema(id_: str | None) -> Tema:
     return POR_ID.get(id_ or "", TEMAS[0])
+
+
+def _formas(t: Tema) -> str:
+    """La forma de los botones y campos según el tema."""
+    if t.forma == "pildora":
+        return f"""
+QPushButton, QToolBar QToolButton {{ border-radius: 15px; padding: 6px 16px; }}
+QLineEdit {{ border-radius: 14px; padding: 5px 14px; }}
+QWidget#controles QPushButton, QWidget#controles QToolButton {{ border-radius: 13px; padding: 4px 10px; }}
+"""
+    if t.forma == "ovalo":
+        # Esquinas elípticas (más anchas que altas): botones con forma de pastilla aplastada
+        return f"""
+QPushButton, QToolBar QToolButton {{
+    border-top-left-radius: 18px 10px; border-top-right-radius: 18px 10px;
+    border-bottom-left-radius: 18px 10px; border-bottom-right-radius: 18px 10px; padding: 6px 16px;
+}}
+QLineEdit, QGroupBox, QListWidget, QTreeWidget {{
+    border-top-left-radius: 22px 12px; border-top-right-radius: 22px 12px;
+    border-bottom-left-radius: 22px 12px; border-bottom-right-radius: 22px 12px;
+}}
+QLineEdit {{ padding: 5px 16px; }}
+"""
+    if t.forma == "circulo":
+        # Los botones del reproductor, redondos; Play, un orbe grande con brillo
+        return f"""
+QPushButton, QToolBar QToolButton {{ border-radius: 15px; padding: 6px 16px; }}
+QLineEdit {{ border-radius: 14px; padding: 5px 14px; }}
+QWidget#controles QPushButton, QWidget#controles QToolButton {{
+    min-width: 28px; min-height: 28px; border-radius: 15px; padding: 1px 6px;
+}}
+QWidget#controles QPushButton#play {{
+    min-width: 40px; min-height: 40px; max-width: 40px; max-height: 40px; border-radius: 21px; padding: 0;
+    border: 2px solid {t.acento};
+    background: qradialgradient(cx:0.5, cy:0.35, radius:0.75, fx:0.5, fy:0.2, stop:0 #ffffff, stop:0.35 {t.acento},
+                                stop:1 {t.boton_borde});
+}}
+QWidget#controles QPushButton#play:hover {{ border-color: #ffffff; }}
+"""
+    return ""
+
+
+def _menus(t: Tema) -> str:
+    """Los menús desplegables (barra de menú, clic derecho, listas desplegables) con estilo de época."""
+    if t.menu == "biselado":
+        return f"""
+QMenu {{ background: {t.panel}; border: 2px outset {t.panel_claro}; padding: 2px; border-radius: 0; }}
+QMenu::item {{ padding: 4px 22px 4px 20px; }}
+QMenu::item:selected {{ background: {t.seleccion}; color: #ffffff; }}
+QMenu::separator {{ height: 2px; background: {t.borde}; border-bottom: 1px solid {t.panel_claro}; margin: 3px 4px; }}
+QMenuBar::item:selected {{ background: {t.seleccion}; color: #ffffff; border-radius: 0; }}
+QComboBox QAbstractItemView {{ border: 2px outset {t.panel_claro}; selection-background-color: {t.seleccion}; }}
+"""
+    if t.menu == "cristal":
+        return f"""
+QMenu {{
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {t.panel_claro}, stop:1 {t.panel});
+    border: 1px solid {t.boton_borde}; border-radius: 10px; padding: 6px;
+}}
+QMenu::item {{ padding: 6px 24px 6px 18px; border-radius: 8px; }}
+QMenu::item:selected {{
+    color: {t.acento_texto};
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #ffffff, stop:0.45 {t.acento}, stop:0.5 {t.seleccion},
+                                stop:1 {t.acento});
+}}
+QMenu::separator {{ height: 1px; background: {t.boton_borde}; margin: 5px 12px; }}
+QMenuBar::item:selected {{ border-radius: 10px; }}
+QComboBox QAbstractItemView {{ border-radius: 8px; selection-background-color: {t.acento}; }}
+"""
+    if t.menu == "neon":
+        return f"""
+QMenu {{ background: {t.fondo_hondo}; border: 2px solid {t.acento}; border-radius: 12px; padding: 6px; }}
+QMenu::item {{ padding: 6px 24px 6px 18px; border-radius: 10px; color: {t.texto}; }}
+QMenu::item:selected {{
+    color: #ffffff;
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 {t.acento}, stop:1 {t.titulo});
+}}
+QMenu::separator {{ height: 1px; background: {t.titulo}; margin: 5px 12px; }}
+QComboBox QAbstractItemView {{ border: 2px solid {t.acento}; selection-background-color: {t.acento}; }}
+"""
+    if t.menu == "lcd":
+        return f"""
+QMenu {{ background: #000000; border: 2px solid {t.lcd_texto}; padding: 3px; border-radius: 0; font-family: "{t.lcd_letra}"; }}
+QMenu::item {{ color: {t.lcd_texto}; padding: 4px 22px 4px 16px; }}
+QMenu::item:selected {{ background: {t.lcd_texto}; color: #000000; }}
+QMenu::separator {{ height: 1px; background: {t.lcd_texto}; margin: 3px 6px; }}
+QComboBox QAbstractItemView {{ background: #000000; color: {t.lcd_texto}; selection-background-color: {t.lcd_texto};
+    selection-color: #000000; }}
+"""
+    return ""
 
 
 def estilo(t: Tema) -> str:
@@ -276,4 +537,7 @@ QTabBar::tab {{ background: {t.panel}; border: 1px solid {t.borde}; padding: 6px
     border-top-left-radius: {r}px; border-top-right-radius: {r}px; }}
 QTabBar::tab:selected {{ background: {t.boton}; color: {t.boton_texto}; }}
 QWidget#bandaRetro {{ background: {t.lcd_fondo}; }}
-"""
+QComboBox::drop-down {{ border: none; width: 18px; }}
+QComboBox::down-arrow {{ width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent;
+    border-top: 6px solid {t.boton_texto}; }}
+""" + _formas(t) + _menus(t)

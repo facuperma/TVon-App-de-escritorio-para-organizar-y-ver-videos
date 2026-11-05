@@ -2,6 +2,7 @@ package io.github.facuperma.tvon.ui
 
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontFamily
 
 /**
@@ -104,6 +105,84 @@ val TEMAS = listOf(
         0xFFC0C0C0, 0xFFFFFFFF, 0xFFC0C0C0, 0xFFFFFFFF, 0xFF808080, 0xFF000000, 0xFF404040, 0xFF000080, 0xFFFFFFFF,
         0xFFB4C8F0, 0xFF000080, listOf(0xFF000080, 0xFF1084D0), listOf(0xFFC0C0C0), 0xFF404040, 0xFF000000,
         0xFF000000, 0xFFFFFFFF, radio = 0, claro = true),
+    // Segunda tanda (las mismas de la PC)
+    TemaCel("casete", "Casete 85", "Los walkman y los casetes de los 80",
+        "Beige, naranja y marrón de cinta, con un casete girando arriba.", "casete",
+        0xFFEFE3C8, 0xFFFBF4E4, 0xFFF6EAD2, 0xFFFFFAF0, 0xFFB98C55, 0xFF3B2414, 0xFF7A5A3C, 0xFFE0661F, 0xFFFFFFFF,
+        0xFFF1D9B5, 0xFF8A3A10, listOf(0xFF3B2414, 0xFF6B3D1E), listOf(0xFFFFF7E6, 0xFFE8CFA6), 0xFF9B6A3A, 0xFF3B2414,
+        0xFF2A1A10, 0xFFFFB347, radio = 14, claro = true),
+    TemaCel("vinilo", "Disquería", "Los tocadiscos y la madera",
+        "Madera oscura, dorado y un vinilo que gira con la púa encima.", "vinilo",
+        0xFF1C120C, 0xFF0F0905, 0xFF2A1B12, 0xFF3A2618, 0xFF6B4A2A, 0xFFF1E2C8, 0xFFC4A580, 0xFFD4A24C, 0xFF1C120C,
+        0xFF7A5222, 0xFFF3C771, listOf(0xFF5A3820, 0xFF24160C), listOf(0xFF4A3220, 0xFF24160C), 0xFFD4A24C, 0xFFF3E3C2,
+        0xFF0F0905, 0xFFF3C771, radio = 24, letra = FontFamily.Serif, brillo = true),
+    TemaCel("arcade", "Arcade 8 bits", "Los fichines de los 80",
+        "Negro de sala de juegos, colores chillones y marcianitos marchando.", "pixeles",
+        0xFF0A0A14, 0xFF000000, 0xFF11112A, 0xFF1C1C40, 0xFFFF2E88, 0xFFF2F2FF, 0xFF9F9FD8, 0xFFFFE14D, 0xFF14002A,
+        0xFFFF2E88, 0xFF3CF2FF, listOf(0xFF000000), listOf(0xFF14143A), 0xFF3CF2FF, 0xFFFFE14D, 0xFF000000, 0xFFFFE14D,
+        radio = 0, letra = FontFamily.Monospace),
+    TemaCel("osciloscopio", "Osciloscopio", "Los aparatos de laboratorio",
+        "Gris verdoso de instrumento y la onda verde que se dibuja en la pantalla.", "osciloscopio",
+        0xFF1D2420, 0xFF111613, 0xFF252E29, 0xFF303B35, 0xFF4D5D53, 0xFFD6E6DC, 0xFF9FB7AA, 0xFF7CFF9A, 0xFF06210F,
+        0xFF2F5A3D, 0xFFA6FFBB, listOf(0xFF3A4640, 0xFF1A201C), listOf(0xFF46534C, 0xFF2E3833), 0xFF7A8C82, 0xFFE2F0E7,
+        0xFF06140B, 0xFF7CFF9A, radio = 3),
+    TemaCel("oceano", "Océano", "Los protectores de pantalla de peces",
+        "Azul profundo, turquesa y olas que van y vienen con burbujas.", "olas",
+        0xFF06243A, 0xFF031624, 0xFF0A3150, 0xFF114268, 0xFF1F6F96, 0xFFD8F3FF, 0xFF8FC3DC, 0xFF2FE0D0, 0xFF022A26,
+        0xFF147A9C, 0xFF9CF1FF, listOf(0xFF0E5A86, 0xFF04243A), listOf(0xFF3AA3D0, 0xFF0D4F75), 0xFF5FD6E8, 0xFFFFFFFF,
+        0xFF031624, 0xFF9CF1FF, radio = 22, brillo = true),
+    TemaCel("fuego", "Fuego", "Las visualizaciones de música de 2000",
+        "Negro con brasas: llamas que crecen con lo que suena.", "fuego",
+        0xFF140604, 0xFF080201, 0xFF200A06, 0xFF33100A, 0xFF7A2310, 0xFFFFE6D6, 0xFFE09A7A, 0xFFFF6A1A, 0xFF1A0500,
+        0xFFA8320F, 0xFFFFC04D, listOf(0xFF3A0A04, 0xFF7A1A08), listOf(0xFFFF9A4D, 0xFFA8320F), 0xFFFFC04D, 0xFF1A0500,
+        0xFF080201, 0xFFFFC04D, radio = 16, brillo = true),
+    TemaCel("caramelo", "Caramelo", "Las computadoras de colores de 1999",
+        "Rosa chicle y blanco, todo redondo como un caramelo, con corazones flotando.", "corazones",
+        0xFFFFE8F3, 0xFFFFF6FB, 0xFFFFF0F7, 0xFFFFFFFF, 0xFFF29AC4, 0xFF4A0F2C, 0xFFA3567B, 0xFFFF3D8B, 0xFFFFFFFF,
+        0xFFFFD6EA, 0xFFC2185B, listOf(0xFFFFD1E6, 0xFFFF6FA8), listOf(0xFFFFFFFF, 0xFFFF9EC9), 0xFFFF3D8B, 0xFF4A0F2C,
+        0xFFFF3D8B, 0xFFFFFFFF, radio = 26, claro = true, brillo = true),
+    TemaCel("teletexto", "Teletexto", "Las páginas de texto de la tele",
+        "Negro y los siete colores puros de la tele, en bloques, con el número de página.", "teletexto",
+        0xFF000000, 0xFF000000, 0xFF000000, 0xFF0A0A0A, 0xFF0000FF, 0xFFFFFFFF, 0xFF00FFFF, 0xFFFFFF00, 0xFF000000,
+        0xFF0000FF, 0xFFFFFF00, listOf(0xFF0000FF), listOf(0xFF000000), 0xFF00FF00, 0xFF00FFFF, 0xFF000000, 0xFFFFFF00,
+        radio = 0, letra = FontFamily.Monospace),
+    TemaCel("radio", "Radio a válvulas", "Las radios de madera con dial",
+        "Nogal, bronce y un dial ámbar con la aguja buscando emisoras.", "dial",
+        0xFF2B1A10, 0xFF1A0F08, 0xFF3A2416, 0xFF4A301D, 0xFF8A6038, 0xFFF5E3C4, 0xFFD4B08A, 0xFFFFB84D, 0xFF2B1A10,
+        0xFF8A5A28, 0xFFFFCF7A, listOf(0xFF6A4224, 0xFF2B1A10), listOf(0xFFC8A06A, 0xFF7A5430), 0xFFFFCF7A, 0xFF2B1A10,
+        0xFF3A2008, 0xFFFFCF7A, radio = 20, letra = FontFamily.Serif, brillo = true),
+    TemaCel("vhs", "Videoclub", "Los casetes de video y el «PLAY»",
+        "Azul de pantalla de video, letras blancas y franjas de tracking.", "vhs",
+        0xFF0B1A8A, 0xFF06106A, 0xFF0F22A0, 0xFF1630B8, 0xFF5A74FF, 0xFFFFFFFF, 0xFFC6D0FF, 0xFFFFFFFF, 0xFF0B1A8A,
+        0xFF3F5CFF, 0xFFFFFFFF, listOf(0xFF06106A, 0xFF0B1A8A), listOf(0xFF0B1A8A), 0xFFFFFFFF, 0xFFFFFFFF,
+        0xFF06106A, 0xFFFFFFFF, radio = 2, letra = FontFamily.Monospace),
 )
 
 fun temaPorId(id: String?) = TEMAS.firstOrNull { it.id == id } ?: TEMAS[0]
+
+private val estadosCalculados = mutableMapOf<String, Pair<Color, Color>>()
+
+/** (a medias, vista) del tema: el primer tono que no se confunda con el texto, con contraste 4.5:1 sobre el fondo. */
+fun estados(t: TemaCel): Pair<Color, Color> = estadosCalculados.getOrPut(t.id) {
+    val pendiente = colorEstado(t, listOf(48f, 32f, 320f), null)
+    pendiente to colorEstado(t, listOf(140f, 190f, 215f), pendiente)
+}
+
+private fun colorEstado(t: TemaCel, tonos: List<Float>, evitar: Color?): Color {
+    val hsv = FloatArray(3)
+    android.graphics.Color.colorToHSV(t.texto.toInt(), hsv)
+    val textoTono = hsv[0]
+    val textoVivo = hsv[1] * hsv[2]
+    val evitarTono = evitar?.let { e -> FloatArray(3).also { android.graphics.Color.colorToHSV(e.toArgb(), it) }[0] }
+    fun lejos(a: Float, b: Float): Boolean { val d = kotlin.math.abs(a - b) % 360; return minOf(d, 360 - d) >= 40 }
+    val elegido = tonos.firstOrNull { (textoVivo < 0.4f || lejos(it, textoTono)) && (evitarTono == null || lejos(it, evitarTono)) }
+        ?: tonos.last()
+    val fondos = listOf(t.panel.toInt(), t.fondo.toInt())
+    val oscuro = androidx.core.graphics.ColorUtils.calculateLuminance(t.panel.toInt()) < 0.2
+    for (i in 0 until 12) {
+        val luz = (if (oscuro) 0.62f + i * 0.03f else 0.42f - i * 0.03f).coerceIn(0.05f, 0.95f)
+        val c = androidx.core.graphics.ColorUtils.HSLToColor(floatArrayOf(elegido, 0.9f, luz))
+        if (fondos.all { androidx.core.graphics.ColorUtils.calculateContrast(c, it or 0xFF000000.toInt()) >= 4.5 }) return Color(c)
+    }
+    return Color(androidx.core.graphics.ColorUtils.HSLToColor(floatArrayOf(elegido, 0.9f, if (oscuro) 0.9f else 0.15f)))
+}

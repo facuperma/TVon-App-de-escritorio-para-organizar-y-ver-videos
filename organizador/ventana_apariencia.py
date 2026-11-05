@@ -1,4 +1,4 @@
-"""Configuración → Apariencia: la galería de temas, con una vista previa de cada uno. Se aplican al tocarlos."""
+"""Vista → Apariencia y temas: la galería de temas, con una vista previa de cada uno. Se aplican al tocarlos."""
 import re
 
 from PySide6.QtCore import QPointF, QRectF, QSize, Qt, Signal

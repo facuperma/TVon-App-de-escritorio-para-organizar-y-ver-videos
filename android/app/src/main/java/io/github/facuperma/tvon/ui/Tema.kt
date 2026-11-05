@@ -65,9 +65,10 @@ object C {
     val acentoClaro get() = if (tema.claro) lerpColor(acento, Color.Black, 0.25f) else lerpColor(acento, Color.White, 0.45f)
     /** Textos destacados (títulos): casi blanco en los temas oscuros, oscuro en los claros. */
     val titulo get() = if (tema.claro) col(tema.titulo) else lerpColor(col(tema.titulo), Color.White, 0.35f)
-    val verde get() = if (tema.claro) Color(0xFF16803C) else Color(0xFF4ADE80)
-    val vista get() = if (tema.claro) Color(0xFF16803C) else Color(0xFF86EFAC)
-    val pendiente get() = if (tema.claro) Color(0xFFA15C00) else Color(0xFFFACC15)
+    // «A medias» y «vista» calculados para el fondo del tema (como en la PC): siempre se leen
+    val pendiente get() = estados(tema).first
+    val vista get() = estados(tema).second
+    val verde get() = vista
     val peligro = Color(0xFFEF4444)
     val peligroFondo get() = if (tema.claro) Color(0xFFFDE2E2) else Color(0xFF5B1D1D)
     val peligroBorde get() = if (tema.claro) Color(0xFFD14343) else Color(0xFF8F2A2A)

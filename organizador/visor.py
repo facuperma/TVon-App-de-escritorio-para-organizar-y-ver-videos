@@ -362,7 +362,7 @@ class Visor(QWidget):
 
         # Controles de reproducción
         estilo = self.style()
-        self.btn_play = QPushButton(icon=estilo.standardIcon(QStyle.SP_MediaPlay), toolTip="Reproducir / pausar (Espacio o clic en el video)")
+        self.btn_play = QPushButton(icon=estilo.standardIcon(QStyle.SP_MediaPlay), objectName="play", toolTip="Reproducir / pausar (Espacio o clic en el video)")
         self.btn_stop = QPushButton(icon=estilo.standardIcon(QStyle.SP_MediaStop), toolTip="Detener")
         self.btn_siguiente = QPushButton(icon=estilo.standardIcon(QStyle.SP_MediaSkipForward),
                                          toolTip="Siguiente de la cola o capítulo de la categoría (N)")

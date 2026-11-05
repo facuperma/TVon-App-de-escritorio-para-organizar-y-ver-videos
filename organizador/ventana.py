@@ -369,6 +369,8 @@ class Ventana(QMainWindow):
         vista.addAction("Pantalla completa\tF", self.alternar_pantalla_completa)
         vista.addAction("Buscar\tCtrl+F", self._enfocar_buscador)
         vista.addSeparator()
+        vista.addAction("🎨 Apariencia y temas…", self._abrir_apariencia)
+        vista.addSeparator()
         self._paneles = {}
         for texto, panel in (("Barra de herramientas", self.barra_herramientas),
                              ("Panel de categorías", self.izq),
@@ -382,7 +384,6 @@ class Ventana(QMainWindow):
 
         config = barra.addMenu("&Configuración")
         config.addAction("Preferencias…", self._abrir_configuracion)
-        config.addAction("🎨 Apariencia y temas…", self._abrir_apariencia)
         config.addAction("📱 ON: manejar desde el celular…", self._abrir_on)
         apagar = config.addAction("Apagar la PC al terminar el video")
         apagar.setCheckable(True)

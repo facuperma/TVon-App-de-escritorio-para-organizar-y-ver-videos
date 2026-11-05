@@ -35,6 +35,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -266,6 +267,152 @@ private fun DrawScope.dibujar(animacion: String, t: Float, sonando: Boolean) {
                 drawLine(Color(0xFFFF2FD6).copy(alpha = .3f + .7f * z), Offset(0f, yy), Offset(w, yy), 1f)
             }
         }
+        "casete" -> {
+            drawRect(Color(0xFF2A1A10))
+            val x0 = w * .6f
+            val ancho = minOf(170f, w - x0 - 8)
+            drawRoundRect(Color(0xFF3B2414), Offset(x0, 3f), Size(ancho, h - 6), CornerRadius(6f, 6f))
+            drawRect(Color(0xFFFFB347), Offset(x0 + 8, 6f), Size(ancho - 16, 6f))
+            val giro = t * (if (sonando) 4f else .3f)
+            for (f in listOf(.3f, .7f)) {
+                val c = Offset(x0 + ancho * f, h / 2 + 3)
+                drawCircle(Color(0xFFF6EAD2), 8f, c)
+                for (k in 0 until 3) {
+                    val a = giro + k * 2.094f
+                    drawLine(Color(0xFF3B2414), c, Offset(c.x + kotlin.math.cos(a) * 7, c.y + sin(a) * 7), 2f)
+                }
+            }
+        }
+        "vinilo" -> {
+            drawRect(Brush.horizontalGradient(listOf(Color(0xFF24160C), Color(0xFF5A3820))))
+            val r = h * 1.4f
+            val c = Offset(w * .82f, h / 2)
+            clipRect {
+                drawCircle(Color(0xFF0C0C0C), r, c)
+                var k = 6f
+                while (k < r) { drawCircle(Color(0x99404040), k, c, style = Stroke(1f)); k += 4f }
+                val g = if (sonando) t * 3.5f else 0f
+                for (d in listOf(0f, 3.1416f)) drawLine(Color(0x40FFFFFF),
+                    Offset(c.x + kotlin.math.cos(g + d) * r * .3f, c.y + sin(g + d) * r * .3f),
+                    Offset(c.x + kotlin.math.cos(g + d) * r * .9f, c.y + sin(g + d) * r * .9f), 3f)
+                drawCircle(Color(0xFFD4A24C), r * .28f, c)
+            }
+            drawLine(Color(0xFFC8C8C8), Offset(w - 6, 2f), Offset(c.x - r * .55f, c.y + 6), 2.5f)
+        }
+        "pixeles" -> {
+            drawRect(Color.Black)
+            val dibujo = listOf("0011100", "0111110", "1101011", "1111111", "0101010", "1000001")
+            val tam = 3f
+            val paso = (t * 25) % 80
+            val x0 = w * .45f + (if (paso < 40) paso else 80 - paso)
+            val colores = listOf(Color(0xFFFF2E88), Color(0xFF3CF2FF), Color(0xFFFFE14D))
+            for (n in 0 until ((w * .5f) / 34).toInt()) {
+                dibujo.forEachIndexed { fy, fila ->
+                    fila.forEachIndexed { fx, ch ->
+                        if (ch == '1') drawRect(colores[n % 3], Offset(x0 + n * 34 + fx * tam, 4 + fy * tam), Size(tam, tam))
+                    }
+                }
+            }
+            val nave = (t * 70) % (w * .5f) + w * .45f
+            drawRect(Color(0xFF7DFF6E), Offset(nave, h - 7), Size(13f, 4f))
+        }
+        "osciloscopio" -> {
+            drawRect(Color(0xFF06140B))
+            var x = 0f
+            while (x < w) { drawLine(Color(0x287CFF9A), Offset(x, 0f), Offset(x, h), 1f); x += 20f }
+            val camino = Path()
+            val amp = h * (if (sonando) .38f else .08f)
+            x = w * .45f
+            var primero = true
+            while (x < w) {
+                val y = h / 2 + sin(x / 9 + t * 9) * amp * (.6f + .4f * sin(x / 47 + t * 2))
+                if (primero) { camino.moveTo(x, y); primero = false } else camino.lineTo(x, y)
+                x += 3f
+            }
+            drawPath(camino, Color(0x557CFF9A), style = Stroke(5f))
+            drawPath(camino, Color(0xFF7CFF9A), style = Stroke(2f))
+        }
+        "olas" -> {
+            drawRect(Brush.verticalGradient(listOf(Color(0xFF0E5A86), Color(0xFF031624))))
+            listOf(Triple(Color(0x96147A9C), .35f, 1f), Triple(Color(0x961F9CB8), .5f, 1.5f), Triple(Color(0x962FE0D0), .68f, 2.1f))
+                .forEachIndexed { k, (color, alto, vel) ->
+                    val ola = Path().apply {
+                        moveTo(0f, h)
+                        var x = 0f
+                        while (x <= w + 10) { lineTo(x, h * alto + sin(x / 40 + t * vel + k) * 4); x += 10f }
+                        lineTo(w, h); close()
+                    }
+                    drawPath(ola, color)
+                }
+        }
+        "fuego" -> {
+            drawRect(Color(0xFF080201))
+            var x = w * .45f
+            var i = 0
+            while (x < w) {
+                val alto = h * (.55f + .45f * abs(sin(t * 3.1f + i * .7f)) * abs(sin(t * 1.7f + i * .31f))) * (if (sonando) 1f else .45f)
+                val llama = Path().apply {
+                    moveTo(x - 5, h)
+                    quadraticTo(x - 6, h - alto * .5f, x + sin(t * 6 + i) * 2, h - alto)
+                    quadraticTo(x + 6, h - alto * .5f, x + 5, h)
+                    close()
+                }
+                drawPath(llama, Brush.verticalGradient(listOf(Color(0x00500000), Color(0xFFC2210A), Color(0xFFFF8A1A), Color(0xFFFFE27A)), h - alto, h))
+                x += 7f
+                i++
+            }
+        }
+        "corazones" -> {
+            drawRect(Brush.horizontalGradient(listOf(Color(0xFFFFD1E6), Color(0xFFFF6FA8))))
+            for (i in 0 until 16) {
+                val tam = 4f + (i * 7) % 6
+                val x = w * .45f + azar(i) * w * .55f + sin(t * 1.5f + i) * 5
+                val y = h + tam - ((t * (10 + i % 5 * 4) + i * 17) % (h + 2 * tam))
+                val corazon = Path().apply {
+                    moveTo(x, y + tam * .9f)
+                    cubicTo(x - tam * 1.3f, y, x - tam * .6f, y - tam, x, y - tam * .3f)
+                    cubicTo(x + tam * .6f, y - tam, x + tam * 1.3f, y, x, y + tam * .9f)
+                }
+                drawPath(corazon, if (i % 3 == 0) Color(0xFFFF3D8B) else Color.White.copy(alpha = .5f + .4f * abs(sin(t * 2 + i))))
+            }
+        }
+        "teletexto" -> {
+            drawRect(Color.Black)
+            val colores = listOf(Color.Red, Color.Green, Color.Yellow, Color.Blue, Color.Magenta, Color.Cyan, Color.White)
+            val pagina = 100 + (t / 2.5f).toInt() % 800
+            val filas = minOf(4, ((t % 2.5f) * 4).toInt()) + 1
+            val x0 = w * .45f
+            for (f in 0 until filas) {
+                var c = 0
+                while (x0 + c * 8 < w - 20) {
+                    val r = azar(pagina * 131 + f * 37 + c)
+                    if (r < .55f) drawRect(colores[(r * 100).toInt() % 7], Offset(x0 + c * 8, 3 + f * 7f), Size(7f, 6f))
+                    c++
+                }
+            }
+        }
+        "dial" -> {
+            drawRect(Color(0xFF2B1A10))
+            val x0 = w * .45f
+            val ancho = w - x0 - 8
+            drawRoundRect(Brush.verticalGradient(listOf(Color(0xFFFFCF7A), Color(0xFFC8822A))), Offset(x0, 3f), Size(ancho, h - 6), CornerRadius(12f, 12f))
+            for (k in 0..20) {
+                val x = x0 + 10 + k * (ancho - 20) / 20
+                drawLine(Color(0xFF3A2008), Offset(x, h - 7), Offset(x, h - (if (k % 5 == 0) 14 else 10)), 1f)
+            }
+            val busca = (sin(t * (if (sonando) .5f else .15f)) + 1) / 2
+            val xa = x0 + 10 + busca * (ancho - 20)
+            drawLine(Color(0xFFC2210A), Offset(xa, 5f), Offset(xa, h - 5), 2f)
+        }
+        "vhs" -> {
+            drawRect(Color(0xFF0B1A8A))
+            val y = (t * 25) % (h + 30) - 15
+            for (k in 0 until 3) drawRect(Color.White.copy(alpha = (50 - k * 12) / 255f), Offset(w * .45f, y + k * 4), Size(w * .55f, 2f))
+            for (i in 0 until 40) drawRect(Color.White.copy(alpha = .27f), Offset(w * .45f + azar(i + (t * 30).toInt()) * w * .55f, azar(i * 3 + (t * 30).toInt()) * h), Size(2f, 1f))
+            drawRect(if (sonando) Color.White else Color(0xFFC6D0FF), Offset(w - 30, h / 2 - 6), Size(4f, 12f))
+            val play = Path().apply { moveTo(w - 22, h / 2 - 7); lineTo(w - 10, h / 2); lineTo(w - 22, h / 2 + 7); close() }
+            drawPath(play, Color.White)
+        }
         "burbujas" -> {
             drawRect(Brush.linearGradient(listOf(Color(0xFFBFE8FB), Color(0xFF7FCFF2), Color(0xFF55C2A8)), Offset.Zero, Offset(w, h)))
             for (i in 0 until 26) {
@@ -296,7 +443,7 @@ fun PantallaApariencia(vm: Modelo) {
             item {
                 Tarjeta {
                     Interruptor("Animaciones arriba (estrellas, ecualizador…)", C.animada) { vm.elegirAnimadas(it) }
-                    Pista("Los mismos temas están en la PC: Configuración → Apariencia y temas.")
+                    Pista("Los mismos temas están en la PC: Vista → Apariencia y temas.")
                 }
             }
             items(TEMAS, key = { it.id }) { tema ->

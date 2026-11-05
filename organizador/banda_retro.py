@@ -98,7 +98,21 @@ class BandaRetro(QWidget):
         caja = QRectF(8, 5, ancho, self.height() - 10)
         p.setPen(QPen(_color(t.lcd_texto, 120), 1))
         p.setBrush(_color(t.lcd_fondo, 215))
-        p.drawRoundedRect(caja, min(t.radio, 6), min(t.radio, 6))
+        if t.forma in ("pildora", "circulo"):
+            p.drawRoundedRect(caja, caja.height() / 2, caja.height() / 2)
+        elif t.forma == "ovalo":
+            p.drawRoundedRect(caja, 22, caja.height() / 2)
+        else:
+            p.drawRoundedRect(caja, min(t.radio, 6), min(t.radio, 6))
+        if t.forma == "circulo":
+            # Un orbe a la derecha de la pantallita: verde sonando, gris en pausa (como un led grande)
+            centro = QPointF(caja.right() + 18, caja.center().y())
+            orbe = QRadialGradient(QPointF(centro.x() - 3, centro.y() - 4), 13)
+            orbe.setColorAt(0, QColor("#ffffff"))
+            orbe.setColorAt(0.4, QColor(t.acento if sonando else "#9a9a9a"))
+            orbe.setColorAt(1, QColor(t.boton_borde))
+            p.setBrush(orbe)
+            p.drawEllipse(centro, 11, 11)
         fuente = QFont(t.lcd_letra, 10)
         fuente.setBold(True)
         p.setFont(fuente)
@@ -400,3 +414,223 @@ class BandaRetro(QWidget):
             p.setPen(QPen(QColor(255, 255, 255, 180), 1))
             p.setBrush(g)
             p.drawEllipse(QPointF(x, b[1]), b[2], b[2])
+
+    # --- Las diez de la segunda tanda ------------------------------------------------------------
+
+    def _casete(self, p: QPainter, t: Tema, sonando: bool):
+        """Un casete con sus dos carretes girando (más rápido si suena) y la cinta pasando."""
+        w, h = self.width(), self.height()
+        p.fillRect(self.rect(), _color("#2a1a10"))
+        x0 = w * 0.62
+        cuerpo = QRectF(x0, 3, min(170, w - x0 - 8), h - 6)
+        p.setPen(QPen(_color("#e0661f"), 1.5))
+        p.setBrush(_color("#3b2414"))
+        p.drawRoundedRect(cuerpo, 4, 4)
+        p.fillRect(QRectF(cuerpo.left() + 6, cuerpo.top() + 3, cuerpo.width() - 12, 6), _color("#ffb347"))
+        giro = self.t * (240 if sonando else 20)
+        for cx in (cuerpo.left() + cuerpo.width() * 0.3, cuerpo.left() + cuerpo.width() * 0.7):
+            centro = QPointF(cx, cuerpo.center().y() + 3)
+            p.setBrush(_color("#f6ead2"))
+            p.setPen(Qt.NoPen)
+            p.drawEllipse(centro, 8, 8)
+            p.setPen(QPen(_color("#3b2414"), 2))
+            for k in range(3):
+                ang = math.radians(giro + k * 120)
+                p.drawLine(centro, QPointF(cx + math.cos(ang) * 7, centro.y() + math.sin(ang) * 7))
+        p.setPen(QPen(_color("#5a3a20"), 2))
+        p.drawLine(QPointF(cuerpo.left() + cuerpo.width() * 0.3, cuerpo.bottom() - 3),
+                   QPointF(cuerpo.left() + cuerpo.width() * 0.7, cuerpo.bottom() - 3))
+
+    def _vinilo(self, p: QPainter, t: Tema, sonando: bool):
+        """Un disco de vinilo girando con sus surcos y la etiqueta, y la púa encima."""
+        w, h = self.width(), self.height()
+        fondo = QLinearGradient(0, 0, w, 0)
+        fondo.setColorAt(0, _color("#24160c"))
+        fondo.setColorAt(1, _color("#5a3820"))
+        p.fillRect(self.rect(), fondo)
+        r = h * 1.4
+        centro = QPointF(w * 0.8, h * 0.5)
+        p.setClipRect(self.rect())
+        p.setPen(Qt.NoPen)
+        p.setBrush(_color("#0c0c0c"))
+        p.drawEllipse(centro, r, r)
+        p.setBrush(Qt.NoBrush)
+        for k in range(6, int(r), 4):
+            p.setPen(QPen(QColor(60, 60, 60, 160), 1))
+            p.drawEllipse(centro, k, k)
+        giro = math.radians(self.t * (200 if sonando else 0))
+        p.setPen(QPen(QColor(255, 255, 255, 60), 3))
+        for k in (0, math.pi):
+            p.drawLine(QPointF(centro.x() + math.cos(giro + k) * r * 0.3, centro.y() + math.sin(giro + k) * r * 0.3),
+                       QPointF(centro.x() + math.cos(giro + k) * r * 0.9, centro.y() + math.sin(giro + k) * r * 0.9))
+        p.setPen(Qt.NoPen)
+        p.setBrush(_color("#d4a24c"))
+        p.drawEllipse(centro, r * 0.28, r * 0.28)
+        p.setBrush(_color("#1c120c"))
+        p.drawEllipse(centro, 2, 2)
+        p.setPen(QPen(_color("#c8c8c8"), 2.5))
+        p.drawLine(QPointF(w - 6, 2), QPointF(centro.x() - r * 0.55, centro.y() + 6))
+
+    def _pixeles(self, p: QPainter, t: Tema, sonando: bool):
+        """Marcianitos de 8 bits que marchan de lado a lado y bajan, y la navecita que dispara."""
+        w, h = self.width(), self.height()
+        p.fillRect(self.rect(), Qt.black)
+        dibujo = ["0011100", "0111110", "1101011", "1111111", "0101010", "1000001"]
+        tam = 3
+        fase = int(self.t * 2) % 2
+        paso = (self.t * 25) % 80
+        x0 = w * 0.4 + (paso if paso < 40 else 80 - paso)
+        colores = ("#ff2e88", "#3cf2ff", "#ffe14d")
+        p.setPen(Qt.NoPen)
+        for n in range(int((w * 0.55) // 34)):
+            p.setBrush(_color(colores[n % 3]))
+            bx = x0 + n * 34
+            for fy, fila in enumerate(dibujo):
+                for fx, c in enumerate(fila):
+                    if c == "1" or (fy == 5 and fase and fx in (2, 4)):
+                        p.drawRect(QRectF(bx + fx * tam, 4 + fy * tam, tam, tam))
+        nave = (self.t * 70) % (w * 0.55) + w * 0.4
+        p.setBrush(_color("#7dff6e"))
+        p.drawRect(QRectF(nave, h - 7, 13, 4))
+        p.drawRect(QRectF(nave + 5, h - 10, 3, 3))
+        if int(self.t * 3) % 2:
+            p.drawRect(QRectF(nave + 6, h - 18 - (self.t * 60) % 10, 1.5, 5))
+
+    def _osciloscopio(self, p: QPainter, t: Tema, sonando: bool):
+        """La pantalla de un osciloscopio: cuadrícula y la onda verde (más alta y nerviosa con sonido)."""
+        w, h = self.width(), self.height()
+        p.fillRect(self.rect(), _color("#06140b"))
+        p.setPen(QPen(QColor(124, 255, 154, 40), 1))
+        for x in range(0, w, 20):
+            p.drawLine(x, 0, x, h)
+        for y in range(0, h, 9):
+            p.drawLine(0, y, w, y)
+        camino = QPainterPath()
+        amp = h * (0.38 if sonando else 0.08)
+        for x in range(int(w * 0.38), w, 3):
+            y = h / 2 + math.sin(x / 9 + self.t * 9) * amp * (0.6 + 0.4 * math.sin(x / 47 + self.t * 2)) \
+                + (self._azar.uniform(-2, 2) if sonando else 0)
+            camino.lineTo(x, y) if camino.elementCount() else camino.moveTo(x, y)
+        for grosor, alfa in ((5, 50), (2, 255)):
+            p.setPen(QPen(QColor(124, 255, 154, alfa), grosor))
+            p.drawPath(camino)
+
+    def _olas(self, p: QPainter, t: Tema, _sonando: bool):
+        """El mar: tres capas de olas que van y vienen, espuma y burbujas."""
+        w, h = self.width(), self.height()
+        fondo = QLinearGradient(0, 0, 0, h)
+        fondo.setColorAt(0, _color("#0e5a86"))
+        fondo.setColorAt(1, _color("#031624"))
+        p.fillRect(self.rect(), fondo)
+        p.setPen(Qt.NoPen)
+        for k, (color, alto, vel) in enumerate((("#147a9c", 0.35, 1.0), ("#1f9cb8", 0.5, 1.5), ("#2fe0d0", 0.68, 2.1))):
+            camino = QPainterPath(QPointF(0, h))
+            for x in range(0, w + 10, 10):
+                camino.lineTo(x, h * alto + math.sin(x / 40 + self.t * vel + k) * 4)
+            camino.lineTo(w, h)
+            camino.closeSubpath()
+            p.setBrush(_color(color, 150))
+            p.drawPath(camino)
+        for i in range(10):
+            x = (w * 0.4 + (i * 97) % int(w * 0.6))
+            y = h - ((self.t * (12 + i * 3) + i * 11) % (h + 8))
+            p.setPen(QPen(QColor(255, 255, 255, 170), 1))
+            p.setBrush(Qt.NoBrush)
+            p.drawEllipse(QPointF(x + math.sin(self.t * 2 + i) * 3, y), 2.5, 2.5)
+
+    def _fuego(self, p: QPainter, t: Tema, sonando: bool):
+        """Llamas que suben desde abajo, más altas mientras suena."""
+        w, h = self.width(), self.height()
+        p.fillRect(self.rect(), _color("#080201"))
+        n = int((w * 0.62) // 7)
+        for i in range(n):
+            x = w * 0.38 + i * 7
+            base = 0.55 + 0.45 * abs(math.sin(self.t * 3.1 + i * 0.7)) * abs(math.sin(self.t * 1.7 + i * 0.31))
+            alto = h * base * (1.0 if sonando else 0.45)
+            g = QLinearGradient(0, h, 0, h - alto)
+            g.setColorAt(0, QColor("#ffe27a"))
+            g.setColorAt(0.35, QColor("#ff8a1a"))
+            g.setColorAt(0.75, QColor("#c2210a"))
+            g.setColorAt(1, QColor(80, 0, 0, 0))
+            llama = QPainterPath(QPointF(x - 5, h))
+            llama.quadTo(QPointF(x - 6, h - alto * 0.5), QPointF(x + math.sin(self.t * 6 + i) * 2, h - alto))
+            llama.quadTo(QPointF(x + 6, h - alto * 0.5), QPointF(x + 5, h))
+            llama.closeSubpath()
+            p.setPen(Qt.NoPen)
+            p.setBrush(g)
+            p.drawPath(llama)
+
+    def _corazones(self, p: QPainter, t: Tema, _sonando: bool):
+        """Corazones de caramelo que suben flotando y titilan."""
+        w, h = self.width(), self.height()
+        fondo = QLinearGradient(0, 0, w, 0)
+        fondo.setColorAt(0, _color("#ffd1e6"))
+        fondo.setColorAt(1, _color("#ff6fa8"))
+        p.fillRect(self.rect(), fondo)
+        p.setPen(Qt.NoPen)
+        for i in range(16):
+            tam = 4 + (i * 7) % 6
+            x = w * 0.4 + ((i * 131) % int(w * 0.6)) + math.sin(self.t * 1.5 + i) * 5
+            y = h + tam - ((self.t * (10 + i % 5 * 4) + i * 17) % (h + 2 * tam))
+            corazon = QPainterPath(QPointF(x, y + tam * 0.9))
+            corazon.cubicTo(QPointF(x - tam * 1.3, y), QPointF(x - tam * 0.6, y - tam), QPointF(x, y - tam * 0.3))
+            corazon.cubicTo(QPointF(x + tam * 0.6, y - tam), QPointF(x + tam * 1.3, y), QPointF(x, y + tam * 0.9))
+            p.setBrush(QColor(255, 255, 255, 120 + int(100 * abs(math.sin(self.t * 2 + i)))) if i % 3 else _color("#ff3d8b"))
+            p.drawPath(corazon)
+
+    def _teletexto(self, p: QPainter, t: Tema, _sonando: bool):
+        """Páginas de teletexto: bloques de colores puros que se arman de a filas y el número de página."""
+        w, h = self.width(), self.height()
+        p.fillRect(self.rect(), Qt.black)
+        colores = ("#ff0000", "#00ff00", "#ffff00", "#0000ff", "#ff00ff", "#00ffff", "#ffffff")
+        pagina = 100 + int(self.t / 2.5) % 800
+        x0 = w * 0.4
+        celda = 8
+        filas = int(min(4, (self.t % 2.5) * 4) + 1)
+        rnd = random.Random(pagina)
+        for f in range(filas):
+            for c in range(int((w - x0 - 80) // celda)):
+                if rnd.random() < 0.55:
+                    p.fillRect(QRectF(x0 + c * celda, 3 + f * 8, celda - 1, 7), _color(rnd.choice(colores)))
+        p.setPen(_color("#ffff00"))
+        p.setFont(QFont("Courier New", 10, QFont.Bold))
+        p.drawText(QPointF(w - 70, h / 2 + 5), f"P{pagina}")
+
+    def _dial(self, p: QPainter, t: Tema, sonando: bool):
+        """El dial ámbar de una radio: la escala de frecuencias y la aguja que busca emisoras."""
+        w, h = self.width(), self.height()
+        x0 = w * 0.4
+        dial = QRectF(x0, 3, w - x0 - 8, h - 6)
+        g = QLinearGradient(0, 0, 0, h)
+        g.setColorAt(0, _color("#ffcf7a"))
+        g.setColorAt(1, _color("#c8822a"))
+        p.fillRect(self.rect(), _color("#2b1a10"))
+        p.setPen(QPen(_color("#8a6038"), 2))
+        p.setBrush(g)
+        p.drawRoundedRect(dial, 10, 10)
+        p.setPen(QPen(_color("#3a2008"), 1))
+        p.setFont(QFont("Palatino Linotype", 7))
+        for k in range(21):
+            x = dial.left() + 10 + k * (dial.width() - 20) / 20
+            p.drawLine(QPointF(x, dial.bottom() - 4), QPointF(x, dial.bottom() - (9 if k % 5 == 0 else 6)))
+            if k % 5 == 0:
+                p.drawText(QPointF(x - 8, dial.top() + 11), str(540 + k * 53))
+        busca = (math.sin(self.t * (0.5 if sonando else 0.15)) + 1) / 2
+        xa = dial.left() + 10 + busca * (dial.width() - 20)
+        p.setPen(QPen(_color("#c2210a"), 2))
+        p.drawLine(QPointF(xa, dial.top() + 2), QPointF(xa, dial.bottom() - 2))
+
+    def _vhs(self, p: QPainter, t: Tema, sonando: bool):
+        """La pantalla azul del video con «PLAY ▶», la fecha y franjas de tracking que pasan."""
+        w, h = self.width(), self.height()
+        p.fillRect(self.rect(), _color("#0b1a8a"))
+        p.setFont(QFont("Lucida Console", 10, QFont.Bold))
+        p.setPen(QColor(0, 0, 0, 140))
+        p.drawText(QPointF(w - 189, h / 2 + 6), ("PLAY ▶" if sonando else "PAUSE ❚❚") + "   SP")
+        p.setPen(QColor("#ffffff"))
+        p.drawText(QPointF(w - 190, h / 2 + 5), ("PLAY ▶" if sonando else "PAUSE ❚❚") + "   SP")
+        y = (self.t * 25) % (h + 30) - 15
+        for k in range(3):
+            p.fillRect(QRectF(w * 0.38, y + k * 4, w * 0.62, 2), QColor(255, 255, 255, 50 - k * 12))
+        for _ in range(40):
+            p.fillRect(QRectF(self._azar.uniform(w * 0.38, w), self._azar.uniform(0, h), 2, 1), QColor(255, 255, 255, 70))
