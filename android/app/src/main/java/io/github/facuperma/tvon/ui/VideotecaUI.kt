@@ -358,8 +358,11 @@ private fun TarjetaTorrents(vm: Modelo) {
                     Progreso(p)
                 } else {
                     Boton("⬇ Activar torrents", Modifier.fillMaxWidth(), Estilo.PRIMARIO) {
-                        bajandoMotor = 0f
-                        vm.correr {
+                        vm.confirmar = Confirmar(
+                            "Se va a bajar el motor de torrent: ≈ ${tamano(MotorTorrent.TAMANO_APROX)}, una sola vez. " +
+                                "Si no estás con wifi, usa datos del celular. ¿Bajarlo?", "Bajar",
+                        ) {
+                            bajandoMotor = 0f
                             try {
                                 MotorTorrent.instalar(contexto) { bajandoMotor = it }
                                 instalado = MotorTorrent.instalado(contexto)
