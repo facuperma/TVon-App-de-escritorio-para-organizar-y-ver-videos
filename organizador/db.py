@@ -329,6 +329,17 @@ class Biblioteca:
         )
         return {f[0] for f in filas}
 
+    def ya_en_categoria(self, archivo_ids: list[int], nombre: str,
+                        por_archivo: dict[int, list[int]] | None = None) -> bool:
+        """True si todos esos archivos ya están en una categoría con ese nombre (sin mirar mayúsculas):
+        entonces no tiene sentido ofrecer crearla de nuevo (categoría rápida)."""
+        buscado = nombre.strip().casefold()
+        con_ese_nombre = {cid for cid, n, _ in self.listar_categorias() if n.strip().casefold() == buscado}
+        if not con_ese_nombre or not archivo_ids:
+            return False
+        por_archivo = por_archivo if por_archivo is not None else self.categorias_por_archivo()
+        return all(con_ese_nombre & set(por_archivo.get(aid, [])) for aid in archivo_ids)
+
     def categorias_por_archivo(self) -> dict[int, list[int]]:
         """{id de archivo: [ids de sus categorías]}, de toda la biblioteca de una vez."""
         resultado: dict[int, list[int]] = {}

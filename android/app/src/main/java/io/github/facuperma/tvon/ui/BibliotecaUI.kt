@@ -267,10 +267,13 @@ private fun menuArchivo(vm: Modelo, a: ArchivoBib) {
             vm.cargarBiblioteca()
         },
         Opcion("🏷 Categorías…") { menuCategorias(vm, ids, a.categorias) },
-        Opcion("＋ Categoría con el título") {
-            vm.accion("categoria_titulo", "id" to a.id)
-            vm.cargarBiblioteca()
-        },
+    )
+    // Si ya está en una categoría con su título, no se ofrece crearla de nuevo
+    if (a.categoriaRapida.isNotEmpty()) opciones += Opcion("⚡ Categoría rápida: ${a.categoriaRapida}") {
+        vm.accion("categoria_titulo", "id" to a.id)
+        vm.cargarBiblioteca()
+    }
+    opciones += listOf(
         Opcion("⧉ Abrir en una ventana aparte") { vm.accion("abrir_ventana", "id" to a.id) },
         Opcion("📂 Mostrar la carpeta en la PC") { vm.accion("abrir_ubicacion", "id" to a.id) },
         Opcion("Quitar de la biblioteca", confirmar = "¿Quitar de la biblioteca? El archivo NO se borra del disco.") {

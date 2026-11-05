@@ -1,2 +1,2 @@
-1dc1ade68f9333dc22c9151ec01b67feeed9caba61c2fbe5f6806265a3da001d  TorrentVision-Setup-1.10.1.exe
-b79cb13d519b4af283bf559ab69f37551cdb9ac519873c120b9490f16dc063a3  TorrentVision-Android-1.1.14.apk
+c81b9776ef84968c798a54b848101518f68d209f09da1daac9bc76d6005d773b  TorrentVision-Setup-1.10.2.exe
+5a9fcee4867fe89f32e0f3ed9504b7c3dfbbe41bb3cba592677df5d978387210  TorrentVision-Android-1.1.15.apk

@@ -1679,15 +1679,18 @@ class Ventana(QMainWindow):
         self.btn_eliminar.setEnabled(bool(seleccion))
         self.btn_eliminar.setText(f"🗑 Eliminar del disco ({len(seleccion)})" if len(seleccion) > 1
                                   else "🗑 Eliminar del disco")
-        if len(seleccion) == 1:
-            titulo = titulo_de(_archivo(seleccion[0]))
+        titulo = (titulo_de(_archivo(seleccion[0])) if len(seleccion) == 1
+                  else self._titulo_seleccion(seleccion) if seleccion else "")
+        # Si ya están todos en esa categoría, no se ofrece crearla otra vez
+        if seleccion and self.bib.ya_en_categoria([it.data(0, ROL)[0] for it in seleccion], titulo):
+            self.btn_categoria_titulo.hide()
+        elif len(seleccion) == 1:
             self.btn_categoria_titulo.setText(f"⚡ Categoría rápida: {titulo}")
             self.btn_categoria_titulo.setToolTip(
                 f"Crea la categoría «{titulo}», le asigna este archivo y los demás con el mismo título, "
                 f"y los mueve con sus subtítulos a Videos\\Peliculas\\{nombre_seguro(titulo)}")
             self.btn_categoria_titulo.show()
         elif seleccion:
-            titulo = self._titulo_seleccion(seleccion)
             self.btn_categoria_titulo.setText(f"⚡ Categoría rápida: {titulo} ({len(seleccion)})")
             self.btn_categoria_titulo.setToolTip(
                 f"Crea la categoría «{titulo}» y mete en ella los {len(seleccion)} archivos seleccionados")

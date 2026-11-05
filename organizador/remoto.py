@@ -41,7 +41,7 @@ from .dominio_publico import (
 from .red import ErrorRed, abrir_descarga
 from .subtitulos import EXT_SUBTITULOS, descripcion, leer_texto, subtitulos_junto_a
 from .subtitulos_online import buscar_para_visor
-from .titulos import nombre_lindo
+from .titulos import nombre_lindo, titulo_de
 from .torrents import ErrorTorrent
 from .vigilancia import destino_libre
 from .visor import TAMANOS_SUB, texto_progreso
@@ -1108,9 +1108,15 @@ class _Control:
         cid = int(categoria) if filtro == "categoria" and categoria else None
         por_archivo = self.bib.categorias_por_archivo()
         progresos = self.bib.progresos()
+
+        def rapida(aid: int, nombre: str) -> str:
+            """La categoría rápida que se le ofrece («» si ya está en una con ese nombre)."""
+            titulo = titulo_de(nombre)
+            return "" if self.bib.ya_en_categoria([aid], titulo, por_archivo) else titulo
+
         return [{"id": aid, "nombre": nombre, "titulo": nombre_lindo(nombre), "carpeta": str(Path(ruta).parent), "tipo": tipo,
                  "existe": Path(ruta).exists(), "categorias": por_archivo.get(aid, []),
-                 "visto": texto_progreso(progresos.get(ruta))}
+                 "visto": texto_progreso(progresos.get(ruta)), "categoria_rapida": rapida(aid, nombre)}
                 for aid, ruta, nombre, tipo in self.bib.listar_archivos(filtro, cid, texto.strip())]
 
     def descargas(self) -> dict:

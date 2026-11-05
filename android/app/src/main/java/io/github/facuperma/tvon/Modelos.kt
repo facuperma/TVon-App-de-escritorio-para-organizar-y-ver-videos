@@ -110,6 +110,8 @@ data class Biblioteca(val filtros: List<Filtro>, val categorias: List<Categoria>
 data class ArchivoBib(
     val id: Int, val nombre: String, val titulo: String, val carpeta: String, val tipo: String,
     val existe: Boolean, val categorias: List<Int>, val visto: String,
+    /** La categoría rápida que se ofrece («» si ya está en una con ese nombre, o si la PC es vieja). */
+    val categoriaRapida: String = "",
 ) {
     companion object {
         fun de(o: JSONObject) = ArchivoBib(
@@ -117,6 +119,7 @@ data class ArchivoBib(
             o.optString("carpeta"), o.optString("tipo"), o.optBoolean("existe", true),
             o.optJSONArray("categorias").let { a -> (0 until (a?.length() ?: 0)).map { a!!.getInt(it) } },
             o.optString("visto"),
+            o.optString("categoria_rapida", "\u0000").let { if (it == "\u0000") o.optString("titulo") else it },
         )
     }
 }
