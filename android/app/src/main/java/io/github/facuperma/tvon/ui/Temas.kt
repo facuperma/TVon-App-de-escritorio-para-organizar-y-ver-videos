@@ -25,6 +25,8 @@ data class TemaCel(
     val letra: FontFamily = FontFamily.SansSerif,
     val claro: Boolean = false,
     val brillo: Boolean = false,    // botones con la mitad de arriba más clara
+    val forma: String = "recto",    // botones: recto, pildora, ovalo o circulo (como en la PC)
+    val menu: String = "clasico",   // menús: clasico, biselado, cristal, neon o lcd
 )
 
 fun col(v: Long) = Color(v)
@@ -46,7 +48,7 @@ fun brilloDe(c: Color): Brush = Brush.verticalGradient(
 fun lerpColor(a: Color, b: Color, f: Float) =
     Color(a.red + (b.red - a.red) * f, a.green + (b.green - a.green) * f, a.blue + (b.blue - a.blue) * f, 1f)
 
-val TEMAS = listOf(
+private val CATALOGO = listOf(
     TemaCel("marino", "Azul noche", "TorrentVision", "El de siempre: azul marino, prolijo y tranquilo.", "ninguna",
         0xFF0F1729, 0xFF0A1020, 0xFF131D33, 0xFF1F2D4D, 0xFF24334F, 0xFFDBE2EF, 0xFF97A3B8, 0xFF3D7BFD, 0xFFFFFFFF,
         0xFF1F3566, 0xFFFFFFFF, listOf(0xFF131D33), listOf(0xFF1F2D4D), 0xFF24334F, 0xFFDBE2EF, 0xFF0A1020, 0xFF9FC2FF),
@@ -157,6 +159,19 @@ val TEMAS = listOf(
         0xFF3F5CFF, 0xFFFFFFFF, listOf(0xFF06106A, 0xFF0B1A8A), listOf(0xFF0B1A8A), 0xFFFFFFFF, 0xFFFFFFFF,
         0xFF06106A, 0xFFFFFFFF, radio = 2, letra = FontFamily.Monospace),
 )
+
+/** Forma de los botones y estilo de los menús de cada tema: los mismos que en la PC (temas.py). */
+private val FORMAS = mapOf(
+    "galaxia" to ("pildora" to "cristal"), "llama" to ("recto" to "biselado"), "luna" to ("pildora" to "clasico"),
+    "gel" to ("circulo" to "cristal"), "cristal" to ("circulo" to "cristal"), "plata" to ("ovalo" to "clasico"),
+    "mula" to ("pildora" to "clasico"), "fosforo" to ("recto" to "lcd"), "neon" to ("ovalo" to "neon"),
+    "aero" to ("circulo" to "cristal"), "noventa" to ("recto" to "biselado"), "casete" to ("ovalo" to "clasico"),
+    "vinilo" to ("circulo" to "cristal"), "arcade" to ("recto" to "lcd"), "osciloscopio" to ("recto" to "biselado"),
+    "oceano" to ("pildora" to "cristal"), "fuego" to ("ovalo" to "neon"), "caramelo" to ("circulo" to "cristal"),
+    "teletexto" to ("recto" to "lcd"), "radio" to ("ovalo" to "biselado"), "vhs" to ("recto" to "lcd"),
+)
+
+val TEMAS = CATALOGO.map { t -> FORMAS[t.id]?.let { (f, m) -> t.copy(forma = f, menu = m) } ?: t }
 
 fun temaPorId(id: String?) = TEMAS.firstOrNull { it.id == id } ?: TEMAS[0]
 

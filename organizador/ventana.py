@@ -366,7 +366,8 @@ class Ventana(QMainWindow):
 
         vista = barra.addMenu("&Vista")
         # El atajo F ya lo maneja el reproductor: acá solo se muestra
-        vista.addAction("Pantalla completa\tF", self.alternar_pantalla_completa)
+        vista.addAction("Pantalla completa del video\tF", self.alternar_pantalla_completa)
+        vista.addAction("🖥 Modo Fullscreen (sin barra de tareas)\tF11", self.alternar_modo_fullscreen)
         vista.addAction("Buscar\tCtrl+F", self._enfocar_buscador)
         vista.addSeparator()
         vista.addAction("🎨 Apariencia y temas…", self._abrir_apariencia)
@@ -429,30 +430,86 @@ class Ventana(QMainWindow):
     def _atajos(self):
         atajos_reproductor(self, self.visor, self.alternar_pantalla_completa)
         QShortcut(QKeySequence("Ctrl+F"), self).activated.connect(self._enfocar_buscador)
+        QShortcut(QKeySequence("F11"), self).activated.connect(self.alternar_modo_fullscreen)
 
     def _enfocar_buscador(self):
-        if self.isFullScreen():
+        if self._video_completo:
             self.alternar_pantalla_completa()
         self.buscador.setFocus()
 
+    # --- Modo Fullscreen: toda la app a pantalla completa ---------------------------------------
+
+    _video_completo = False   # pantalla completa del video (tecla F): solo el reproductor
+    _modo_fullscreen = False  # la app entera, sin barra de tareas ni borde de arriba (F11)
+
+    def alternar_modo_fullscreen(self):
+        """TorrentVision ocupa toda la pantalla (sin la barra de tareas ni la barra de título), con todo
+        a la vista. Se sale con el botoncito de arriba a la derecha, con F11 o con Esc."""
+        if self._video_completo:
+            self.alternar_pantalla_completa()
+        self._modo_fullscreen = not self._modo_fullscreen
+        if self._modo_fullscreen:
+            self._estaba_maximizada = self.isMaximized()
+            self.showFullScreen()
+        elif self._estaba_maximizada:
+            self.showMaximized()
+        else:
+            self.showNormal()
+        self._ubicar_salir_fullscreen()
+
+    def al_escape(self):
+        """Esc: primero sale de la pantalla completa del video; si no, del modo Fullscreen."""
+        if self._video_completo:
+            self.alternar_pantalla_completa()
+        elif self._modo_fullscreen:
+            self.alternar_modo_fullscreen()
+
+    def _ubicar_salir_fullscreen(self):
+        boton = getattr(self, "btn_salir_fullscreen", None)
+        if boton is None:
+            boton = self.btn_salir_fullscreen = QPushButton("✕ Salir de Fullscreen", self, objectName="salirFullscreen")
+            boton.setToolTip("Volver a la ventana normal (F11 o Esc)")
+            boton.setCursor(Qt.PointingHandCursor)
+            boton.setStyleSheet("QPushButton#salirFullscreen { background: rgba(0, 0, 0, 150); color: #ffffff; "
+                                "border: 1px solid rgba(255, 255, 255, 120); border-radius: 12px; padding: 3px 12px; "
+                                "font-size: 9pt; } QPushButton#salirFullscreen:hover { background: rgba(200, 30, 30, 220); }")
+            boton.clicked.connect(self.alternar_modo_fullscreen)
+        visible = self._modo_fullscreen and not self._video_completo
+        boton.setVisible(visible)
+        if visible:
+            boton.adjustSize()
+            boton.move(self.width() - boton.width() - 12, 8)
+            boton.raise_()
+
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        if self._modo_fullscreen:
+            self._ubicar_salir_fullscreen()
+
     def alternar_pantalla_completa(self):
         """Pantalla completa propia: se oculta todo menos el visor."""
-        completa = not self.isFullScreen()
+        completa = not self._video_completo
+        self._video_completo = completa
         for w in (self.izq, self.centro, self.detalles, self.barra_herramientas, self.statusBar(),
                   self.menuBar()):
             # Al salir, los paneles que se ocultaron desde el menú Vista siguen ocultos
             w.setVisible(not completa and (w not in self._paneles or self._paneles[w].isChecked()))
         if completa:
-            self._estaba_maximizada = self.isMaximized()
+            if not self._modo_fullscreen:
+                self._estaba_maximizada = self.isMaximized()
             self.capa_der.setContentsMargins(0, 0, 0, 0)
-            self.showFullScreen()
+            if not self.isFullScreen():
+                self.showFullScreen()
         else:
             self.capa_der.setContentsMargins(self._margenes_der)
-            if self._estaba_maximizada:
+            if self._modo_fullscreen:
+                pass  # sigue en el modo Fullscreen de la app (no vuelve a la ventana)
+            elif self._estaba_maximizada:
                 self.showMaximized()
             else:
                 self.showNormal()
         self.visor.set_modo_completo(completa)
+        self._ubicar_salir_fullscreen()
 
     # --- Filtros y categorías -----------------------------------------------
 

@@ -43,6 +43,8 @@ class Tema:
     # Los menús desplegables: «clasico», «biselado» (en relieve, de 1998), «cristal» (vidrio con brillo),
     # «neon» (borde de luz) o «lcd» (pantallita verde)
     menu: str = "clasico"
+    # Detalles propios de los botones de cada tema (hoja de estilo que se suma al final)
+    boton_extra: str = ""
 
     # Colores de estado de la lista (a medias / vista / vínculo), legibles sobre el fondo del tema
     @property
@@ -252,6 +254,82 @@ _FORMAS = {
 }
 TEMAS = [replace(t, forma=_FORMAS[t.id][0], menu=_FORMAS[t.id][1]) if t.id in _FORMAS else t for t in TEMAS]
 
+# Botones con personalidad para los temas de la primera tanda
+_EXTRAS = {
+    "marino": """
+QPushButton { border-bottom: 2px solid #0a1020; }
+QPushButton:hover { border-color: #3d7bfd; }
+QPushButton:pressed { border-bottom: 1px solid #3d7bfd; padding-top: 7px; }
+""",
+    "galaxia": """
+QPushButton { border: 1px solid #6fb8ff; border-bottom: 2px solid #0b1838; }
+QPushButton:hover { border: 1px solid #c8ecff; color: #ffffff; }
+QWidget#controles QPushButton { border: 1px solid #2fb4ff; }
+QToolBar QToolButton:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #3d74c9, stop:1 #173a7a);
+    border: 1px solid #6fb8ff; }
+""",
+    "llama": """
+QPushButton { border: 2px outset #8a8aa2; }
+QPushButton:pressed { border: 2px inset #8a8aa2; background: #23232b; color: #00e000; }
+QWidget#controles QPushButton, QWidget#controles QToolButton { color: #00e000; font-family: "Lucida Console";
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #3c3c4a, stop:1 #1c1c24); }
+""",
+    "luna": """
+QPushButton { border: 1px solid #003c74; border-radius: 4px; }
+QPushButton:hover { border: 2px solid #f8b048; padding: 5px 11px; }
+QPushButton:pressed { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #e5e3dc, stop:1 #f6f4ec); }
+QPushButton#primario { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #8fd16a, stop:0.5 #3c9d27,
+    stop:1 #2f8a1c); color: #ffffff; border: 1px solid #1f6b11; font-weight: 700; }
+""",
+    "gel": """
+QPushButton { border: 1px solid #1d5fb8; color: #06224d; }
+QPushButton:hover { border: 1px solid #0b3f8c; }
+QPushButton#primario { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #ffd9a8, stop:0.49 #ffb24a,
+    stop:0.5 #ff8a00, stop:1 #ffb84d); border: 1px solid #b85f00; color: #3a1a00; }
+""",
+    "cristal": """
+QPushButton { border: 1px solid #50505e; border-top: 1px solid #8a8a9a; }
+QPushButton:hover { border: 1px solid #3fa9f5; color: #ffffff; }
+QWidget#controles QPushButton:hover { border: 2px solid #7cc8ff; }
+""",
+    "plata": """
+QPushButton { border: 1px solid #7a7a7a; border-bottom: 2px solid #5a5a5a; border-top: 1px solid #ffffff; }
+QPushButton:pressed { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #bdbdbd, stop:1 #fafafa);
+    border-top: 2px solid #5a5a5a; border-bottom: 1px solid #ffffff; }
+QWidget#controles QPushButton { background: qradialgradient(cx:0.5, cy:0.3, radius:0.8, stop:0 #ffffff, stop:1 #c4c4c4); }
+""",
+    "mula": """
+QPushButton { border: 2px solid #5aa65f; color: #133a1c; }
+QPushButton:hover { background: #dcefdc; border-color: #2e9e4f; }
+QPushButton#primario { background: #2e9e4f; color: #ffffff; border-color: #1f6b35; }
+""",
+    "fosforo": """
+QPushButton, QToolBar QToolButton { border: 1px dashed #39ff6a; background: transparent; color: #5cff86; }
+QPushButton { font-size: 9pt; padding: 5px 6px; }
+QPushButton:hover, QToolBar QToolButton:hover { background: #39ff6a; color: #000000; border-style: solid; }
+QPushButton:pressed { background: #9cffb5; color: #000000; }
+""",
+    "neon": """
+QPushButton { border: 2px solid #22e4ff; }
+QPushButton:hover { border: 2px solid #ff2fd6; color: #2a0040; }
+QPushButton#primario { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #ff2fd6, stop:1 #22e4ff);
+    color: #ffffff; border: 2px solid #ffffff; }
+""",
+    "aero": """
+QPushButton { border: 1px solid #3aa7cf; border-top: 1px solid #ffffff; }
+QPushButton:hover { border: 1px solid #1ba3d6; background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #ffffff,
+    stop:0.49 #c9f2e6, stop:0.5 #7fe0c4, stop:1 #b8f0e0); }
+""",
+    "noventa": """
+QPushButton { border-top: 2px solid #ffffff; border-left: 2px solid #ffffff; border-right: 2px solid #404040;
+    border-bottom: 2px solid #404040; }
+QPushButton:pressed { border-top: 2px solid #404040; border-left: 2px solid #404040; border-right: 2px solid #ffffff;
+    border-bottom: 2px solid #ffffff; padding-top: 7px; padding-left: 13px; }
+QPushButton:focus { outline: 1px dotted #000000; }
+""",
+}
+TEMAS = [replace(t, boton_extra=_EXTRAS[t.id]) if t.id in _EXTRAS else t for t in TEMAS]
+
 # Diez más: cassette, vinilo, arcade, osciloscopio, océano, fuego, caramelo, teletexto, radio y videoclub
 TEMAS += [
     Tema("casete", "Casete 85", "Los walkman y los casetes de los 80", "Beige, naranja y marrón de cinta. "
@@ -365,7 +443,7 @@ def _formas(t: Tema) -> str:
     """La forma de los botones y campos según el tema."""
     if t.forma == "pildora":
         return f"""
-QPushButton, QToolBar QToolButton {{ border-radius: 15px; padding: 6px 16px; }}
+QPushButton, QToolBar QToolButton {{ border-radius: 15px; padding: 6px 9px; }}
 QLineEdit {{ border-radius: 14px; padding: 5px 14px; }}
 QWidget#controles QPushButton, QWidget#controles QToolButton {{ border-radius: 13px; padding: 4px 10px; }}
 """
@@ -374,7 +452,7 @@ QWidget#controles QPushButton, QWidget#controles QToolButton {{ border-radius: 1
         return f"""
 QPushButton, QToolBar QToolButton {{
     border-top-left-radius: 18px 10px; border-top-right-radius: 18px 10px;
-    border-bottom-left-radius: 18px 10px; border-bottom-right-radius: 18px 10px; padding: 6px 16px;
+    border-bottom-left-radius: 18px 10px; border-bottom-right-radius: 18px 10px; padding: 6px 9px;
 }}
 QLineEdit, QGroupBox, QListWidget, QTreeWidget {{
     border-top-left-radius: 22px 12px; border-top-right-radius: 22px 12px;
@@ -385,7 +463,7 @@ QLineEdit {{ padding: 5px 16px; }}
     if t.forma == "circulo":
         # Los botones del reproductor, redondos; Play, un orbe grande con brillo
         return f"""
-QPushButton, QToolBar QToolButton {{ border-radius: 15px; padding: 6px 16px; }}
+QPushButton, QToolBar QToolButton {{ border-radius: 15px; padding: 6px 9px; }}
 QLineEdit {{ border-radius: 14px; padding: 5px 14px; }}
 QWidget#controles QPushButton, QWidget#controles QToolButton {{
     min-width: 28px; min-height: 28px; border-radius: 15px; padding: 1px 6px;
@@ -540,4 +618,4 @@ QWidget#bandaRetro {{ background: {t.lcd_fondo}; }}
 QComboBox::drop-down {{ border: none; width: 18px; }}
 QComboBox::down-arrow {{ width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent;
     border-top: 6px solid {t.boton_texto}; }}
-""" + _formas(t) + _menus(t)
+""" + _formas(t) + _menus(t) + t.boton_extra

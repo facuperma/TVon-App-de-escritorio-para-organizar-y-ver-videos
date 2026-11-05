@@ -2,6 +2,8 @@ package io.github.facuperma.tvon.ui
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -87,8 +89,8 @@ fun Logo(lado: Int) = Image(painterResource(R.drawable.logo), null, Modifier.siz
 @Composable
 fun TituloTVon(tamano: Int = 17) {
     Text(buildAnnotatedString {
-        append("TV")
-        withStyle(SpanStyle(color = C.verde, fontWeight = FontWeight.ExtraBold, fontSize = (tamano * 1.45).sp)) { append("ON") }
+        append("Torrent")
+        withStyle(SpanStyle(color = C.acentoClaro, fontWeight = FontWeight.ExtraBold)) { append("Vision") }
     }, fontWeight = FontWeight.Bold, fontSize = tamano.sp, color = C.titulo)
 }
 
@@ -222,18 +224,37 @@ private fun Tostada(vm: Modelo, modifier: Modifier) {
 @Composable
 private fun Dialogos(vm: Modelo) {
     vm.hoja?.let { hoja ->
+        val m = C.tema.menu
+        // biselado: en relieve, recto · cristal: vidrio con brillo · neon: borde de luz · lcd: pantallita
+        val (fondoHoja, forma) = when (m) {
+            "biselado" -> C.panel to androidx.compose.ui.graphics.RectangleShape
+            "lcd" -> Color.Black to androidx.compose.ui.graphics.RectangleShape
+            "neon" -> C.fondoHondo to RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)
+            else -> C.panel to RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp)
+        }
         ModalBottomSheet(
             onDismissRequest = { vm.hoja = null },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-            containerColor = C.panel,
+            containerColor = if (m == "cristal") Color.Transparent else fondoHoja,
+            shape = forma,
         ) {
             Column(
                 Modifier
+                    .then(when (m) {
+                        "biselado" -> Modifier.border(3.dp, C.panelClaro, forma)
+                        "neon" -> Modifier.border(2.dp, C.acento, forma)
+                        "lcd" -> Modifier.border(2.dp, col(C.tema.lcdTexto), forma)
+                        "cristal" -> Modifier.background(Brush.verticalGradient(listOf(C.panelClaro, C.panel)), forma)
+                            .border(1.dp, col(C.tema.botonBorde), forma)
+                        else -> Modifier
+                    })
                     .padding(horizontal = 16.dp)
-                    .padding(bottom = 24.dp)
+                    .padding(top = if (m == "clasico") 0.dp else 14.dp, bottom = 24.dp)
                     .verticalScroll(rememberScrollState())
             ) {
-                Text(hoja.titulo, fontWeight = FontWeight.SemiBold, color = C.titulo, modifier = Modifier.padding(bottom = 10.dp))
+                Text(hoja.titulo, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(bottom = 10.dp),
+                    color = if (m == "lcd") col(C.tema.lcdTexto) else C.titulo,
+                    fontFamily = if (m == "lcd") androidx.compose.ui.text.font.FontFamily.Monospace else null)
                 for (o in hoja.opciones) OpcionHoja(vm, o)
             }
         }
@@ -303,7 +324,13 @@ private fun OpcionHoja(vm: Modelo, o: Opcion) {
         },
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Text(o.texto, color = if (o.peligro) Color(0xFFFFB4B4) else C.texto, modifier = Modifier.weight(1f), fontSize = 16.sp)
+        val lcd = C.tema.menu == "lcd"
+        Text(o.texto, color = when {
+            o.peligro -> C.peligroTexto.takeIf { C.tema.claro } ?: Color(0xFFFFB4B4)
+            lcd -> col(C.tema.lcdTexto)
+            else -> C.texto
+        }, modifier = Modifier.weight(1f), fontSize = 16.sp,
+            fontFamily = if (lcd) androidx.compose.ui.text.font.FontFamily.Monospace else null)
         if (o.marca.isNotEmpty()) {
             Spacer(Modifier.width(8.dp))
             Text(o.marca, color = C.verde)

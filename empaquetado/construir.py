@@ -57,7 +57,7 @@ def version() -> str:
 
 
 def apk_celular() -> Path:
-    apks = sorted((RAIZ / "instalador").glob("TorrentVision-ON-*.apk"),
+    apks = sorted((RAIZ / "instalador").glob("TorrentVision-Android-*.apk"),
                   key=lambda a: [int(n) for n in re.findall(r"\d+", a.stem)])
     if not apks:
         sys.exit("Falta la APK del celular en instalador/ (android\\gradlew.bat assembleRelease)")

@@ -10,13 +10,13 @@ Aplicación de escritorio para bajar, organizar y ver películas, series y video
 
 ## Descargar
 
-**[⬇ TorrentVision-Setup-1.10.0.exe](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-Setup-1.10.0.exe)** (39 MB) — para la PC (Windows 10/11, 64 bits)
+**[⬇ TorrentVision-Setup-1.10.1.exe](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-Setup-1.10.1.exe)** (39 MB) — para la PC (Windows 10/11, 64 bits)
 
-**[⬇ TorrentVision-ON-1.1.13.apk](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-ON-1.1.13.apk)** (3 MB) — app para el celular (Android 8 o más nuevo): ver más abajo, en [📱 ON](#-on-manejar-torrentvision-desde-el-celular)
+**[⬇ TorrentVision-Android-1.1.14.apk](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-Android-1.1.14.apk)** (3 MB) — app para el celular (Android 8 o más nuevo): ver más abajo, en [📱 ON](#-on-manejar-torrentvision-desde-el-celular)
 
 También desde la **[página de TorrentVision](https://facuperma.github.io/TVon-App-de-escritorio-para-organizar-y-ver-videos/#bajar)**: en la compu muestra un QR para bajar la app en el celular.
 
-**¿Es el original?** En la [página de descargas](https://facuperma.github.io/TVon-App-de-escritorio-para-organizar-y-ver-videos/#bajar), el botón **🔒 Bajar verificado** lo comprueba solo: baja el archivo, calcula su huella SHA-256 y la compara con la publicada en [`instalador/SHA256.txt`](instalador/SHA256.txt); solo si coincide te deja guardarlo, y si no, te avisa que no lo instales. A mano: `certutil -hashfile TorrentVision-Setup-1.10.0.exe SHA256` (en PowerShell: `Get-FileHash`) y compará con `SHA256.txt`.
+**¿Es el original?** En la [página de descargas](https://facuperma.github.io/TVon-App-de-escritorio-para-organizar-y-ver-videos/#bajar), el botón **🔒 Bajar verificado** lo comprueba solo: baja el archivo, calcula su huella SHA-256 y la compara con la publicada en [`instalador/SHA256.txt`](instalador/SHA256.txt); solo si coincide te deja guardarlo, y si no, te avisa que no lo instales. A mano: `certutil -hashfile TorrentVision-Setup-1.10.1.exe SHA256` (en PowerShell: `Get-FileHash`) y compará con `SHA256.txt`.
 
 El instalador de la PC: ejecutalo y seguí los pasos: no hace falta instalar Python ni nada más, ni permisos de administrador. Crea accesos directos en el menú Inicio (y en el Escritorio, si lo elegís) y se desinstala desde *Configuración → Aplicaciones*.
 
@@ -58,7 +58,7 @@ Botón **📱 ON** en la barra superior (o *Configuración → ON*; se pone verd
 
 #### App para Android (recomendada)
 
-**[⬇ TorrentVision-ON-1.1.13.apk](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-ON-1.1.13.apk)** (3 MB, Android 8 o más nuevo). **O escaneá el QR de la ventana ON con la cámara del celular:** la página que abre ofrece *⬇ Descargar la app* (lleva a la [página de descargas](https://facuperma.github.io/TVon-App-de-escritorio-para-organizar-y-ver-videos/#bajar); sin internet, se baja desde tu PC), *📲 Abrir la app y conectar* (ya vinculada, sin escanear de nuevo) o seguir en el navegador. También podés bajarla de acá, en el celular, y abrirla; Android pide permiso para *instalar apps de origen desconocido* (al navegador o a Archivos): permitilo solo para esto. Después tocá **📷 Escanear el código QR** con la ventana de ON abierta en la PC.
+**[⬇ TorrentVision-Android-1.1.14.apk](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-Android-1.1.14.apk)** (3 MB, Android 8 o más nuevo). **O escaneá el QR de la ventana ON con la cámara del celular:** la página que abre ofrece *⬇ Descargar la app* (lleva a la [página de descargas](https://facuperma.github.io/TVon-App-de-escritorio-para-organizar-y-ver-videos/#bajar); sin internet, se baja desde tu PC), *📲 Abrir la app y conectar* (ya vinculada, sin escanear de nuevo) o seguir en el navegador. También podés bajarla de acá, en el celular, y abrirla; Android pide permiso para *instalar apps de origen desconocido* (al navegador o a Archivos): permitilo solo para esto. Después tocá **📷 Escanear el código QR** con la ventana de ON abierta en la PC.
 
 Si tenías la app 1.1.0, desinstalala antes de instalar la 1.1.3 (cambió la firma) y volvé a escanear el código QR. Desde la 1.1.1 se actualiza encima, sin volver a vincular.
 
@@ -156,7 +156,7 @@ Botón **📺** en los controles del reproductor (o la tarjeta **📺 Tele** en 
 
 ### 🎬 Letterboxd
 
-Botón **🎬 Letterboxd** en la barra superior: escribí tu usuario, o pegá el link de tu perfil (letterboxd.com/usuario, el de tu watchlist o el link corto boxd.it/… de «Compartir»), y aparece tu **watchlist**; también están **las 500 mejor puntuadas** (la lista oficial de Letterboxd). Las que ya tenés se marcan en verde (por título y año, así no confunde remakes), **aunque las tengas con el título en otro idioma**: «The Godfather» reconoce tu «El Padrino (1972)» buscando sus títulos en Wikidata (libre, sin clave; se guarda para no volver a preguntar). Se pueden ocultar. **Doble clic** (o *⬇ Bajarla*): si es de dominio público la baja gratis del Internet Archive; si no, abre la búsqueda del torrent ya hecha y, cuando copiás el link magnet, TorrentVision te pregunta y la pone a bajar.
+Botón **🎬 Letterboxd** en la barra superior: escribí tu usuario, o pegá el link de tu perfil (letterboxd.com/usuario, el de tu watchlist o el link corto boxd.it/… de «Compartir»), y aparece tu **watchlist**; también están **las 500 mejor puntuadas** (la lista oficial de Letterboxd). Las que ya tenés se marcan en verde (por título y año, así no confunde remakes), **aunque las tengas con el título en otro idioma**: «The Godfather» reconoce tu «El Padrino (1972)» buscando sus títulos en Wikidata (libre, sin clave; se guarda para no volver a preguntar). Se pueden ocultar. **Doble clic** (o *⬇ Bajarla*): si es de dominio público la baja gratis del Internet Archive; si no, abre la búsqueda del torrent ya hecha y, cuando copiás el link magnet, TorrentVision te pregunta y la pone a bajar. La columna **💬 Subtítulos** abre la búsqueda de sus subtítulos ya hecha (OpenSubtitles, en tu primer idioma configurado) y copia «Título Año» por si preferís buscar en subdivx.
 
 Letterboxd no da su API ni deja iniciar sesión desde otras apps: se lee la watchlist pública, así que tiene que ser pública (*Settings → Privacy*).
 
@@ -249,6 +249,10 @@ Marcá **⏻ Apagar** en los controles: cuando termine el video (en el visor o e
 | Videoclub | los casetes de video | «PLAY ▶» y franjas de tracking |
 
 Además cambia **la forma**: botones rectos, en píldora, ovalados o redondos (en los temas redondos, Play es un orbe grande), y **los menús desplegables**: en relieve como en 1998, de cristal con brillo, de neón o de pantallita LCD. Los colores de *a medias* y *vista* se calculan para el fondo de cada tema (siempre con buen contraste, y con otro tono si el texto del tema ya es de ese color). Son estilos de esa época con diseños propios (sin logos ni marcas).
+
+### 🖥 Modo Fullscreen
+
+*Vista → 🖥 Modo Fullscreen* (o **F11**): TorrentVision ocupa toda la pantalla, sin la barra de tareas ni el borde de arriba, con todo a la vista. Para salir: el botoncito **✕ Salir de Fullscreen** de arriba a la derecha, F11 o Esc. Es distinto de la pantalla completa del video (tecla **F**), que deja solo el reproductor; se pueden combinar.
 
 ### Atajos
 

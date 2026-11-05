@@ -67,7 +67,7 @@ TIPOS_VIDEO = {".mp4": "video/mp4", ".m4v": "video/mp4", ".mkv": "video/x-matros
 def apk_del_celular() -> Path | None:
     """La APK más nueva: la que viene en el instalador (carpeta apk del programa) o la de la carpeta instalador del repo."""
     aqui = Path(__file__).parent
-    apks = [a for c in (aqui / "apk", aqui.parent / "instalador") if c.is_dir() for a in c.glob("TorrentVision-ON-*.apk")]
+    apks = [a for c in (aqui / "apk", aqui.parent / "instalador") if c.is_dir() for a in [*c.glob("TorrentVision-Android-*.apk"), *c.glob("TorrentVision-ON-*.apk")]]
     return max(apks, key=lambda a: [int(n) for n in re.findall(r"\d+", a.stem)], default=None)
 
 
@@ -1064,7 +1064,7 @@ class _Control:
             if not v.panel_sig.isHidden() else None,
             "apagar_al_terminar": ventana.chk_apagar.isChecked(),
             "apagado": {"segundos": max(0, apagado[1][0])} if apagado else None,
-            "pantalla_completa": ventana.isFullScreen(),
+            "pantalla_completa": ventana._video_completo,
             "ventana_visible": not ventana.isHidden(),
             "arranca_con_windows": inicio_windows.activo(),
             "ventanas": len(ventana.ventanas_video),

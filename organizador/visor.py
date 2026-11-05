@@ -51,7 +51,9 @@ def atajos_reproductor(ventana: QWidget, visor: "Visor", alternar_completa):
         ("Shift+Right", lambda: visor.adelantar(15000)),
         ("Shift+Left", lambda: visor.adelantar(-15000)),
         ("F", alternar_completa),
-        ("Escape", lambda: ventana.isFullScreen() and alternar_completa()),
+        # La ventana principal decide (puede estar en su modo Fullscreen); las otras, como siempre
+        ("Escape", lambda: ventana.al_escape() if hasattr(ventana, "al_escape")
+         else ventana.isFullScreen() and alternar_completa()),
         # Como en VLC: G muestra los subtítulos antes, H después
         ("G", lambda: visor.ajustar_retraso(-100)),
         ("H", lambda: visor.ajustar_retraso(100)),

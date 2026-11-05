@@ -35,6 +35,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
@@ -76,7 +86,30 @@ object C {
     val error get() = if (tema.claro) Color(0xFFC0262D) else Color(0xFFFF8080)
     val chipActivo get() = col(tema.seleccion)
     val esquina get() = tema.radio.dp
+    val forma get() = tema.forma
     val letra get() = tema.letra
+}
+
+/** Esquinas elípticas (más anchas que altas): la forma «óvalo» de los temas. */
+class Ovalo(private val ancho: Dp, private val alto: Dp) : Shape {
+    override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline = with(density) {
+        Outline.Rounded(RoundRect(0f, 0f, size.width, size.height,
+            CornerRadius(minOf(ancho.toPx(), size.width / 2), minOf(alto.toPx(), size.height / 2))))
+    }
+}
+
+/** La forma de los botones según el tema: recto, píldora (del todo redondos), óvalo o círculo. */
+fun formaBoton(): Shape = when (C.forma) {
+    "pildora", "circulo" -> RoundedCornerShape(50)
+    "ovalo" -> Ovalo(22.dp, 12.dp)
+    else -> RoundedCornerShape(C.esquina)
+}
+
+/** La forma de las tarjetas y filas según el tema. */
+fun formaPanel(): Shape = when (C.forma) {
+    "ovalo" -> Ovalo(28.dp, 16.dp)
+    "pildora", "circulo" -> RoundedCornerShape(maxOf(C.esquina, 18.dp))
+    else -> RoundedCornerShape(C.esquina + 2.dp)
 }
 
 @Composable
@@ -113,9 +146,9 @@ fun Tarjeta(modifier: Modifier = Modifier, contenido: @Composable ColumnScope.()
         modifier
             .fillMaxWidth()
             .padding(vertical = 6.dp)
-            .clip(RoundedCornerShape(C.esquina + 2.dp))
+            .clip(formaPanel())
             .background(C.panel)
-            .border(1.dp, C.borde, RoundedCornerShape(C.esquina + 2.dp))
+            .border(1.dp, C.borde, formaPanel())
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
         content = contenido,
@@ -149,16 +182,43 @@ fun Boton(
     }
     // Los botones comunes llevan el degradé del tema (gel, cromo, metal…); el primario, el acento con brillo
     val pincel = when {
+        // Luna: el botón principal verde, como el de «Inicio» de esa época
+        estilo == Estilo.PRIMARIO && t.id == "luna" -> brilloDe(Color(0xFF3C9D27))
         estilo == Estilo.NORMAL -> degrade(t.boton, t.brillo)
         estilo == Estilo.PRIMARIO && t.brillo -> brilloDe(C.acento)
         else -> null
     }
-    val forma = RoundedCornerShape(C.esquina)
+    val forma = formaBoton()
+    // Detalles propios de algunos temas: relieve en dos tonos, borde punteado o borde de neón
+    val relieve = estilo != Estilo.PELIGRO && t.id in setOf("noventa", "llama", "osciloscopio")
+    val punteado = estilo != Estilo.PELIGRO && t.id == "fosforo"
+    val borde2 = when {
+        relieve || punteado -> BorderStroke(0.dp, Color.Transparent)
+        t.id == "neon" && estilo != Estilo.PELIGRO ->
+            BorderStroke(2.dp, Brush.horizontalGradient(listOf(Color(0xFFFF2FD6), Color(0xFF22E4FF))))
+        else -> BorderStroke(1.dp, borde)
+    }
     Button(
         onClick = alTocar, enabled = habilitado,
-        modifier = if (pincel != null) modifier.alpha(if (habilitado) 1f else .5f).background(pincel, forma) else modifier,
+        modifier = (if (pincel != null) modifier.alpha(if (habilitado) 1f else .5f).background(pincel, forma) else modifier)
+            .then(when {
+                relieve -> Modifier.drawBehind {
+                    val g = 2.dp.toPx()
+                    val claro = if (t.claro) Color.White else Color(0xFF9A9AB0)
+                    val oscuro = if (t.claro) Color(0xFF404040) else Color(0xFF0A0A0E)
+                    drawRect(claro, size = androidx.compose.ui.geometry.Size(size.width, g))
+                    drawRect(claro, size = androidx.compose.ui.geometry.Size(g, size.height))
+                    drawRect(oscuro, androidx.compose.ui.geometry.Offset(0f, size.height - g), androidx.compose.ui.geometry.Size(size.width, g))
+                    drawRect(oscuro, androidx.compose.ui.geometry.Offset(size.width - g, 0f), androidx.compose.ui.geometry.Size(g, size.height))
+                }
+                punteado -> Modifier.drawBehind {
+                    drawRect(Color(0xFF39FF6A), style = androidx.compose.ui.graphics.drawscope.Stroke(1.5.dp.toPx(),
+                        pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(10f, 6f))))
+                }
+                else -> Modifier
+            }),
         shape = forma,
-        border = BorderStroke(if (t.id == "noventa") 2.dp else 1.dp, borde),
+        border = borde2,
         colors = ButtonDefaults.buttonColors(
             containerColor = if (pincel != null) Color.Transparent else fondo, contentColor = color,
             disabledContainerColor = if (pincel != null) Color.Transparent else fondo.copy(alpha = .4f),
@@ -175,12 +235,18 @@ fun Redondo(
     texto: String, modifier: Modifier = Modifier, grande: Boolean = false, habilitado: Boolean = true, alTocar: () -> Unit,
 ) {
     val lado = if (grande) 72.dp else 52.dp
+    val orbe = grande && C.forma == "circulo"
     Button(
-        onClick = alTocar, enabled = habilitado, modifier = modifier.size(lado), shape = CircleShape,
+        onClick = alTocar, enabled = habilitado,
+        modifier = modifier.size(lado).let {
+            if (orbe) it.background(Brush.radialGradient(listOf(Color.White, C.acento, col(C.tema.botonBorde))), CircleShape) else it
+        },
+        shape = CircleShape,
         contentPadding = PaddingValues(0.dp),
         border = BorderStroke(1.dp, if (grande) C.acento else C.borde),
         colors = ButtonDefaults.buttonColors(
-            containerColor = if (grande) C.acento else C.panelClaro, contentColor = if (grande) C.sobreAcento else C.texto,
+            containerColor = if (orbe) Color.Transparent else if (grande) C.acento else C.panelClaro,
+            contentColor = if (grande) C.sobreAcento else C.texto,
             disabledContainerColor = C.panelClaro.copy(alpha = .4f), disabledContentColor = C.tenue,
         ),
     ) { Text(texto, fontSize = if (grande) 28.sp else 16.sp, maxLines = 1) }
@@ -229,9 +295,9 @@ fun Item(
         Modifier
             .fillMaxWidth()
             .padding(vertical = 3.dp)
-            .clip(RoundedCornerShape(C.esquina))
+            .clip(formaPanel())
             .background(if (elegido) C.chipActivo else C.panel)
-            .border(1.dp, if (elegido) C.acento else C.borde, RoundedCornerShape(C.esquina))
+            .border(1.dp, if (elegido) C.acento else C.borde, formaPanel())
             .then(
                 if (alTocar != null || alMantener != null) Modifier.combinedClickable(
                     onClick = { alTocar?.invoke() },

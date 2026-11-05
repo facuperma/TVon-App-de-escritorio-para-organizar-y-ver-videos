@@ -12,12 +12,16 @@ from PySide6.QtWidgets import (
 )
 
 from . import archive, letterboxd
+from .temas import tema
 from .db import Biblioteca
 from .tareas import en_segundo_plano
 
 ROL = Qt.UserRole
 # El buscador de ext.to, en la categoría Películas (cat=1)
 BUSCAR_TORRENT = "https://ext.to/browse/?cat=1&q={}"
+# Los subtítulos: el buscador de OpenSubtitles en el idioma elegido (subdivx no deja armar su búsqueda con un link)
+BUSCAR_SUBTITULOS = "https://www.opensubtitles.org/es/search2/sublanguageid-{idioma}/moviename-{texto}"
+IDIOMAS_OS = {"es": "spa", "en": "eng", "pt": "por", "it": "ita", "fr": "fre", "de": "ger"}
 MAX_TRADUCCIONES = 120  # por vez: Wikidata es gratis, no hay que abusar
 
 
@@ -61,7 +65,9 @@ class VentanaLetterboxd(QWidget):
         self.estado = QLabel(objectName="pista")
 
         self.lista = QTreeWidget()
-        self.lista.setHeaderLabels(["Película", "Año", "En tu biblioteca"])
+        self.lista.setHeaderLabels(["Película", "Año", "En tu biblioteca", "Subtítulos"])
+        # Un clic en «💬 Buscar» (columna Subtítulos) abre la búsqueda de sus subtítulos ya hecha
+        self.lista.itemClicked.connect(lambda item, columna: columna == 3 and self._subtitulos(item))
         self.lista.setRootIsDecorated(False)
         self.lista.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.lista.header().setSectionResizeMode(0, QHeaderView.Stretch)
@@ -71,7 +77,7 @@ class VentanaLetterboxd(QWidget):
         btn_buscar.setToolTip("Si es de dominio público, la baja gratis del Internet Archive.\n"
                               "Si no, abre la búsqueda del torrent ya hecha: copiá el link magnet y TorrentVision\n"
                               "lo toma solo y la pone a bajar (también con doble clic en la película)")
-        btn_buscar.clicked.connect(self._buscar)
+        btn_buscar.clicked.connect(lambda: self._buscar())
         btn_ficha = QPushButton("Ver en Letterboxd")
         btn_ficha.clicked.connect(lambda: self._abrir_ficha(self.lista.selectedItems()))
         abajo = QHBoxLayout()
@@ -136,7 +142,12 @@ class VentanaLetterboxd(QWidget):
             tengo += esta
             if esta and self.chk_ocultar.isChecked():
                 continue
-            item = QTreeWidgetItem([p["titulo"], p["anio"], "✓ Ya la tenés" if esta else ""])
+            item = QTreeWidgetItem([p["titulo"], p["anio"], "✓ Ya la tenés" if esta else "", "💬 Buscar"])
+            item.setToolTip(3, "Abrir la búsqueda de sus subtítulos")
+            vinculo = item.font(3)
+            vinculo.setUnderline(True)
+            item.setFont(3, vinculo)
+            item.setForeground(3, QBrush(QColor(tema(self.bib.config("tema")).vinculo)))
             item.setData(0, ROL, p)
             if esta:
                 for col in range(3):
@@ -225,6 +236,20 @@ class VentanaLetterboxd(QWidget):
         self._esperando = p
         self.estado.setText(f"Se abrió la búsqueda y se copió «{texto}» (si no aparece buscada, pegalo con Ctrl+V "
                             "en el buscador). Copiá el link magnet del torrent: TorrentVision lo toma solo.")
+
+    def _subtitulos(self, item):
+        """La búsqueda de los subtítulos de la película, ya hecha, en el primer idioma configurado.
+        También copia «Título Año», por si se prefiere buscar en otra página (subdivx)."""
+        p = item.data(0, ROL)
+        if not p:
+            return
+        texto = f"{p['titulo']} {p['anio']}".strip()
+        idioma = ((self.bib.config("idiomas_subtitulos") or "es").split(",")[0].strip().lower() or "es")[:2]
+        QGuiApplication.clipboard().setText(texto)
+        QDesktopServices.openUrl(QUrl(BUSCAR_SUBTITULOS.format(idioma=IDIOMAS_OS.get(idioma, "spa"),
+                                                               texto=quote_plus(texto))))
+        self.estado.setText(f"Se abrió la búsqueda de subtítulos de «{texto}» (también quedó copiado). Bajá el .srt "
+                            "o .zip a Descargas: TorrentVision lo pone solo junto a la película.")
 
     def _portapapeles(self):
         """Si después de buscar una película se copia un link magnet, se ofrece bajarlo."""
