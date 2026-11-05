@@ -70,40 +70,6 @@ import kotlin.math.min
 
 /** Arriba de Mouse y de Pantalla: se pasa de una a otra sin otra pestaña. */
 @Composable
-fun SelectorMouse(vm: Modelo) {
-    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Chip("🖱 Touchpad", vm.pestana == Pestana.MOUSE) { vm.irA(Pestana.MOUSE) }
-        Chip("🖥 Ver la pantalla de la PC", vm.pestana == Pestana.PANTALLA) { vm.irA(Pestana.PANTALLA) }
-    }
-}
-
-@Composable
-fun PestanaMouse(vm: Modelo) {
-    // Sin desplazar la página: el touchpad ocupa todo lo de abajo, al alcance del pulgar,
-    // y los botones quedan pegados al borde, como en una notebook
-    Column(
-        Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        SelectorMouse(vm)
-        vm.errorControl?.let { Text(it, color = C.error) }
-        if (vm.monitores?.control != false) Teclado(vm, compacto = true)
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Pista("Velocidad")
-            var velocidad by remember { mutableFloatStateOf(vm.almacen.velocidad) }
-            Slider(
-                velocidad, { velocidad = it; vm.almacen.velocidad = it }, Modifier.weight(1f).padding(start = 12.dp),
-                valueRange = 0.5f..4f, colors = deslizador(),
-            )
-        }
-        Touchpad(vm, Modifier.weight(1f).heightIn(min = 140.dp))
-        BotonesMouse(vm)
-    }
-}
-
-@Composable
 fun Touchpad(vm: Modelo, modifier: Modifier) {
     var activo by remember { mutableStateOf(false) }
     val foco = LocalFocusManager.current

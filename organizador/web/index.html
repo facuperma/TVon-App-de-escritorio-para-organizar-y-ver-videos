@@ -125,11 +125,65 @@
         <button id="btn-buscar-subs" data-accion="buscar_subtitulos" class="boton ancho">🌐 Buscar en internet (OpenSubtitles)</button>
       </details>
 
-      <!-- El touchpad y el recuadro de escribir también acá: se maneja la PC sin cambiar de pestaña -->
+      <!-- Mouse y teclado: el touchpad y el recuadro de escribir, a mano sin cambiar de pestaña -->
       <div id="tarjeta-mouse-control" class="tarjeta">
         <div class="tarjeta-titulo">🖱 Mouse y teclado</div>
-        <div id="hueco-vivo-control"></div>
-        <div id="hueco-pad-control"></div>
+        <p id="mouse-error" class="error" hidden></p>
+        <div id="hueco-teclado-control">
+        <div id="teclado">
+          <div class="fila fila-repartida">
+            <div class="tarjeta-titulo">⌨ Teclado</div>
+            <div class="segmentos" role="group" aria-label="Modo del teclado">
+              <button data-teclado="vivo" class="activo">En vivo</button>
+              <button data-teclado="enviar">Escribir y enviar</button>
+            </div>
+          </div>
+          <p class="pista">Tocá el recuadro y escribí: cada letra va directo a la PC.</p>
+          <input id="vivo" class="vivo" type="text" aria-label="Teclado en vivo" autocomplete="off"
+                 autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="enter">
+          <form id="form-texto" class="buscar" hidden>
+            <input id="texto" type="text" placeholder="Escribir en la PC…" autocomplete="off" autocapitalize="off">
+            <button class="boton boton-primario">Enviar</button>
+          </form>
+          <details class="mas-teclas">
+          <summary>⌨ Más teclas (Enter, Esc, flechas, Alt+Tab…)</summary>
+          <div class="teclas">
+            <button data-teclas="enter">Enter</button>
+            <button data-teclas="retroceso">⌫</button>
+            <button data-teclas="esc">Esc</button>
+            <button data-teclas="tab">Tab</button>
+            <button data-teclas="espacio">Espacio</button>
+            <button data-teclas="izquierda">←</button>
+            <button data-teclas="arriba">↑</button>
+            <button data-teclas="abajo">↓</button>
+            <button data-teclas="derecha">→</button>
+            <button data-rueda="3">Rueda ▲</button>
+            <button data-rueda="-3">Rueda ▼</button>
+            <button data-teclas="alt+tab">Alt+Tab</button>
+            <button data-teclas="win">⊞ Win</button>
+            <button data-teclas="ctrl+c">Ctrl+C</button>
+            <button data-teclas="ctrl+v">Ctrl+V</button>
+            <button data-teclas="alt+f4" data-confirmar="¿Cerrar la ventana activa de la PC (Alt+F4)?">Alt+F4</button>
+            <button data-teclas="volumen_menos">🔉</button>
+            <button data-teclas="volumen_mas">🔊</button>
+            <button data-teclas="silencio">🔇</button>
+          </div>
+          </details>
+        </div>
+        </div>
+        <div id="pad-mouse">
+          <div id="touchpad" class="touchpad" aria-label="Touchpad">
+            <span class="touchpad-ayuda">Deslizá: mover · tocá: clic · 2 dedos: rueda · tocá con 2 dedos: clic derecho</span>
+          </div>
+          <div class="botones-mouse">
+            <button data-boton="izquierdo">Izquierdo</button>
+            <button id="btn-mantener" title="Deja apretado el botón izquierdo para arrastrar">🔒</button>
+            <button data-boton="derecho">Derecho</button>
+          </div>
+        </div>
+        <label class="campo fila">Velocidad
+        <input id="velocidad" type="range" min="0.5" max="4" step="0.25" value="1.75">
+        </label>
       </div>
 
       <div id="tarjeta-tele" class="tarjeta" hidden>
@@ -213,65 +267,6 @@
           <label class="campo">o <input id="auto-gb" type="number" min="1" inputmode="numeric"> GB</label>
         </div>
         <p class="pista">Siempre se dejan al menos 5 GB libres en el disco de la PC.</p>
-      </div>
-    </section>
-
-    <!-- Mouse y teclado (touchpad) -->
-    <section id="pestana-mouse" class="pestana" hidden>
-      <p id="mouse-error" class="error" hidden></p>
-      <div id="hueco-pad-mouse">
-        <div id="pad-mouse">
-          <div id="touchpad" class="touchpad" aria-label="Touchpad">
-            <span class="touchpad-ayuda">Deslizá: mover · tocá: clic · 2 dedos: rueda · tocá con 2 dedos: clic derecho</span>
-          </div>
-          <div class="botones-mouse">
-            <button data-boton="izquierdo">Izquierdo</button>
-            <button id="btn-mantener" title="Deja apretado el botón izquierdo para arrastrar">🔒</button>
-            <button data-boton="derecho">Derecho</button>
-          </div>
-        </div>
-      </div>
-      <label class="campo fila">Velocidad
-        <input id="velocidad" type="range" min="0.5" max="4" step="0.25" value="1.75">
-      </label>
-      <div id="hueco-teclado-mouse">
-        <div id="teclado" class="tarjeta">
-          <div class="fila fila-repartida">
-            <div class="tarjeta-titulo">⌨ Teclado</div>
-            <div class="segmentos" role="group" aria-label="Modo del teclado">
-              <button data-teclado="vivo" class="activo">En vivo</button>
-              <button data-teclado="enviar">Escribir y enviar</button>
-            </div>
-          </div>
-          <p class="pista">Tocá el recuadro y escribí: cada letra va directo a la PC.</p>
-          <input id="vivo" class="vivo" type="text" aria-label="Teclado en vivo" autocomplete="off"
-                 autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="enter">
-          <form id="form-texto" class="buscar" hidden>
-            <input id="texto" type="text" placeholder="Escribir en la PC…" autocomplete="off" autocapitalize="off">
-            <button class="boton boton-primario">Enviar</button>
-          </form>
-          <div class="teclas">
-            <button data-teclas="enter">Enter</button>
-            <button data-teclas="retroceso">⌫</button>
-            <button data-teclas="esc">Esc</button>
-            <button data-teclas="tab">Tab</button>
-            <button data-teclas="espacio">Espacio</button>
-            <button data-teclas="izquierda">←</button>
-            <button data-teclas="arriba">↑</button>
-            <button data-teclas="abajo">↓</button>
-            <button data-teclas="derecha">→</button>
-            <button data-rueda="3">Rueda ▲</button>
-            <button data-rueda="-3">Rueda ▼</button>
-            <button data-teclas="alt+tab">Alt+Tab</button>
-            <button data-teclas="win">⊞ Win</button>
-            <button data-teclas="ctrl+c">Ctrl+C</button>
-            <button data-teclas="ctrl+v">Ctrl+V</button>
-            <button data-teclas="alt+f4" data-confirmar="¿Cerrar la ventana activa de la PC (Alt+F4)?">Alt+F4</button>
-            <button data-teclas="volumen_menos">🔉</button>
-            <button data-teclas="volumen_mas">🔊</button>
-            <button data-teclas="silencio">🔇</button>
-          </div>
-        </div>
       </div>
     </section>
 
@@ -360,7 +355,6 @@
     <button data-pestana="reproductor" class="activa"><span>▶</span>Control</button>
     <button data-pestana="biblioteca"><span>📚</span>Biblioteca</button>
     <button data-pestana="peliculas"><span>➕</span>Agregar película</button>
-    <button data-pestana="mouse"><span>🖱</span>Mouse</button>
     <button data-pestana="pantalla"><span>🖥</span>Pantalla</button>
     <button data-pestana="mas"><span>⋯</span>Más</button>
   </nav>

@@ -66,8 +66,6 @@ fun PestanaPantalla(vm: Modelo) {
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
-        SelectorMouse(vm)
-        Spacer(Modifier.height(8.dp))
         if (!vm.viendo) {
             val m = vm.monitores
             Tarjeta {

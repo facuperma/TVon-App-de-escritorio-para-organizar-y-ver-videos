@@ -27,10 +27,10 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
 
-/** Las pestañas de abajo. Pantalla no tiene botón propio: se entra desde Mouse. */
+/** Las pestañas de abajo. El mouse y el teclado están en Control. */
 enum class Pestana(val icono: String, val texto: String, val enBarra: Boolean = true) {
     INICIO("🏠", "Inicio"), REPRODUCTOR("▶", "Control"), BIBLIOTECA("📚", "Biblioteca"), PELICULAS("➕", "Agregar"),
-    MOUSE("🖱", "Mouse"), PANTALLA("🖥", "Pantalla", enBarra = false), MAS("⋯", "Más"),
+    PANTALLA("🖥", "Pantalla"), MAS("⋯", "Más"),
 }
 
 sealed interface Fase {
@@ -319,7 +319,7 @@ class Modelo(app: Application) : AndroidViewModel(app) {
 
     fun irA(p: Pestana) {
         if (pestana == Pestana.PANTALLA && p != Pestana.PANTALLA) dejarDeVer()
-        if (p != Pestana.MOUSE) mantenerClic(false)
+        if (p != Pestana.REPRODUCTOR) mantenerClic(false)
         pestana = p
         alCambiarDePestana()
     }
@@ -336,7 +336,7 @@ class Modelo(app: Application) : AndroidViewModel(app) {
                 cargarDescargas()
                 cargarTorrents()
             }
-            Pestana.MOUSE, Pestana.PANTALLA -> correr { cargarMonitores() }
+            Pestana.REPRODUCTOR, Pestana.PANTALLA -> correr { cargarMonitores() }
             else -> {}
         }
         correr { refrescarEstado() }

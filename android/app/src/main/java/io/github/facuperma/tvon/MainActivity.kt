@@ -47,7 +47,7 @@ class MainActivity : ComponentActivity() {
                     (vm.fase == Fase.Videoteca && vm.videoteca.viendo != null)
                 LaunchedEffect(aTodaPantalla) { pantallaCompleta(aTodaPantalla) }
                 // Con el touchpad o la pantalla de la PC a la vista, el celular no se apaga solo
-                val despierto = vm.fase == Fase.Lista && (vm.pestana == Pestana.MOUSE || vm.viendo)
+                val despierto = vm.fase == Fase.Lista && (vm.pestana == Pestana.REPRODUCTOR || vm.viendo)
                 LaunchedEffect(despierto) {
                     if (despierto) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                     else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -64,7 +64,6 @@ class MainActivity : ComponentActivity() {
             vm.pantallaCompleta -> { { vm.pantallaCompleta = false } }
             vm.viendo -> vm::dejarDeVer
             vm.eligiendo -> vm::terminarSeleccion
-            vm.pestana == Pestana.PANTALLA -> { { vm.irA(Pestana.MOUSE) } }
             vm.pestana != Pestana.INICIO -> { { vm.irA(Pestana.INICIO) } }
             else -> null
         }

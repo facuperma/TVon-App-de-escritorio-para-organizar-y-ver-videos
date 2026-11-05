@@ -193,8 +193,7 @@ function irA(pestana) {
   if (pestana === "biblioteca") cargarBiblioteca();
   if (pestana === "peliculas") { if (!app.peliculas.lista.length) buscarPeliculas(1); cargarDescargas(); cargarTorrents(); }
   if (pestana === "pantalla") prepararPantalla();
-  acomodarMouse(pestana);
-  if (pestana === "mouse") prepararMouse();
+  if (pestana === "reproductor") prepararMouse();
   else mantenerClic(false);
   refrescarEstado();
 }
@@ -229,7 +228,7 @@ function mostrarEstado() {
   if (e.apagado) $("#apagado-segundos").textContent = e.apagado.segundos;
   $("#aviso-siguiente").hidden = !e.siguiente;
   // TVon escondido junto al reloj (ON sigue): a un toque de abrirlo
-  $("#aviso-escondido").hidden = e.ventana_visible !== false || app.pestana === "mouse" || app.pestana === "pantalla";
+  $("#aviso-escondido").hidden = e.ventana_visible !== false || app.pestana === "pantalla";
   $("#pc-estado").textContent = e.ventana_visible === false
     ? "TorrentVision está escondido junto al reloj de la PC." : "TorrentVision está abierto en la PC.";
   if (document.activeElement !== $("#chk-windows")) $("#chk-windows").checked = !!e.arranca_con_windows;
@@ -988,6 +987,7 @@ function verPantalla() {
   $("#celular-a-pc").hidden = true;
   $("#pantalla-encendida").hidden = false;
   $("#hueco-teclado-pantalla").append($("#teclado"));
+  $("#teclado").classList.add("tarjeta");
   $("#teclado").hidden = !pantalla.control;
   $("#ayuda-modo").hidden = !pantalla.control;
   $(".herramientas .segmentos").hidden = !pantalla.control;
@@ -1270,15 +1270,16 @@ function prepararToques() {
 
 const mouse = { velocidad: 1.75, mantenido: false };
 
+// El mouse y el teclado viven en la pestaña Control (la pantalla compartida toma prestado el teclado)
 async function prepararMouse() {
-  $("#hueco-teclado-mouse").append($("#teclado"));
-  // El touchpad queda abajo, al alcance del pulgar
-  requestAnimationFrame(() => window.scrollTo(0, document.body.scrollHeight));
+  $("#hueco-teclado-control").append($("#teclado"));
+  $("#teclado").classList.remove("tarjeta");
   $("#mouse-error").hidden = true;
   try {
     const r = await api("/api/pantalla/monitores");
     pantalla.control = r.control;
     $("#teclado").hidden = !r.control;
+    $("#pad-mouse").hidden = !r.control;
     if (!r.control) {
       $("#mouse-error").textContent = "Manejar el mouse y el teclado está desactivado en TorrentVision (📱 ON → Opciones).";
       $("#mouse-error").hidden = false;
@@ -1287,27 +1288,6 @@ async function prepararMouse() {
     $("#mouse-error").textContent = e.message;
     $("#mouse-error").hidden = false;
   }
-}
-
-// El touchpad y el recuadro de escribir son uno solo: van a Control o a Mouse según la pestaña
-function acomodarMouse(pestana) {
-  if (pestana === "reproductor") {
-    $("#hueco-vivo-control").append($("#vivo"));
-    $("#hueco-pad-control").append($("#pad-mouse"));
-    revisarControl();
-  } else {
-    $("#form-texto").before($("#vivo"));
-    $("#hueco-pad-mouse").append($("#pad-mouse"));
-  }
-}
-
-// ¿La PC deja manejar el mouse y el teclado? Si no, la tarjeta de Control no aparece
-async function revisarControl() {
-  try {
-    const r = await api("/api/pantalla/monitores");
-    pantalla.control = r.control;
-    $("#tarjeta-mouse-control").hidden = !r.control;
-  } catch { /* sin conexión: se ve igual y avisa al usarla */ }
 }
 
 function prepararTouchpad() {
@@ -1470,7 +1450,7 @@ async function iniciar() {
   mostrarEstado();
   // Se puede abrir directo en una pestaña: /#biblioteca
   const inicial = location.hash.slice(1);
-  if ($(`#pestana-${inicial}`)) irA(inicial); else acomodarMouse(app.pestana);
+  irA($(`#pestana-${inicial}`) ? inicial : app.pestana);
 
   // El estado se pide seguido solo con la app a la vista
   setInterval(() => {

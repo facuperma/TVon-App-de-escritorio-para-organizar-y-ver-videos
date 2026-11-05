@@ -141,7 +141,6 @@ private fun Principal(vm: Modelo) {
                 Pestana.REPRODUCTOR -> PestanaReproductor(vm)
                 Pestana.BIBLIOTECA -> PestanaBiblioteca(vm)
                 Pestana.PELICULAS -> PestanaPeliculas(vm)
-                Pestana.MOUSE -> PestanaMouse(vm)
                 Pestana.PANTALLA -> PestanaPantalla(vm)
                 Pestana.MAS -> PestanaMas(vm)
             }
@@ -150,7 +149,7 @@ private fun Principal(vm: Modelo) {
         if (!WindowInsets.isImeVisible) NavigationBar(containerColor = C.panel, windowInsets = WindowInsets(0, 0, 0, 0)) {
             for (p in Pestana.entries.filter { it.enBarra }) {
                 NavigationBarItem(
-                    selected = vm.detalles.isEmpty() && (vm.pestana == p || (p == Pestana.MOUSE && vm.pestana == Pestana.PANTALLA)),
+                    selected = vm.detalles.isEmpty() && vm.pestana == p,
                     onClick = {
                         vm.detalles = emptyList()
                         vm.irA(p)
@@ -185,7 +184,7 @@ private fun Avisos(vm: Modelo) {
                 Boton("Cancelar", chico = true) { vm.hacer("cancelar_siguiente") }
             }
         }
-        if (!e.ventanaVisible && vm.pestana != Pestana.MOUSE && vm.pestana != Pestana.PANTALLA) {
+        if (!e.ventanaVisible && vm.pestana != Pestana.PANTALLA) {
             Banner("TorrentVision está escondido en la PC", "ON sigue: el mouse y el teclado andan.") {
                 Boton("Abrir TorrentVision", chico = true, estilo = Estilo.PRIMARIO) { vm.hacer("mostrar_tvon") }
             }

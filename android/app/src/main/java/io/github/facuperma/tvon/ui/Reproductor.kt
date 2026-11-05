@@ -24,6 +24,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -105,13 +106,23 @@ fun PestanaReproductor(vm: Modelo) {
         e?.subtitulos?.let { TarjetaSubtitulos(vm, it, e.opensubtitles) }
 
         // El touchpad en el medio: se maneja el mouse de la PC sin cambiar de pestaña
-        Tarjeta {
-            TituloTarjeta("🖱 Mouse y teclado")
-            vm.errorControl?.let { Text(it, color = C.error) }
-            // Al hacer clic en un campo de texto de la PC, el teclado del celular se abre solo acá
-            TecladoVivo(vm)
-            Touchpad(vm, Modifier.height(240.dp))
-            BotonesMouse(vm)
+        // Al hacer clic en un campo de texto de la PC, el teclado del celular se abre solo acá
+        vm.errorControl?.let { Text(it, color = C.error) }
+        if (vm.monitores?.control != false) {
+            Teclado(vm, compacto = true)
+            Tarjeta {
+                TituloTarjeta("🖱 Mouse")
+                Touchpad(vm, Modifier.height(240.dp))
+                BotonesMouse(vm)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Pista("Velocidad")
+                    var velocidad by remember { mutableFloatStateOf(vm.almacen.velocidad) }
+                    Slider(
+                        velocidad, { velocidad = it; vm.almacen.velocidad = it },
+                        Modifier.weight(1f).padding(start = 12.dp), valueRange = 0.5f..4f, colors = deslizador(),
+                    )
+                }
+            }
         }
 
         e?.cast?.let { TarjetaTele(vm, it, hay) }
