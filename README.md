@@ -10,7 +10,7 @@ Aplicación de escritorio para bajar, organizar y ver películas, series y video
 
 ## Descargar
 
-**[⬇ TorrentVision-Setup-1.9.1.exe](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-Setup-1.9.1.exe)** (39 MB) — para la PC (Windows 10/11, 64 bits)
+**[⬇ TorrentVision-Setup-1.9.2.exe](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-Setup-1.9.2.exe)** (39 MB) — para la PC (Windows 10/11, 64 bits)
 
 **[⬇ TorrentVision-ON-1.1.9.apk](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-ON-1.1.9.apk)** (3 MB) — app para el celular (Android 8 o más nuevo): ver más abajo, en [📱 ON](#-on-manejar-torrentvision-desde-el-celular)
 

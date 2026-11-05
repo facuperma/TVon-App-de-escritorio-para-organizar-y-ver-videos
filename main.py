@@ -1,6 +1,8 @@
 import os
+import re
 import shutil
 import sys
+import time
 from pathlib import Path
 
 from PySide6.QtGui import QIcon
@@ -8,11 +10,12 @@ from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication
 
 from organizador.db import Biblioteca
+from organizador import inicio_windows
 from organizador.inicio_windows import ARGUMENTO
 from organizador.tema import ESTILO
 from organizador.ventana import Ventana
 
-VERSION = "1.9.1"
+VERSION = "1.9.2"
 INSTANCIA = "TVon-una-sola-vez"
 
 # Empaquetado con PyInstaller, los recursos están en sys._MEIPASS
@@ -50,6 +53,8 @@ def main():
     if avisar_al_abierto(mostrar=not segundo_plano):
         return
     app.setStyle("Fusion")
+    # «Arrancar con Windows» tiene que abrir esta copia (la instalada), no otra vieja o la del código
+    inicio_windows.corregir()
     app.setStyleSheet(ESTILO)
     biblioteca = Biblioteca(carpeta_datos() / "biblioteca.db")
     ventana = Ventana(biblioteca)
@@ -64,22 +69,49 @@ def main():
     sys.exit(app.exec())
 
 
+def _numeros(version: str) -> tuple:
+    return tuple(int(n) for n in re.findall(r"\d+", version))
+
+
 def avisar_al_abierto(mostrar: bool) -> bool:
-    """True si ya hay un TVon abierto (y, si se pide, le dice que se muestre)."""
+    """True si ya hay un TVon abierto (y, si se pide, le dice que se muestre).
+    Si el abierto es una versión más vieja (por ejemplo, quedó junto al reloj desde antes de
+    actualizar), se cierra solo y deja arrancar a esta: así nunca se ve la versión vieja."""
     otro = QLocalSocket()
     otro.connectToServer(INSTANCIA)
     if not otro.waitForConnected(500):
         return False
-    if mostrar:
-        otro.write(b"mostrar")
-        otro.waitForBytesWritten(500)
+    otro.write(f"{'mostrar' if mostrar else 'version'} {VERSION}".encode())
+    otro.waitForBytesWritten(500)
+    se_va = otro.waitForReadyRead(1500) and bytes(otro.readAll()) == b"me-voy"
     otro.disconnectFromServer()
+    if not se_va:
+        return True
+    # Esperar a que termine de cerrarse (hasta 10 s)
+    for _ in range(100):
+        time.sleep(0.1)
+        prueba = QLocalSocket()
+        prueba.connectToServer(INSTANCIA)
+        if not prueba.waitForConnected(100):
+            return False
+        prueba.disconnectFromServer()
     return True
 
 
 def _pedido_de_otra_instancia(servidor: QLocalServer, ventana: Ventana):
     conexion = servidor.nextPendingConnection()
-    if conexion.waitForReadyRead(500) and bytes(conexion.readAll()) == b"mostrar":
+    if not conexion.waitForReadyRead(500):
+        return conexion.disconnectFromServer()
+    partes = bytes(conexion.readAll()).decode(errors="ignore").split()
+    pedido, otra_version = (partes + ["", ""])[:2]
+    if otra_version and _numeros(otra_version) > _numeros(VERSION):
+        # Se abrió una versión más nueva: esta se va y le deja el lugar
+        conexion.write(b"me-voy")
+        conexion.waitForBytesWritten(500)
+        conexion.disconnectFromServer()
+        ventana._salir_del_todo()
+        return
+    if pedido == "mostrar":
         ventana._volver_del_segundo_plano()
     conexion.disconnectFromServer()
 

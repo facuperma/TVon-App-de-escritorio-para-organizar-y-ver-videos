@@ -49,6 +49,20 @@ def activar(si: bool):
                 pass
 
 
+def corregir():
+    """Si está activado pero apunta a otra copia de TVon, lo apunta a esta. Solo lo hace la versión
+    instalada (la del código fuente no le cambia el arranque a la instalada)."""
+    if not (DISPONIBLE and getattr(sys, "frozen", False) and activo()):
+        return
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, _CLAVE) as clave:
+            actual, _ = winreg.QueryValueEx(clave, _NOMBRE)
+        if actual != comando():
+            activar(True)
+    except OSError:
+        pass
+
+
 def traer_al_frente(ventana):
     """Pone la ventana adelante de todo. Windows no deja que un programa en segundo plano
     se adelante solo (cuando lo pide el celular): una pulsación de Alt lo habilita."""
