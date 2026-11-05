@@ -138,10 +138,6 @@ class BandaRetro(QWidget):
             p.setPen(_color(t.lcd_texto))
             p.drawText(QPointF(caja.right() - ancho_tiempo, base), tiempo)
 
-    def _zona(self) -> QRectF:
-        """Donde va la animación: todo el ancho (la pantallita se dibuja encima)."""
-        return QRectF(self.rect())
-
     # --- Animaciones ------------------------------------------------------------------------
 
     def _estrellas(self, p: QPainter, t: Tema, _sonando: bool):
