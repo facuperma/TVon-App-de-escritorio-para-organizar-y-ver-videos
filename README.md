@@ -10,13 +10,13 @@ Aplicación de escritorio para bajar, organizar y ver películas, series y video
 
 ## Descargar
 
-**[⬇ TorrentVision-Setup-1.10.7.exe](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-Setup-1.10.7.exe)** (39 MB) — para la PC (Windows 10/11, 64 bits)
+**[⬇ TorrentVision-Setup-1.10.8.exe](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-Setup-1.10.8.exe)** (71 MB) — para la PC (Windows 10/11, 64 bits)
 
-**[⬇ TorrentVision-Android-1.1.16.apk](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-Android-1.1.16.apk)** (3 MB) — app para el celular (Android 8 o más nuevo): ver más abajo, en [📱 ON](#-on-manejar-torrentvision-desde-el-celular)
+**[⬇ TorrentVision-Android-1.1.17.apk](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-Android-1.1.17.apk)** (3 MB) — app para el celular (Android 8 o más nuevo): ver más abajo, en [📱 ON](#-on-manejar-torrentvision-desde-el-celular)
 
 También desde la **[página de TorrentVision](https://facuperma.github.io/TVon-App-de-escritorio-para-organizar-y-ver-videos/#bajar)**: en la compu muestra un QR para bajar la app en el celular.
 
-**¿Es el original?** En la [página de descargas](https://facuperma.github.io/TVon-App-de-escritorio-para-organizar-y-ver-videos/#bajar), el botón **🔒 Bajar verificado** lo comprueba solo: baja el archivo, calcula su huella SHA-256 y la compara con la publicada en [`instalador/SHA256.txt`](instalador/SHA256.txt); solo si coincide te deja guardarlo, y si no, te avisa que no lo instales. A mano: `certutil -hashfile TorrentVision-Setup-1.10.7.exe SHA256` (en PowerShell: `Get-FileHash`) y compará con `SHA256.txt`.
+**¿Es el original?** En la [página de descargas](https://facuperma.github.io/TVon-App-de-escritorio-para-organizar-y-ver-videos/#bajar), el botón **🔒 Bajar verificado** lo comprueba solo: baja el archivo, calcula su huella SHA-256 y la compara con la publicada en [`instalador/SHA256.txt`](instalador/SHA256.txt); solo si coincide te deja guardarlo, y si no, te avisa que no lo instales. A mano: `certutil -hashfile TorrentVision-Setup-1.10.8.exe SHA256` (en PowerShell: `Get-FileHash`) y compará con `SHA256.txt`.
 
 El instalador de la PC: ejecutalo y seguí los pasos: no hace falta instalar Python ni nada más, ni permisos de administrador. Crea accesos directos en el menú Inicio (y en el Escritorio, si lo elegís) y se desinstala desde *Configuración → Aplicaciones*.
 
@@ -58,7 +58,7 @@ Botón **📱 ON** en la barra superior (o *Configuración → ON*; se pone verd
 
 #### App para Android (recomendada)
 
-**[⬇ TorrentVision-Android-1.1.16.apk](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-Android-1.1.16.apk)** (3 MB, Android 8 o más nuevo). **O escaneá el QR de la ventana ON con la cámara del celular:** la página que abre ofrece *⬇ Descargar la app* (lleva a la [página de descargas](https://facuperma.github.io/TVon-App-de-escritorio-para-organizar-y-ver-videos/#bajar); sin internet, se baja desde tu PC), *📲 Abrir la app y conectar* (ya vinculada, sin escanear de nuevo) o seguir en el navegador. También podés bajarla de acá, en el celular, y abrirla; Android pide permiso para *instalar apps de origen desconocido* (al navegador o a Archivos): permitilo solo para esto. Después tocá **📷 Escanear el código QR** con la ventana de ON abierta en la PC.
+**[⬇ TorrentVision-Android-1.1.17.apk](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-Android-1.1.17.apk)** (3 MB, Android 8 o más nuevo). **O escaneá el QR de la ventana ON con la cámara del celular:** la página que abre ofrece *⬇ Descargar la app* (lleva a la [página de descargas](https://facuperma.github.io/TVon-App-de-escritorio-para-organizar-y-ver-videos/#bajar); sin internet, se baja desde tu PC), *📲 Abrir la app y conectar* (ya vinculada, sin escanear de nuevo) o seguir en el navegador. También podés bajarla de acá, en el celular, y abrirla; Android pide permiso para *instalar apps de origen desconocido* (al navegador o a Archivos): permitilo solo para esto. Después tocá **📷 Escanear el código QR** con la ventana de ON abierta en la PC.
 
 Si tenías la app 1.1.0, desinstalala antes de instalar la 1.1.3 (cambió la firma) y volvé a escanear el código QR. Desde la 1.1.1 se actualiza encima, sin volver a vincular.
 
@@ -94,7 +94,7 @@ Para compilarla: JDK 17 y Android SDK 35; en `android\`, `gradlew assembleReleas
 
 ### 📱 Sin PC: el celular como videoteca
 
-¿No tenés una PC? En la app, el botón rojo **📱 Usar celular como videoteca** (en la primera pantalla o en ➕ Agregar) hace que el celular baje, guarde y reproduzca las películas solo:
+¿No tenés una PC? La app se usa igual sin vincular nada: al abrirla por primera vez ofrece **📷 Escanear el código QR** (de la PC) o **▶ Entrar a la app**, que la abre como videoteca del celular. Ese modo hace que el celular baje, guarde y reproduzca las películas solo:
 
 - Se guardan en **Películas/TorrentVision**: se ven en la galería y en Archivos, y no se borran si desinstalás la app.
 - Antes de bajar, compara el tamaño de la película con el lugar libre y siempre deja **1 GB** para el celular.
@@ -102,7 +102,7 @@ Para compilarla: JDK 17 y Android SDK 35; en `android\`, `gradlew assembleReleas
 - Películas de dominio público del Internet Archive, con sus subtítulos si tienen. Para agregar un subtítulo: en ➕ Agregar pegá su link (.srt, .vtt o .zip) y elegí la película, o si ya lo bajaste, mantené apretada la película → *Agregar subtítulo*. Queda junto a la película con su nombre. Los .rar y .7z hay que descomprimirlos antes con una app de archivos.
 - Recuerda dónde quedaste (amarillo = a medias, verde = vista), se puede marcar vista o borrar del celular.
 - Para volver a manejar la PC: ⚙ → *Usar con una PC* (las películas quedan en la carpeta).
-- **Torrents en el celular:** en ➕ Agregar → *Activar torrents* se baja una sola vez el motor (libtorrent, ≈ 6 MB, del repositorio oficial Maven Central y con su huella SHA-256 comprobada); la app sin él pesa lo mismo de siempre. Después pegás un link magnet (o lo tocás en el navegador y lo abrís con TorrentVision) y se baja solo la película y sus subtítulos, sin tráileres, muestras, imágenes ni otros archivos. Sigue con la pantalla apagada (notificación con el avance), se puede pausar o cancelar, retoma sola si se cerró la app y, al terminar, pasa a *Películas/TorrentVision* con un nombre lindo («The.Movie.2020.1080p…» → «The Movie (2020)») y deja de compartir para no gastar datos ni batería. Antes de empezar revisa que entre (película + 1 GB). Android 15 frena estos servicios después de 6 horas por día: si pasa, avisa y sigue al abrir la app. El motor se puede quitar en ⚙ Ajustes.
+- **Torrents en el celular:** en ➕ Agregar → *Activar torrents* (pregunta antes) se baja una sola vez el motor (libtorrent, ≈ 6 MB, del repositorio oficial Maven Central y con su huella SHA-256 comprobada); la app sin él pesa lo mismo de siempre. Después pegás un link magnet (o lo tocás en el navegador y lo abrís con TorrentVision) y se baja solo la película y sus subtítulos, sin tráileres, muestras, imágenes ni otros archivos. Sigue con la pantalla apagada (notificación con el avance), se puede pausar o cancelar, retoma sola si se cerró la app y, al terminar, pasa a *Películas/TorrentVision* con un nombre lindo («The.Movie.2020.1080p…» → «The Movie (2020)») y deja de compartir para no gastar datos ni batería. Antes de empezar revisa que entre (película + 1 GB). Android 15 frena estos servicios después de 6 horas por día: si pasa, avisa y sigue al abrir la app. El motor se puede quitar en ⚙ Ajustes.
 
 ### 🔒 Seguridad
 
