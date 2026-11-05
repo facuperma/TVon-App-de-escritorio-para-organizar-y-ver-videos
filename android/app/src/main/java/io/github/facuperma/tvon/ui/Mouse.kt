@@ -42,6 +42,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -292,8 +295,17 @@ fun Teclado(vm: Modelo, compacto: Boolean = false) {
 }
 
 @Composable
-private fun TecladoVivo(vm: Modelo) {
+fun TecladoVivo(vm: Modelo) {
     val foco = LocalFocusManager.current
+    // Un clic en un campo de texto de la PC abre el teclado acá (vm.pedirTeclado sube)
+    val pedido = remember { FocusRequester() }
+    var atendido by remember { mutableIntStateOf(vm.pedirTeclado) }
+    LaunchedEffect(vm.pedirTeclado) {
+        if (vm.pedirTeclado != atendido) {
+            atendido = vm.pedirTeclado
+            pedido.requestFocus()
+        }
+    }
     var valor by remember { mutableStateOf(VACIO) }
     var anterior by remember { mutableStateOf(CENTINELA) }
     OutlinedTextField(
@@ -313,7 +325,7 @@ private fun TecladoVivo(vm: Modelo) {
                 VACIO
             } else nuevo
         },
-        modifier = Modifier.fillMaxWidth().recuadroDeEscribir(),
+        modifier = Modifier.fillMaxWidth().focusRequester(pedido).recuadroDeEscribir(),
         singleLine = true,
         colors = campoColores(),
         label = { Text("Tocá acá para escribir en la PC") },

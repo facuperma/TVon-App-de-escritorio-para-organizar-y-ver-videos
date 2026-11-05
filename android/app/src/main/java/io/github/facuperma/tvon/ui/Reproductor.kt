@@ -1,7 +1,6 @@
 package io.github.facuperma.tvon.ui
 
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -9,7 +8,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -33,7 +31,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import io.github.facuperma.tvon.Cast
@@ -63,21 +60,6 @@ fun PestanaReproductor(vm: Modelo) {
             .padding(horizontal = 16.dp, vertical = 6.dp)
     ) {
         Tarjeta {
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(16f / 9f)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Color.Black),
-                contentAlignment = Alignment.Center,
-            ) {
-                val cuadro = vm.cuadro
-                if (cuadro != null && e?.archivo != null) {
-                    Image(cuadro, null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
-                } else {
-                    Pista("Nada en reproducción")
-                }
-            }
             Text(e?.archivo?.nombre ?: "Nada en reproducción", color = C.titulo, fontWeight = FontWeight.SemiBold)
             Pista(rep?.let { ESTADOS[it.estado].orEmpty() } ?: if (e?.archivo != null) "🖼 Imagen" else "Elegí algo en la Biblioteca")
         }
@@ -124,8 +106,10 @@ fun PestanaReproductor(vm: Modelo) {
 
         // El touchpad en el medio: se maneja el mouse de la PC sin cambiar de pestaña
         Tarjeta {
-            TituloTarjeta("🖱 Mouse")
+            TituloTarjeta("🖱 Mouse y teclado")
             vm.errorControl?.let { Text(it, color = C.error) }
+            // Al hacer clic en un campo de texto de la PC, el teclado del celular se abre solo acá
+            TecladoVivo(vm)
             Touchpad(vm, Modifier.height(240.dp))
             BotonesMouse(vm)
         }

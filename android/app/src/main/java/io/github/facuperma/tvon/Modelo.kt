@@ -7,6 +7,7 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import android.util.Base64
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.ImageBitmap
@@ -99,7 +100,8 @@ class Modelo(app: Application) : AndroidViewModel(app) {
 
     // Reproductor
     var estado by mutableStateOf<Estado?>(null)
-    var cuadro by mutableStateOf<ImageBitmap?>(null)
+    /** Sube cada vez que un clic deja el foco en un campo de texto de la PC: abre el teclado del celular. */
+    var pedirTeclado by mutableIntStateOf(0)
 
     // Biblioteca
     var biblioteca by mutableStateOf<Biblioteca?>(null)
@@ -298,9 +300,6 @@ class Modelo(app: Application) : AndroidViewModel(app) {
                     if (pestana == Pestana.REPRODUCTOR || e?.apagadoSegundos != null || e?.siguiente != null || tic % 3 == 0) {
                         correr { refrescarEstado() }
                     }
-                    if (pestana == Pestana.REPRODUCTOR && tic % 2 == 0 && e?.reproduccion?.estado == "reproduciendo") {
-                        correr { refrescarCuadro() }
-                    }
                     if (pestana == Pestana.PELICULAS && tic % 2 == 0) {
                         correr { cargarDescargas() }
                         correr { cargarTorrents() }
@@ -338,7 +337,6 @@ class Modelo(app: Application) : AndroidViewModel(app) {
                 cargarTorrents()
             }
             Pestana.MOUSE, Pestana.PANTALLA -> correr { cargarMonitores() }
-            Pestana.REPRODUCTOR -> correr { refrescarCuadro() }
             else -> {}
         }
         correr { refrescarEstado() }
@@ -558,36 +556,14 @@ class Modelo(app: Application) : AndroidViewModel(app) {
     // --- Reproductor ----------------------------------------------------------------------------------
 
     private var pidiendoEstado = false
-    private var archivoAnterior: String? = null
 
     suspend fun refrescarEstado() {
         if (pidiendoEstado || pc == null) return
         pidiendoEstado = true
         try {
-            val e = Estado.de(leer { it.obj("/api/estado") })
-            estado = e
-            val clave = e.archivo?.let { "${it.id}|${it.nombre}" }
-            if (clave != archivoAnterior) {
-                archivoAnterior = clave
-                correr { refrescarCuadro() }
-            }
+            estado = Estado.de(leer { it.obj("/api/estado") })
         } finally {
             pidiendoEstado = false
-        }
-    }
-
-    private var pidiendoCuadro = false
-
-    suspend fun refrescarCuadro() {
-        val e = estado ?: return
-        if (pidiendoCuadro) return
-        pidiendoCuadro = true
-        try {
-            val datos = leer { it.bytes("/api/cuadro.jpg") }
-                ?: e.archivo?.takeIf { it.tipo == "imagen" }?.let { a -> leer { it.bytes("/api/miniatura?id=${a.id}") } }
-            cuadro = datos?.let { decodificar(it) }
-        } finally {
-            pidiendoCuadro = false
         }
     }
 
@@ -920,6 +896,29 @@ class Modelo(app: Application) : AndroidViewModel(app) {
         sacarMovimiento()?.let(pendientes::addLast) // lo que se movió antes va antes
         pendientes.addLast(json("monitor" to monitor, *datos))
         enviarCola()
+        // Después de un clic izquierdo se pregunta si quedó un campo de texto enfocado en la PC
+        val d = datos.toMap()
+        val izquierdo = (d["boton"] ?: "izquierdo") == "izquierdo"
+        if (izquierdo && (d["tipo"] == "clic_aqui" || d["tipo"] == "clic" || (d["tipo"] == "boton" && d["apretado"] == false))) {
+            revisarEscritura()
+        }
+    }
+
+    private var consultaEscritura: Job? = null
+
+    private fun revisarEscritura() {
+        consultaEscritura?.cancel()
+        consultaEscritura = viewModelScope.launch {
+            while (enviando) delay(30) // que el clic llegue antes que la pregunta
+            val r = try {
+                conPc().obj("/api/pantalla/escribiendo")
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                return@launch // una PC más vieja no lo sabe responder: no pasa nada
+            }
+            if (r.optBoolean("escribiendo")) pedirTeclado++
+        }
     }
 
     fun moverPuntero(x: Float, y: Float) {
