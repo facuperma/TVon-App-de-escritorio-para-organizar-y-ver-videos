@@ -5,7 +5,8 @@ from pathlib import Path
 
 from PySide6.QtCore import QLocale, QPointF, QRectF, QSize, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import (
-    QColor, QFont, QFontMetrics, QKeySequence, QPainter, QPainterPath, QPen, QPixmap, QShortcut,
+    QBrush, QColor, QConicalGradient, QFont, QFontMetrics, QKeySequence, QPainter, QPainterPath, QPen, QPixmap,
+    QShortcut,
 )
 from PySide6.QtMultimedia import QAudioOutput, QMediaDevices, QMediaMetaData, QMediaPlayer, QVideoSink
 from PySide6.QtWidgets import (
@@ -264,36 +265,79 @@ class ImagenEscalada(QLabel):
             self.setPixmap(self._pixmap.scaled(self.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
 
 
+class LogoAnimado(QWidget):
+    """El logo de la pantalla sin archivo, vivo: respira (el brillo sube y baja), flota apenas y una
+    estela de luz celeste gira alrededor del anillo. Solo se anima mientras se ve."""
+
+    LADO = 150
+
+    def __init__(self):
+        super().__init__()
+        self.setFixedSize(self.LADO + 40, self.LADO + 40)
+        escala = QApplication.instance().devicePixelRatio()
+        self._logo = QPixmap(str(LOGO)).scaled(round(self.LADO * escala), round(self.LADO * escala),
+                                              Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        self._logo.setDevicePixelRatio(escala)
+        self._t = 0.0
+        self._reloj = QTimer(self, interval=33, timeout=self._tic)
+
+    def showEvent(self, e):
+        super().showEvent(e)
+        self._reloj.start()
+
+    def hideEvent(self, e):
+        super().hideEvent(e)
+        self._reloj.stop()
+
+    def _tic(self):
+        if self.window().isMinimized():
+            return
+        self._t += 0.033
+        self.update()
+
+    def paintEvent(self, _e):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        p.setRenderHint(QPainter.SmoothPixmapTransform)
+        centro = QPointF(self.width() / 2, self.height() / 2 + 4 * math.sin(self._t * 1.1))
+        # El logo, respirando
+        p.setOpacity(0.32 + 0.12 * math.sin(self._t * 1.6))
+        p.drawPixmap(QPointF(centro.x() - self.LADO / 2, centro.y() - self.LADO / 2), self._logo)
+        # La estela que gira alrededor del anillo: un arco que se desvanece hacia la cola
+        p.setOpacity(1.0)
+        radio = self.LADO * 0.335
+        caja = QRectF(centro.x() - radio, centro.y() - radio, 2 * radio, 2 * radio)
+        angulo = (self._t * 80) % 360
+        cola = QConicalGradient(centro, -angulo)
+        cola.setColorAt(0.0, QColor(190, 235, 255, 230))
+        cola.setColorAt(0.18, QColor(79, 195, 247, 110))
+        cola.setColorAt(0.2, QColor(79, 195, 247, 0))
+        cola.setColorAt(1.0, QColor(79, 195, 247, 0))
+        p.setPen(QPen(QBrush(cola), 5, Qt.SolidLine, Qt.RoundCap))
+        p.drawArc(caja, int(-angulo * 16), int(-72 * 16))
+        # La «cabeza» del cometa
+        cabeza = math.radians(angulo)
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(220, 245, 255, 220))
+        p.drawEllipse(QPointF(centro.x() + radio * math.cos(cabeza), centro.y() + radio * math.sin(cabeza)), 3, 3)
+        p.end()
+
+
 class Bienvenida(QWidget):
-    """Pantalla sin archivo: el logo de TVon, tenue, sobre el aviso."""
+    """Pantalla sin archivo: el logo de TorrentVision (animado, tenue) sobre el aviso."""
 
     def __init__(self, texto: str):
         super().__init__(objectName="vacio")
         self.setAttribute(Qt.WA_StyledBackground)
         self.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
-        self.logo = QLabel(alignment=Qt.AlignCenter)
-        self.logo.setPixmap(self._logo_tenue(150, 0.35))
+        self.logo = LogoAnimado()
         self.texto = QLabel(texto, alignment=Qt.AlignCenter, wordWrap=True)
         capa = QVBoxLayout(self)
         capa.addStretch()
-        capa.addWidget(self.logo)
+        capa.addWidget(self.logo, 0, Qt.AlignHCenter)
         capa.addSpacing(12)
         capa.addWidget(self.texto)
         capa.addStretch()
-
-    @staticmethod
-    def _logo_tenue(tamano: int, opacidad: float) -> QPixmap:
-        escala = QApplication.instance().devicePixelRatio()
-        original = QPixmap(str(LOGO)).scaled(round(tamano * escala), round(tamano * escala),
-                                             Qt.KeepAspectRatio, Qt.SmoothTransformation)
-        tenue = QPixmap(original.size())
-        tenue.fill(Qt.transparent)
-        p = QPainter(tenue)
-        p.setOpacity(opacidad)
-        p.drawPixmap(0, 0, original)
-        p.end()
-        tenue.setDevicePixelRatio(escala)
-        return tenue
 
     def setText(self, texto: str):
         self.texto.setText(texto)
