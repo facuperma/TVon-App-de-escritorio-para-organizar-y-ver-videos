@@ -75,14 +75,22 @@ import kotlinx.coroutines.delay
 
 /** El botón rojo: sin PC, el celular pasa a ser la videoteca. Pregunta antes y pide el permiso si hace falta. */
 @Composable
-fun BotonVideoteca(vm: Modelo, modifier: Modifier = Modifier) {
+fun BotonVideoteca(
+    vm: Modelo, modifier: Modifier = Modifier, texto: String = "📱 Usar celular como videoteca",
+    estilo: Estilo = Estilo.PELIGRO, preguntarAntes: Boolean = true,
+) {
     val contexto = LocalContext.current
     var preguntar by remember { mutableStateOf(false) }
     // Android 8 y 9 piden permiso para escribir en Películas; desde el 10 no hace falta
     val permiso = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
         if (ok) vm.usarVideoteca() else vm.mostrarAviso("Sin ese permiso no se pueden guardar películas en el celular", true)
     }
-    Boton("📱 Usar celular como videoteca", modifier.fillMaxWidth(), Estilo.PELIGRO) { preguntar = true }
+    fun entrar() {
+        val falta = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q && ContextCompat.checkSelfPermission(
+            contexto, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED
+        if (falta) permiso.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE) else vm.usarVideoteca()
+    }
+    Boton(texto, modifier.fillMaxWidth(), estilo) { if (preguntarAntes) preguntar = true else entrar() }
     if (preguntar) {
         val libre = remember { vm.videoteca.espacioLibre() }
         AlertDialog(
@@ -99,9 +107,7 @@ fun BotonVideoteca(vm: Modelo, modifier: Modifier = Modifier) {
             confirmButton = {
                 TextButton(onClick = {
                     preguntar = false
-                    val falta = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q && ContextCompat.checkSelfPermission(
-                        contexto, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED
-                    if (falta) permiso.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE) else vm.usarVideoteca()
+                    entrar()
                 }) { Text("Usar el celular") }
             },
             dismissButton = { TextButton(onClick = { preguntar = false }) { Text("Cancelar") } },

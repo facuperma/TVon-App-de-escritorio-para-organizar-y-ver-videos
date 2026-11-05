@@ -34,6 +34,8 @@ enum class Pestana(val icono: String, val texto: String, val enBarra: Boolean = 
 
 sealed interface Fase {
     data object Cargando : Fase
+    /** Sin nada vinculado: escanear el QR de la PC o entrar a la app (videoteca del celular). */
+    data object Bienvenida : Fase
     data class Emparejar(val mensaje: String? = null) : Fase
     data class SinConexion(val mensaje: String) : Fase
     data object Lista : Fase
@@ -192,7 +194,8 @@ class Modelo(app: Application) : AndroidViewModel(app) {
         }
         val guardadas = almacen.conexiones()
         if (guardadas.isEmpty()) {
-            fase = Fase.Emparejar()
+            // Si ya está en Emparejar (p. ej. volvió del lector de QR) se queda ahí
+            if (fase !is Fase.Emparejar) fase = Fase.Bienvenida
             return
         }
         var mensaje = SIN_CONEXION
@@ -370,9 +373,23 @@ class Modelo(app: Application) : AndroidViewModel(app) {
     }
 
     /** Volver a manejar la PC: las películas del celular quedan en su carpeta. */
+    fun irAEmparejar() {
+        fase = Fase.Emparejar()
+    }
+
+    /** Atrás desde Emparejar: a la bienvenida si no hay PC guardada; si hay, se intenta conectar. */
+    fun volverABienvenida() {
+        if (almacen.conexiones().isEmpty()) {
+            fase = Fase.Bienvenida
+        } else {
+            fase = Fase.Cargando
+            correr { conectar() }
+        }
+    }
+
     fun dejarVideoteca() {
         videoteca.desactivar()
-        fase = Fase.Cargando
+        fase = if (almacen.conexiones().isEmpty()) Fase.Emparejar() else Fase.Cargando
         correr { conectar() }
     }
 

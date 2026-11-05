@@ -1,6 +1,7 @@
 package io.github.facuperma.tvon.ui
 
 import android.content.Context
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -47,6 +48,8 @@ fun escanear(contexto: Context, vm: Modelo) {
 fun PantallaEmparejar(vm: Modelo, mensaje: String?) {
     val contexto = LocalContext.current
     var enlace by rememberSaveable { mutableStateOf("") }
+    // Atrás vuelve a la bienvenida (si no hay ninguna PC guardada)
+    BackHandler(enabled = !vm.emparejando && vm.vinculo == null) { vm.volverABienvenida() }
     Column(
         Modifier
             .fillMaxSize()
@@ -61,8 +64,8 @@ fun PantallaEmparejar(vm: Modelo, mensaje: String?) {
         Text(mensaje ?: "Manejá TorrentVision desde el celular.", textAlign = TextAlign.Center,
             color = if (mensaje != null) C.error else C.texto)
         Tarjeta {
-            Text("1. En la PC, abrí TorrentVision y tocá 📱 ON.")
-            Text("2. Encendelo y escaneá el código QR con este botón.")
+            Text("1. En la PC, abrí TorrentVision y tocá 📱 ON.", color = C.texto)
+            Text("2. Encendelo y escaneá el código QR con este botón.", color = C.texto)
             Pista("El celular y la PC tienen que estar en la misma red wifi (o los dos en Tailscale).")
         }
         if (vm.emparejando) {
@@ -101,7 +104,42 @@ fun PantallaEmparejar(vm: Modelo, mensaje: String?) {
         Tarjeta(Modifier.padding(top = 12.dp)) {
             TituloTarjeta("¿No tenés una PC?")
             Pista("El celular puede bajar las películas, guardarlas con sus subtítulos y reproducirlas solo.")
-            BotonVideoteca(vm)
+            BotonVideoteca(vm, texto = "▶ Entrar a la app sin PC", preguntarAntes = false)
+        }
+    }
+}
+
+/** Primera pantalla sin nada vinculado: vincular la PC o entrar directo a la app (videoteca del celular). */
+@Composable
+fun PantallaBienvenida(vm: Modelo) {
+    val contexto = LocalContext.current
+    Column(
+        Modifier
+            .fillMaxSize()
+            .systemBarsPadding()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 24.dp, vertical = 40.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Logo(110)
+        TituloTVon(30)
+        Text("Torrent para todos", color = C.texto, textAlign = TextAlign.Center)
+        Tarjeta(Modifier.padding(top = 12.dp)) {
+            TituloTarjeta("🖥 Tengo TorrentVision en la PC")
+            Pista("En la PC tocá 📱 ON y escaneá el código: manejás todo desde el celular.")
+            if (vm.emparejando) {
+                CircularProgressIndicator(color = C.acento, modifier = Modifier.align(Alignment.CenterHorizontally))
+            } else {
+                Boton("📷 Escanear el código QR", Modifier.fillMaxWidth(), Estilo.PRIMARIO) { escanear(contexto, vm) }
+            }
+            Boton("Otras formas de vincular (sin QR)", Modifier.fillMaxWidth()) { vm.irAEmparejar() }
+        }
+        Tarjeta {
+            TituloTarjeta("📱 Usar solo el celular")
+            Pista("Bajá películas con sus subtítulos, guardalas en el celular y miralas sin PC. " +
+                "Cuando quieras, la vinculás desde ⚙ → Usar con una PC.")
+            BotonVideoteca(vm, texto = "▶ Entrar a la app", preguntarAntes = false)
         }
     }
 }

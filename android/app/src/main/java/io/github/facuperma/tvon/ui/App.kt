@@ -78,6 +78,7 @@ fun App(vm: Modelo) {
     ) {
         when (val fase = vm.fase) {
             Fase.Cargando -> PantallaCarga()
+            Fase.Bienvenida -> PantallaBienvenida(vm)
             is Fase.Emparejar -> PantallaEmparejar(vm, fase.mensaje)
             is Fase.SinConexion -> PantallaSinConexion(vm, fase.mensaje)
             Fase.Lista -> Principal(vm)
