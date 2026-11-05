@@ -70,10 +70,47 @@ function mostrarEmparejar(texto) {
   if (texto) $("#emparejar-texto").textContent = texto;
 }
 
+/* La app se baja acá mismo (por la conexión que el navegador ya aceptó) y se entrega ya bajada.
+   Si se deja al gestor de descargas, hace un pedido aparte, no acepta el certificado propio de la PC
+   y la descarga queda en pausa para siempre. */
+async function bajarApp(ev) {
+  ev.preventDefault();
+  const boton = $("#instalar-bajar"), avance = $("#instalar-avance");
+  boton.style.pointerEvents = "none";
+  try {
+    const r = await fetch("torrentvision.apk", { cache: "no-store" });
+    if (!r.ok) throw new Error("la PC respondió " + r.status);
+    const total = Number(r.headers.get("content-length")) || 0;
+    const lector = r.body.getReader();
+    const partes = [];
+    let bajado = 0;
+    for (;;) {
+      const { done, value } = await lector.read();
+      if (done) break;
+      partes.push(value);
+      bajado += value.length;
+      avance.textContent = total ? `Bajando… ${Math.round((bajado * 100) / total)} %` : `Bajando… ${(bajado / 1048576).toFixed(1)} MB`;
+    }
+    const archivo = new Blob(partes, { type: "application/vnd.android.package-archive" });
+    const enlace = document.createElement("a");
+    enlace.href = URL.createObjectURL(archivo);
+    enlace.download = "TorrentVision.apk";
+    document.body.append(enlace);
+    enlace.click();
+    enlace.remove();
+    avance.textContent = "✓ Bajada. Abrila desde la notificación o desde Descargas para instalarla.";
+  } catch (e) {
+    avance.textContent = "No se pudo bajar desde la PC (" + e.message + "). Probá con el link de GitHub de abajo.";
+  } finally {
+    boton.style.pointerEvents = "";
+  }
+}
+
 async function emparejar() {
   const params = new URLSearchParams(location.search);
   const codigo = params.get("c");
   // Android sin la app: antes de gastar el código, ofrecer instalarla (o abrirla, o usar el navegador)
+  $("#instalar-bajar").onclick = bajarApp;
   if (codigo && /Android/i.test(navigator.userAgent) && !params.has("web")) {
     $("#instalar-abrir").href = `tvon://${location.host}/?c=${encodeURIComponent(codigo)}&h=${encodeURIComponent(params.get("h") || "")}`;
     params.set("web", "1");

@@ -49,21 +49,22 @@ class DialogoOn(QDialog):
         self.lbl_qr = QLabel(alignment=Qt.AlignCenter)
         self.lbl_url = QLabel(alignment=Qt.AlignCenter, textInteractionFlags=Qt.TextSelectableByMouse)
         self.lbl_pasos = QLabel(wordWrap=True, objectName="pista")
-        self.lbl_pasos.setText(
-            "1. Conectá el celular a la misma red wifi que esta PC.<br>"
-            "<b>Con la app TorrentVision ON (Android):</b> abrila y tocá <b>Escanear el código QR</b>. Comprueba sola "
-            "que es tu PC y no muestra avisos.<br>"
-            "<b>Sin la app (Android):</b> escaneá el código con la cámara del celular y abrí el enlace: ofrece "
-            "<b>descargar la app desde esta PC</b>, abrirla ya conectada o seguir en el navegador.<br>"
-            "<b>En el navegador:</b><br>"
-            "2. Escaneá el código con la cámara (o Google Lens) y abrí el enlace en Chrome.<br>"
-            "3. La conexión va <b>cifrada (HTTPS)</b> con un certificado propio de TorrentVision. La primera vez Chrome "
-            "avisa «La conexión no es privada» porque no lo conoce: tocá <b>Configuración avanzada → "
-            "Continuar</b>. Para comprobar que es tu PC, la huella del certificado (candado → certificado) "
-            "tiene que empezar igual que la de abajo.<br>"
-            "4. Para tenerlo como app: en Chrome, menú ⋮ → <b>Agregar a la pantalla principal</b>.<br>"
-            "El código del QR sirve una sola vez. La primera vez, si Windows pregunta por el firewall, "
-            "tocá <b>Permitir</b> (solo en redes privadas).")
+        # Un paso por párrafo, con aire entre uno y otro (abajo del QR se leía todo junto)
+        paso = "<p style='margin: 0 0 10px 0;'>{}</p>"
+        self.lbl_pasos.setText("".join(paso.format(t) for t in (
+            "<b>1.</b> Conectá el celular a la <b>misma red wifi</b> que esta PC.",
+            "<b>2.</b> <b>Con la app TorrentVision (Android):</b> abrila y tocá <b>Escanear el código QR</b>. "
+            "Comprueba sola que es tu PC y no muestra avisos.",
+            "<b>3.</b> <b>Sin la app:</b> escaneá el código con la cámara del celular y abrí el enlace. Te ofrece "
+            "<b>bajar la app desde esta PC</b>, abrirla ya conectada o seguir en el navegador.",
+            "<b>4.</b> <b>En el navegador</b>, la primera vez Chrome avisa «La conexión no es privada» porque no "
+            "conoce el certificado propio de TorrentVision (la conexión igual va cifrada): tocá "
+            "<b>Configuración avanzada → Continuar</b>. Para comprobar que es tu PC, la huella del certificado "
+            "(candado → certificado) tiene que empezar igual que la de abajo.",
+            "<b>5.</b> Para tenerlo como app en el navegador: menú ⋮ → <b>Agregar a la pantalla principal</b>.",
+            "El código del QR sirve <b>una sola vez</b>. Si Windows pregunta por el firewall, tocá <b>Permitir</b> "
+            "(solo en redes privadas).",
+        )))
         self.lbl_huella = QLabel(wordWrap=True, objectName="pista", textInteractionFlags=Qt.TextSelectableByMouse)
         self.btn_remoto = QPushButton(checkable=True)
         self.btn_remoto.toggled.connect(self._mostrar)

@@ -64,6 +64,9 @@ TIPOS_VIDEO = {".mp4": "video/mp4", ".m4v": "video/mp4", ".mkv": "video/x-matros
                ".flv": "video/x-flv", ".mpg": "video/mpeg", ".mpeg": "video/mpeg"}
 
 
+REPOSITORIO = "https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos"
+
+
 def apk_del_celular() -> Path | None:
     """La APK más nueva: la que viene en el instalador (carpeta apk del programa) o la de la carpeta instalador del repo."""
     aqui = Path(__file__).parent
@@ -734,6 +737,15 @@ class _Manejador(BaseHTTPRequestHandler):
             ruta = "/index.html"
         if ruta == "/torrentvision.apk":
             return self._apk()
+        if ruta == "/torrentvision-github":
+            # La misma versión que tiene esta PC, pero desde GitHub (certificado normal: siempre baja)
+            apk = apk_del_celular()
+            destino = (f"{REPOSITORIO}/raw/main/instalador/{apk.name}" if apk else f"{REPOSITORIO}/tree/main/instalador")
+            self.send_response(302)
+            self.send_header("Location", destino)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         if m := re.fullmatch(r"/icono-(192|512)\.png", ruta):
             return self._responder(200, _icono(int(m.group(1))), "image/png", {"Cache-Control": "max-age=86400"})
         nombre = ruta.lstrip("/")
