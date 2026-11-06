@@ -51,7 +51,7 @@ class VentanaTorrents(QWidget):
         self.cola.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.cola.header().setSectionResizeMode(0, QHeaderView.Stretch)
         self.cola.header().resizeSection(3, 200)
-        self.lbl_vacia = QLabel("No hay descargas. Pegá un link magnet arriba o arrastrá un .torrent a TorrentVision.",
+        self.lbl_vacia = QLabel("No hay descargas. Pegá un link magnet arriba.",
                                 objectName="pista", alignment=Qt.AlignCenter)
 
         btn_pausar = QPushButton("⏸ Pausar")
@@ -71,10 +71,8 @@ class VentanaTorrents(QWidget):
         capa.addWidget(self.cola, 1)
         capa.addWidget(self.lbl_vacia)
         capa.addLayout(fila_botones)
-        capa.addWidget(QLabel(
-            "Al terminar, la película pasa a tu carpeta de Videos, aparece en la biblioteca y se le buscan "
-            "subtítulos. Mientras baja, también se comparte con otros (así funciona BitTorrent).",
-            wordWrap=True, objectName="pista"))
+        capa.addWidget(QLabel("Al terminar, la película pasa a Videos y a la biblioteca.",
+                              wordWrap=True, objectName="pista"))
 
         gestor.estado.connect(self._mostrar)
         # Un magnet copiado mientras la ventana existe se pega solo, aunque estés en el navegador

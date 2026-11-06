@@ -70,7 +70,7 @@ fun PestanaPantalla(vm: Modelo) {
             val m = vm.monitores
             Tarjeta {
                 TituloTarjeta("🖥 Pantalla de la PC")
-                Pista("Mirá la pantalla de la PC y manejala con el dedo. En la PC aparece un aviso mientras la estás viendo.")
+                Pista("Mirá la pantalla de la PC y manejala con el dedo.")
                 Text("Calidad")
                 var calidad by remember { mutableStateOf(vm.almacen.calidad.coerceIn(CALIDADES.indices)) }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {

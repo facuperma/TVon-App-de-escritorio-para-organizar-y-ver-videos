@@ -185,6 +185,11 @@ class Pc(val base: String, val huella: String, @Volatile var token: String?) {
     }
 
     suspend fun obj(ruta: String): JSONObject = get(ruta) as? JSONObject ?: JSONObject()
+
+    /** Para lo que la PC tarda en armar (leer Letterboxd): espera hasta un minuto. */
+    suspend fun objLento(ruta: String): JSONObject = withContext(Dispatchers.IO) {
+        ejecutar(httpVideo.newCall(pedido(ruta).build())).use { leerJson(it) as? JSONObject } ?: JSONObject()
+    }
     suspend fun lista(ruta: String): JSONArray = get(ruta) as? JSONArray ?: JSONArray()
 
     suspend fun post(ruta: String, cuerpo: JSONObject): JSONObject? = withContext(Dispatchers.IO) {

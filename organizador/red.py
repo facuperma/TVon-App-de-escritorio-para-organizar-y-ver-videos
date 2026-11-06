@@ -73,9 +73,11 @@ def bajar_bytes(url: str, timeout: int = 60, cabeceras: dict | None = None) -> b
         return r.read()
 
 
-def abrir_descarga(url: str, desde: int = 0, timeout: int = 60):
+def abrir_descarga(url: str, desde: int = 0, timeout: int = 60, referer: str = ""):
     """Respuesta HTTP abierta para descargar por partes; `desde` pide continuar desde ese byte."""
     cabeceras = {"User-Agent": AGENTE}
+    if referer:
+        cabeceras["Referer"] = referer  # algunos sitios de subtítulos solo bajan si vienen de su página
     if desde:
         cabeceras["Range"] = f"bytes={desde}-"
     return _abrir(Request(url, headers=cabeceras), timeout)

@@ -99,8 +99,7 @@ fun PantallaEmparejar(vm: Modelo, mensaje: String?) {
         Boton("Conectar", Modifier.fillMaxWidth(), habilitado = enlace.isNotBlank() && !vm.emparejando) {
             vm.usarEnlace(enlace)
         }
-        Pista("🔒 La app comprueba el certificado de tu PC con la huella que viene en el QR: la conexión va " +
-            "cifrada y nadie más puede hacerse pasar por TorrentVision.", Modifier.padding(top = 12.dp))
+        Pista("🔒 Conexión cifrada: solo habla con tu PC.", Modifier.padding(top = 12.dp))
         Tarjeta(Modifier.padding(top = 12.dp)) {
             TituloTarjeta("¿No tenés una PC?")
             Pista("El celular puede bajar las películas, guardarlas con sus subtítulos y reproducirlas solo.")
@@ -137,8 +136,7 @@ fun PantallaBienvenida(vm: Modelo) {
         }
         Tarjeta {
             TituloTarjeta("📱 Usar solo el celular")
-            Pista("Bajá películas con sus subtítulos, guardalas en el celular y miralas sin PC. " +
-                "Cuando quieras, la vinculás desde ⚙ → Usar con una PC.")
+            Pista("Bajá y mirá películas sin PC. Después podés vincular una.")
             BotonVideoteca(vm, texto = "▶ Entrar a la app", preguntarAntes = false)
         }
     }

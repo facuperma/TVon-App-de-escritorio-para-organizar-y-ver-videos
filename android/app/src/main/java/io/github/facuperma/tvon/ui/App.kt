@@ -139,7 +139,7 @@ private fun Principal(vm: Modelo) {
             if (detalle != null) PantallaDetalle(vm, detalle) else when (vm.pestana) {
                 Pestana.INICIO -> PestanaInicio(vm)
                 Pestana.REPRODUCTOR -> PestanaReproductor(vm)
-                Pestana.BIBLIOTECA -> PestanaBiblioteca(vm)
+                Pestana.BIBLIOTECA -> if (vm.bibVista == "letterboxd") PestanaLetterboxd(vm) else PestanaBiblioteca(vm)
                 Pestana.PELICULAS -> PestanaPeliculas(vm)
                 Pestana.PANTALLA -> PestanaPantalla(vm)
                 Pestana.MAS -> PestanaMas(vm)
@@ -261,6 +261,14 @@ private fun Dialogos(vm: Modelo) {
                 Text(hoja.titulo, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(bottom = 10.dp),
                     color = if (m == "lcd") col(C.tema.lcdTexto) else C.titulo,
                     fontFamily = if (m == "lcd") androidx.compose.ui.text.font.FontFamily.Monospace else null)
+                // Los datos de la hoja (tiempo que falta, velocidad…), en filas que se leen completas
+                for ((etiqueta, valor) in hoja.detalle) {
+                    Row(Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
+                        Text(etiqueta, color = C.tenue, modifier = Modifier.width(120.dp))
+                        Text(valor, color = C.texto, modifier = Modifier.weight(1f))
+                    }
+                }
+                if (hoja.detalle.isNotEmpty()) Spacer(Modifier.height(8.dp))
                 for (o in hoja.opciones) OpcionHoja(vm, o)
             }
         }

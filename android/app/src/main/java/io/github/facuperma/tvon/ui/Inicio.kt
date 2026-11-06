@@ -92,7 +92,7 @@ fun PestanaInicio(vm: Modelo) {
                 item {
                     Tarjeta(Modifier.padding(horizontal = 16.dp)) {
                         Text("Todavía no hay videos en la biblioteca de la PC.")
-                        Pista("Agregá carpetas en TorrentVision (Archivo → Agregar carpeta) o bajá una película desde ➕ Agregar.")
+                        Pista("Agregá carpetas en TorrentVision o bajá una película desde ➕ Agregar.")
                     }
                 }
             }

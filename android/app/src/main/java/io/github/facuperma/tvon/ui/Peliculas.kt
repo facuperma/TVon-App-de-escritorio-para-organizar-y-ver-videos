@@ -48,7 +48,7 @@ private const val SITIO_PELICULAS = "https://ext.to/"
 private const val SITIO_SUBTITULOS = "https://subdivx.com/"
 
 /** Abre el link en una pestaña nueva de Chrome; si no está, en el navegador que tenga el celular. */
-private fun abrirEnNavegador(contexto: Context, url: String) {
+internal fun abrirEnNavegador(contexto: Context, url: String) {
     val intento = Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     try {
         contexto.startActivity(Intent(intento).setPackage("com.android.chrome"))
@@ -65,7 +65,7 @@ fun PestanaPeliculas(vm: Modelo) {
         item {
             Tarjeta {
                 TituloTarjeta("📱 Sin la PC")
-                Pista("Bajá y mirá las películas en el celular, guardadas en Películas/TorrentVision.")
+                Pista("Bajá y mirá películas sin la PC.")
                 BotonVideoteca(vm)
             }
         }
@@ -76,14 +76,13 @@ fun PestanaPeliculas(vm: Modelo) {
                     Boton("🌐 Películas", Modifier.weight(1f)) { abrirEnNavegador(contexto, SITIO_PELICULAS) }
                     Boton("🌐 Subtítulos", Modifier.weight(1f)) { abrirEnNavegador(contexto, SITIO_SUBTITULOS) }
                 }
-                Pista("Se abren en Chrome. Copiá el link magnet o el del subtítulo y pegalo abajo.")
+                Pista("Copiá el link magnet o el del subtítulo y pegalo abajo.")
             }
         }
         item {
             Tarjeta {
                 TituloTarjeta("🧲 Torrent (link magnet)")
-                Pista("Copiá el link magnet, pegalo acá y la PC la baja con 🧲 Torrents. Al terminar entra sola a la " +
-                    "biblioteca. También podés tocar un link magnet en el navegador y abrirlo con TorrentVision.")
+                Pista("Pegá el link magnet o tocalo en el navegador y abrilo con TorrentVision.")
                 OutlinedTextField(
                     vm.enlaceTorrent, { vm.enlaceTorrent = it }, Modifier.fillMaxWidth(), singleLine = true,
                     colors = campoColores(), placeholder = { Text("magnet:?xt=…") },
@@ -102,8 +101,7 @@ fun PestanaPeliculas(vm: Modelo) {
             }
             Tarjeta {
                 TituloTarjeta("💬 Subtítulo")
-                Pista("Pegá el link del subtítulo (.srt o .zip) y lo baja la PC, o bajalo en el celular y mandalo con " +
-                    "«Elegir archivo». Llega a Descargas de la PC y TorrentVision lo pone solo junto a su película o capítulo.")
+                Pista("Pegá el link del subtítulo (o de su página) y la PC lo baja y lo pone junto a su película.")
                 OutlinedTextField(
                     vm.enlaceSubtitulo, { vm.enlaceSubtitulo = it }, Modifier.fillMaxWidth(), singleLine = true,
                     colors = campoColores(), placeholder = { Text("https://…") },
@@ -120,7 +118,7 @@ fun PestanaPeliculas(vm: Modelo) {
         item {
             Tarjeta {
                 TituloTarjeta("🎞 Películas de dominio público")
-                Pista("De la colección del Internet Archive. Se bajan en la PC y entran solas a la biblioteca.")
+                Pista("Del Internet Archive. Se bajan en la PC.")
                 val buscar = { foco.clearFocus(); vm.correr { vm.buscarPeliculas(1) }; Unit }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
@@ -193,7 +191,7 @@ private fun ItemTorrent(vm: Modelo, t: Torrent) {
     Item(
         t.nombre, sub, { IconoTexto(if (t.estado == "paused") "⏸" else "🧲") },
         alTocar = {
-            vm.hoja = Hoja(t.nombre, listOf(
+            vm.hoja = Hoja(t.nombre, detalle = detalleTorrent(t), opciones = listOf(
                 if (t.estado == "paused") Opcion("▶ Reanudar") { vm.accion("torrent_reanudar", "gid" to t.gid); vm.cargarTorrents() }
                 else Opcion("⏸ Pausar") { vm.accion("torrent_pausar", "gid" to t.gid); vm.cargarTorrents() },
                 Opcion("✕ Cancelar y borrar lo bajado", peligro = true, confirmar = "¿Cancelar «${t.nombre}»? Se borra lo que ya bajó.") {
@@ -203,6 +201,23 @@ private fun ItemTorrent(vm: Modelo, t: Torrent) {
         },
         abajo = { if (t.total > 0) Progreso(t.recibido.toFloat() / t.total) },
     )
+}
+
+/** Lo que en la lista se corta por el ancho: se muestra completo al tocar. */
+private fun detalleTorrent(t: Torrent): List<Pair<String, String>> = buildList {
+    add("Estado" to (t.error?.let { "Error: $it" } ?: t.estadoTexto))
+    if (t.total > 0) add("Progreso" to "${100 * t.recibido / t.total} % · ${tamano(t.recibido)} de ${tamano(t.total)}")
+    if (t.estado == "active") {
+        add("Velocidad" to if (t.velocidad > 0) "${tamano(t.velocidad)}/s" else "esperando datos…")
+        add("Tiempo que falta" to t.restante.ifEmpty { "calculando…" })
+    } else if (t.restante.isNotEmpty()) add("Tiempo que falta" to t.restante)
+}
+
+private fun detalleDescarga(d: Descarga): List<Pair<String, String>> = buildList {
+    add("Estado" to (d.error?.let { "Error: $it" } ?: d.estadoTexto))
+    if (d.total > 0 && d.estado == "descargando") {
+        add("Progreso" to "${100 * d.recibido / d.total} % · ${tamano(d.recibido)} de ${tamano(d.total)}")
+    } else if (d.tamano > 0) add("Tamaño" to tamano(d.tamano))
 }
 
 @Composable
@@ -225,7 +240,7 @@ private fun ItemDescarga(vm: Modelo, d: Descarga) {
                 confirmar = "¿Mandarla a la Papelera de la PC con sus subtítulos? La descarga automática no la vuelve a bajar.") {
                 vm.accion("dp_eliminar", "ids" to ids); listo()
             }
-            vm.hoja = Hoja(titulo, opciones)
+            vm.hoja = Hoja(titulo, opciones, detalleDescarga(d))
         },
         abajo = { if ((d.estado == "descargando" || d.estado == "pendiente") && d.total > 0) Progreso(d.recibido.toFloat() / d.total) },
     )

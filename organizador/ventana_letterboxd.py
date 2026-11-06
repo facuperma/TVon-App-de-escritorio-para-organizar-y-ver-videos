@@ -90,8 +90,7 @@ class VentanaLetterboxd(QWidget):
 
         capa = QVBoxLayout(self)
         capa.addLayout(fila)
-        capa.addWidget(QLabel("Letterboxd no deja iniciar sesión desde otras apps: se lee tu watchlist pública, "
-                              "como la ve cualquiera. Doble clic en una película para bajarla.",
+        capa.addWidget(QLabel("Se lee tu watchlist pública. Doble clic en una película para bajarla.",
                               objectName="pista", wordWrap=True))
         capa.addWidget(self.lista, 1)
         capa.addWidget(self.estado)
@@ -215,9 +214,7 @@ class VentanaLetterboxd(QWidget):
 
         def en_archive():
             _total, encontradas = archive.buscar(p["titulo"], filas=10)
-            buscada = letterboxd.clave(p["titulo"])
-            return next((e for e in encontradas if e.get("anio") == p["anio"]
-                         and letterboxd.clave(e["titulo"]) == buscada), None)
+            return next((e for e in encontradas if letterboxd.coincide_archive(e, p["titulo"], p["anio"])), None)
 
         en_segundo_plano(en_archive, lambda libre: self._ofrecer(p, libre), lambda _m: self._ofrecer(p, None))
 

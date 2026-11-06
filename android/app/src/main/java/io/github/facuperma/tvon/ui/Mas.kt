@@ -42,12 +42,11 @@ fun PestanaMas(vm: Modelo) {
             Interruptor("Arrancar TorrentVision con Windows, con ON encendido", e?.arrancaConWindows ?: false) {
                 vm.hacer("arrancar_con_windows", "activo" to it)
             }
-            Pista("Con esto el celular siempre encuentra la PC y puede abrir TorrentVision, aunque no lo hayas abierto. Si cerrás " +
-                "la ventana de TorrentVision con ON encendido, queda junto al reloj y el mouse y el teclado siguen andando.")
+            Pista("Así el celular siempre encuentra la PC, aunque no hayas abierto TorrentVision.")
         }
         Tarjeta {
             TituloTarjeta("🎨 Apariencia")
-            Pista("12 temas: el azul de siempre y estilos retro de los 2000, con animaciones. Tema actual: ${C.tema.nombre}.")
+            Pista("Tema actual: ${C.tema.nombre}.")
             Boton("🎨 Elegir tema", Modifier.fillMaxWidth()) { vm.apariencia = true }
         }
         Tarjeta {
@@ -55,7 +54,7 @@ fun PestanaMas(vm: Modelo) {
             Interruptor("Mover a Videos lo que termine de bajarse en Descargas", e?.moverDescargas ?: false) {
                 vm.hacer("mover_descargas", "activo" to it)
             }
-            Pista("Las carpetas que se revisan se cambian en Configuración → Preferencias, en la PC (o desde la pestaña Pantalla).")
+            Pista("Las carpetas se cambian en Configuración → Preferencias, en la PC.")
         }
         Tarjeta {
             TituloTarjeta("Este celular")
@@ -67,8 +66,7 @@ fun PestanaMas(vm: Modelo) {
         }
         Tarjeta {
             TituloTarjeta("🔒 Conexión")
-            Pista("Conectado a TorrentVision ${e?.version.orEmpty()} en ${vm.base.removePrefix("https://")}, cifrado (HTTPS) y " +
-                "solo con el certificado de tu PC. App TorrentVision ON ${BuildConfig.VERSION_NAME}.")
+            Pista("TorrentVision ${e?.version.orEmpty()} en ${vm.base.removePrefix("https://")} · cifrado · app ${BuildConfig.VERSION_NAME}")
             Pista("Huella del certificado: ${huellaLinda(vm.huella)}", color = C.acentoClaro)
             Text("Para usarlo fuera de casa con Tailscale: en la ventana 📱 ON de la PC tocá «🌍 Usarlo fuera de casa» " +
                 "y escaneá ese código. La app prueba sola la conexión que ande.")

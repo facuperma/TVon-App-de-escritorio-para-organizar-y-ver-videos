@@ -63,7 +63,7 @@ fun PestanaBiblioteca(vm: Modelo) {
     val bib = vm.biblioteca
     val lista = rememberLazyListState()
     val alcance = rememberCoroutineScope()
-    var categoriasAbiertas by rememberSaveable { mutableStateOf(true) }
+    var categoriasAbiertas by rememberSaveable { mutableStateOf(false) }
     val esFavoritos = bib != null && vm.filtro == "categoria" && vm.categoria == bib.favoritos
 
     Box(Modifier.fillMaxSize()) {
@@ -71,6 +71,7 @@ fun PestanaBiblioteca(vm: Modelo) {
             state = lista,
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = if (vm.eligiendo) 80.dp else 16.dp),
         ) {
+            item { SelectorBiblioteca(vm) }
             item {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
@@ -106,9 +107,8 @@ fun PestanaBiblioteca(vm: Modelo) {
                     if (categoriasAbiertas) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Punto(C.pendiente); Pista(" por ver   ")
-                            Punto(C.vista); Pista(" vista")
+                            Punto(C.vista); Pista(" vista · mantené apretada una para más")
                         }
-                        Pista("Mantené apretada una categoría para más opciones")
                         val elegir = { c: Categoria ->
                             vm.elegirFiltro("categoria", c.id)
                             alcance.launch { lista.animateScrollToItem(3) }

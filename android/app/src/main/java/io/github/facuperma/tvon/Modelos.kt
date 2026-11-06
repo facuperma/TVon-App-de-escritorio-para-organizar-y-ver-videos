@@ -140,6 +140,9 @@ data class Pelicula(
     }
 }
 
+/** Una película de la watchlist / las 500 mejores de Letterboxd; `tengo`: ya está en la biblioteca de la PC. */
+data class PeliLb(val titulo: String, val anio: String, val url: String, val tengo: Boolean)
+
 data class Descarga(
     val identificador: String, val titulo: String, val anio: String?, val estado: String, val estadoTexto: String,
     val error: String?, val tamano: Long, val recibido: Long, val total: Long,

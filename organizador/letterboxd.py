@@ -107,6 +107,16 @@ def clave(titulo: str, anio: str = "") -> str:
     return f"{t}|{anio}"
 
 
+def coincide_archive(encontrada: dict, titulo: str, anio: str) -> bool:
+    """Si un resultado del Internet Archive es esta película: mismo año y mismo título, o el mismo título con
+    algo más atrás («Nosferatu (1922)», «Nosferatu, eine Symphonie…»)."""
+    if encontrada.get("anio") != anio:
+        return False
+    buscada = clave(titulo)
+    de_archive = clave(re.sub(r"\s*\(\d{4}\)\s*$", "", encontrada["titulo"]))
+    return de_archive == buscada or de_archive.startswith(buscada + " ")
+
+
 def claves_biblioteca(nombres_archivo: list[str]) -> set[str]:
     """Las claves de los videos de la biblioteca: con año si el nombre lo trae («dune|2021»), así
     no se confunde una película con su remake; si no, solo el título («dune|»)."""

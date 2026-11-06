@@ -50,7 +50,7 @@ data class Opcion(
     val hacer: suspend () -> Unit,
 )
 
-data class Hoja(val titulo: String, val opciones: List<Opcion>)
+data class Hoja(val titulo: String, val opciones: List<Opcion>, val detalle: List<Pair<String, String>> = emptyList())
 data class Confirmar(val texto: String, val si: String = "Sí", val hacer: suspend () -> Unit)
 data class PedirTexto(val titulo: String, val inicial: String = "", val hacer: suspend (String) -> Unit)
 data class Aviso(val texto: String, val malo: Boolean, val id: Long = System.nanoTime())
@@ -790,6 +790,47 @@ class Modelo(app: Application) : AndroidViewModel(app) {
         } finally {
             pidiendoDescargas = false
         }
+    }
+
+    // --- Letterboxd: la PC lee la lista y marca las que ya tiene ---------------------------------------
+
+    var bibVista by mutableStateOf("biblioteca") // «biblioteca» o «letterboxd»
+    var lbVista by mutableStateOf("watchlist")   // «watchlist» o «mejores»
+    var lbUsuario by mutableStateOf("")
+    var lbPelis by mutableStateOf<List<PeliLb>>(emptyList())
+    var lbCargando by mutableStateOf(false)
+    var lbMensaje by mutableStateOf<String?>(null)
+    var lbOcultar by mutableStateOf(false)
+
+    fun cargarLetterboxd(vista: String = lbVista, forzar: Boolean = false) {
+        lbVista = vista
+        correr {
+            lbCargando = true
+            lbMensaje = null
+            try {
+                val usuario = if (vista == "watchlist" && lbUsuario.isNotBlank()) "&u=" + Uri.encode(lbUsuario.trim()) else ""
+                val o = leer { it.objLento("/api/letterboxd?v=$vista$usuario" + if (forzar) "&f=1" else "") }
+                lbUsuario = o.optString("usuario").ifBlank { lbUsuario }
+                lbPelis = o.optJSONArray("peliculas").objetos {
+                    PeliLb(it.optString("titulo"), it.optString("anio"), it.optString("url"), it.optBoolean("tengo"))
+                }
+            } catch (e: ErrorApi) {
+                lbPelis = emptyList()
+                lbMensaje = e.message
+            } finally {
+                lbCargando = false
+            }
+        }
+    }
+
+    /** Dominio público: la PC la baja del Internet Archive. Si no, devuelve la búsqueda para abrirla en el celular. */
+    suspend fun lbBajar(p: PeliLb): JSONObject? = try {
+        val r = conPc().post("/api/letterboxd", json("titulo" to p.titulo, "anio" to p.anio))
+        conectado = true
+        r
+    } catch (e: ErrorApi) {
+        manejar(e, avisar = true)
+        throw e
     }
 
     private var pidiendoTorrents = false

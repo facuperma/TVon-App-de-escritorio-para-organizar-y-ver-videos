@@ -181,8 +181,7 @@ private fun Biblioteca(vm: Modelo, irAAgregar: () -> Unit) {
             item {
                 Tarjeta {
                     TituloTarjeta("Todavía no hay películas")
-                    Pista("Buscá películas de dominio público o pegá un link magnet en ➕ Agregar: se bajan a " +
-                        "Películas/${Videoteca.CARPETA}.")
+                    Pista("Buscá películas o pegá un link magnet en ➕ Agregar.")
                     Boton("➕ Agregar películas", Modifier.fillMaxWidth(), Estilo.PRIMARIO) { irAAgregar() }
                 }
             }
@@ -250,9 +249,7 @@ private fun Agregar(vm: Modelo) {
         item {
             Tarjeta {
                 TituloTarjeta("💬 Subtítulos")
-                Pista("Pegá el link del subtítulo (.srt, .vtt o .zip), elegí la película y se baja al celular: queda " +
-                    "junto a la película con su nombre. Si ya lo bajaste, en 📚 Películas mantené apretada la película → " +
-                    "Agregar subtítulo.")
+                Pista("Pegá el link del subtítulo y elegí la película.")
                 val bajarSub = {
                     foco.clearFocus()
                     val enlace = v.enlaceSubtitulo.trim()
@@ -288,7 +285,7 @@ private fun Agregar(vm: Modelo) {
         item {
             Tarjeta {
                 TituloTarjeta("🎞 Películas de dominio público")
-                Pista("De la colección del Internet Archive: libres y gratis. Se bajan con sus subtítulos, si tienen.")
+                Pista("Del Internet Archive: libres y gratis.")
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
                         v.texto, { v.texto = it }, Modifier.weight(1f), singleLine = true,
@@ -349,9 +346,7 @@ private fun TarjetaTorrents(vm: Modelo) {
         when {
             !MotorTorrent.disponible() -> Pista("Este celular no es compatible con el motor de torrent.")
             !instalado -> {
-                Pista("Para bajar torrents en el celular hace falta el motor de torrent (libtorrent). No viene en la app " +
-                    "para que sea liviana: se baja una sola vez (≈ ${tamano(MotorTorrent.TAMANO_APROX)}) del repositorio " +
-                    "oficial y se comprueba que sea el original.")
+                Pista("Hace falta el motor de torrents: se baja una sola vez (≈ ${tamano(MotorTorrent.TAMANO_APROX)}).")
                 val p = bajandoMotor
                 if (p != null) {
                     Pista("Bajando el motor… ${(p * 100).toInt()} %")
@@ -377,8 +372,7 @@ private fun TarjetaTorrents(vm: Modelo) {
                 }
             }
             else -> {
-                Pista("Copiá el link magnet en el navegador y pegalo acá, o tocalo y abrilo con TorrentVision. Se baja " +
-                    "solo la película y sus subtítulos (sin tráileres ni muestras) y, al terminar, pasa a 📚 Películas.")
+                Pista("Pegá el link magnet o tocalo y abrilo con TorrentVision.")
                 OutlinedTextField(
                     v.enlaceTorrent, { v.enlaceTorrent = it }, Modifier.fillMaxWidth(), singleLine = true,
                     colors = campoColores(), placeholder = { Text("magnet:?xt=…") },
@@ -434,7 +428,7 @@ private fun Ajustes(vm: Modelo) {
         item {
             Tarjeta {
                 TituloTarjeta("🎨 Apariencia")
-                Pista("12 temas: el azul de siempre y estilos retro de los 2000, con animaciones. Tema actual: ${C.tema.nombre}.")
+                Pista("Tema actual: ${C.tema.nombre}.")
                 Boton("🎨 Elegir tema", Modifier.fillMaxWidth()) { vm.apariencia = true }
             }
         }
@@ -470,8 +464,7 @@ private fun Ajustes(vm: Modelo) {
         item {
             Tarjeta {
                 TituloTarjeta("🖥 ¿Tenés TorrentVision en una PC?")
-                Pista("La app vuelve a manejar la PC (escaneando su QR). Las películas del celular quedan en su carpeta " +
-                    "y las ves de nuevo con el botón rojo.")
+                Pista("Escaneá el QR de la PC. Tus películas quedan guardadas.")
                 Boton("🖥 Usar con una PC", Modifier.fillMaxWidth()) {
                     vm.confirmar = Confirmar("¿Volver a usar la app con la PC?", "Usar con la PC") { vm.dejarVideoteca() }
                 }

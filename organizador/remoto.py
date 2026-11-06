@@ -25,14 +25,14 @@ from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from sqlite3 import IntegrityError
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote_plus, urljoin, urlparse
 
 from PySide6.QtCore import QBuffer, QIODevice, QObject, Qt, QUrl, Signal
 from PySide6.QtGui import QDesktopServices, QImage, QImageReader
 from PySide6.QtMultimedia import QMediaPlayer
 from PySide6.QtWidgets import QApplication
 
-from . import archive, fichas, inicio_windows, pantalla_remota, seguridad
+from . import archive, fichas, inicio_windows, letterboxd, pantalla_remota, seguridad
 from .db import CATEGORIA_FAVORITOS, orden_natural
 from .descargas import nombre_seguro
 from .dominio_publico import (
@@ -736,6 +736,8 @@ class _Manejador(BaseHTTPRequestHandler):
             self._video(consulta)
         elif ruta == "/api/subtitulo":
             self._subtitulo(consulta)
+        elif ruta == "/api/letterboxd":
+            self._json(self._letterboxd(consulta))
         elif ruta == "/api/pantalla/monitores":
             self._json(self._monitores())
         elif ruta == "/api/pantalla/escribiendo":
@@ -761,6 +763,8 @@ class _Manejador(BaseHTTPRequestHandler):
             self._json(self.remoto.puente.llamar(lambda: self.remoto.control.ejecutar(accion, datos)) or {})
         elif ruta == "/api/subtitulo":
             self._json(self._recibir_subtitulo(datos))
+        elif ruta == "/api/letterboxd":
+            self._json(self._letterboxd_bajar(datos))
         elif ruta == "/api/pantalla/entrada":
             self._entrada(datos)
             self._json({})
@@ -778,10 +782,17 @@ class _Manejador(BaseHTTPRequestHandler):
             if not enlace.lower().startswith("https://"):
                 raise ErrorRemoto("Pegá un link que empiece con https://")
             try:
-                with abrir_descarga(enlace, timeout=30) as r:
-                    contenido = r.read(SUBTITULO_MAX + 1)
-                    m = re.search(r"filename\*?=(?:UTF-8'')?\"?([^\";]+)", r.headers.get("Content-Disposition", ""))
-                    nombre = m.group(1) if m else Path(urlparse(r.url).path).name
+                contenido, nombre = self._bajar(enlace)
+                if _extension_subtitulo(contenido, Path(nombre).suffix.lower()) is None:
+                    # Es la página del subtítulo (el link de «compartir»), no el archivo: se busca su botón de descarga
+                    for candidato in _enlaces_de_descarga(contenido.decode("utf-8", "ignore"), enlace):
+                        try:
+                            c, n = self._bajar(candidato, referer=enlace)
+                        except (ErrorRed, OSError):
+                            continue
+                        if _extension_subtitulo(c, Path(n).suffix.lower()) is not None:
+                            contenido, nombre = c, n
+                            break
             except (ErrorRed, OSError) as e:
                 raise ErrorRemoto(f"No se pudo bajar: {e}", 502) from e
         else:
@@ -801,6 +812,75 @@ class _Manejador(BaseHTTPRequestHandler):
         destino.write_bytes(contenido)
         self.remoto.ventana.vigilante.despertar()
         return {"aviso": f"Subtítulo en Descargas de la PC ({destino.name}): TorrentVision lo pone solo junto a su video"}
+
+    @staticmethod
+    def _bajar(enlace: str, referer: str = "") -> tuple[bytes, str]:
+        """(contenido, nombre de archivo) de un link https, hasta SUBTITULO_MAX bytes."""
+        with abrir_descarga(enlace, timeout=30, referer=referer) as r:
+            contenido = r.read(SUBTITULO_MAX + 1)
+            m = re.search(r"filename\*?=(?:UTF-8'')?\"?([^\";]+)", r.headers.get("Content-Disposition", ""))
+            return contenido, (m.group(1) if m else Path(urlparse(r.url).path).name)
+
+    # --- Letterboxd para el celular ----------------------------------------------------------------
+
+    def _letterboxd(self, consulta: dict) -> dict:
+        """La watchlist (o las 500 mejores) con las que ya están en la biblioteca marcadas. Leer Letterboxd
+        tarda unos segundos: corre en el hilo del pedido y se recuerda 10 minutos."""
+        puente, bib = self.remoto.puente, self.remoto.bib
+        vista = "mejores" if consulta.get("v") == "mejores" else "watchlist"
+        usuario = ""
+        if vista == "watchlist":
+            usuario = (consulta.get("u") or "").strip() or puente.llamar(lambda: bib.config("letterboxd_usuario"))
+            try:
+                usuario = letterboxd.usuario_valido(usuario)
+            except letterboxd.ErrorLetterboxd as e:
+                raise ErrorRemoto(str(e), 400) from e
+            puente.llamar(lambda: bib.guardar_config("letterboxd_usuario", usuario))
+        clave_cache, ahora = (vista, usuario), time.time()
+        guardada = _LETTERBOXD.get(clave_cache)
+        if guardada and ahora - guardada[0] < 600 and consulta.get("f") != "1":
+            pelis = guardada[1]
+        else:
+            try:
+                pelis = letterboxd.watchlist(usuario) if vista == "watchlist" else letterboxd.mejor_puntuadas()
+            except letterboxd.ErrorLetterboxd as e:
+                raise ErrorRemoto(str(e), 502) from e
+            _LETTERBOXD[clave_cache] = (ahora, pelis)
+
+        def marcar():
+            claves = letterboxd.claves_biblioteca([n for (n,) in bib.con.execute(
+                "SELECT nombre FROM archivos WHERE tipo = 'video'")])
+            try:
+                otros = json.loads(bib.config("letterboxd_traducciones") or "{}")
+            except ValueError:
+                otros = {}
+            return [{"titulo": p["titulo"], "anio": p["anio"], "url": p["url"],
+                     "tengo": bool(letterboxd.en_biblioteca(p, claves, otros.get(f"{p['titulo']}|{p['anio']}", [])))}
+                    for p in pelis]
+
+        return {"vista": vista, "usuario": usuario, "peliculas": puente.llamar(marcar)}
+
+    def _letterboxd_bajar(self, datos: dict) -> dict:
+        """Doble clic de la PC, desde el celular: si es de dominio público se baja del Internet Archive en la PC;
+        si no, se devuelve la búsqueda del torrent para abrirla en el celular (ahí se toca el magnet)."""
+        titulo, anio = str(datos.get("titulo") or "")[:200].strip(), str(datos.get("anio") or "")[:4]
+        if not titulo:
+            raise ErrorRemoto("Falta el título")
+        try:
+            _total, encontradas = archive.buscar(titulo, filas=10)
+            libre = next((e for e in encontradas if letterboxd.coincide_archive(e, titulo, anio)), None)
+        except (ErrorRed, OSError):
+            libre = None
+        if libre:
+            def encolar():
+                if self.remoto.bib.agregar_descarga(libre["identificador"], libre["titulo"], libre["anio"]):
+                    self.remoto.ventana.gestor.despertar()
+                    self.remoto.ventana.gestor.cola_cambiada.emit()
+            self.remoto.puente.llamar(encolar)
+            return {"libre": True, "aviso": f"«{titulo}» es de dominio público: se baja en la PC del Internet Archive"}
+        texto = f"{titulo} {anio}".strip()
+        plantilla = self.remoto.puente.llamar(lambda: self.remoto.bib.config("letterboxd_busqueda")) or BUSCAR_TORRENT
+        return {"libre": False, "texto": texto, "url": plantilla.format(quote_plus(texto))}
 
     def _exigir_sesion(self) -> str:
         token = self._token()
@@ -1849,6 +1929,27 @@ class _Control:
         self.ventana.gestor.despertar()
 
 SUBTITULO_MAX = 3 * 1024 * 1024  # un .zip de subtítulos pesa unos KB
+
+
+_LETTERBOXD: dict[tuple[str, str], tuple[float, list[dict]]] = {}
+BUSCAR_TORRENT = "https://ext.to/browse/?cat=1&q={}"
+
+
+def _enlaces_de_descarga(html: str, base: str) -> list[str]:
+    """Los links https de una página de subtítulos que parecen el botón de descarga (el de «compartir» suele
+    abrir la página del subtítulo y no el archivo): directos a .srt/.zip primero, después los que dicen
+    descargar/download/subtitleserve."""
+    puntuados = {}
+    for href in re.findall(r"""href\s*=\s*["']([^"']+)["']""", html, re.I):
+        enlace = urljoin(base, href.strip().replace("&amp;", "&"))
+        if not enlace.lower().startswith("https://"):
+            continue
+        sin_consulta = enlace.lower().split("?")[0]
+        if sin_consulta.endswith((".srt", ".zip", ".rar", ".7z", ".vtt")):
+            puntuados.setdefault(enlace, 3)
+        elif any(k in enlace.lower() for k in ("subtitleserve", "/download/", "descargar", "download", "getsub", "bajar")):
+            puntuados.setdefault(enlace, 2)
+    return sorted(puntuados, key=lambda e: -puntuados[e])[:5]
 
 
 def _extension_subtitulo(contenido: bytes, extension: str) -> str | None:
