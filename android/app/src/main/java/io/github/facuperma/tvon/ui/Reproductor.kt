@@ -12,11 +12,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -229,6 +231,11 @@ private fun TarjetaSubtitulos(vm: Modelo, s: Subtitulos, conClave: Boolean) {
         ) {
             Text("CC Subtítulos", color = C.titulo, fontWeight = FontWeight.SemiBold)
             Pista(" · " + (activo ?: "desactivados"), Modifier.weight(1f).padding(start = 4.dp))
+            if (s.sincronizando >= 0) {
+                // Aunque la tarjeta esté cerrada se ve que está trabajando
+                CircularProgressIndicator(Modifier.size(16.dp).padding(end = 4.dp), color = C.acento, strokeWidth = 2.dp)
+                Text("${s.sincronizando} %", color = C.acentoClaro, modifier = Modifier.padding(end = 8.dp))
+            }
             Text(if (abierta) "▾" else "▸", color = C.tenue)
         }
         if (!abierta) return@Tarjeta
@@ -259,7 +266,8 @@ private fun TarjetaSubtitulos(vm: Modelo, s: Subtitulos, conClave: Boolean) {
             Boton("Aplicar ms", habilitado = conArchivo, chico = true) { aplicar() }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Boton("🪄 Automática", Modifier.weight(1f), habilitado = conArchivo, chico = true) { vm.hacer("sincronizar_auto") }
+            Boton(if (s.sincronizando >= 0) "⏳ Sincronizando… ${s.sincronizando} %" else "🪄 Automática", Modifier.weight(1f),
+                habilitado = conArchivo && s.sincronizando < 0, chico = true) { vm.hacer("sincronizar_auto") }
             Boton("🎯 Ahora habla", Modifier.weight(1f), habilitado = conArchivo, chico = true) { vm.hacer("sincronizar_ahora") }
         }
         Boton("↺ Sin ajuste", Modifier.fillMaxWidth(), habilitado = conArchivo, chico = true) { vm.hacer("retraso", "valor" to 0) }

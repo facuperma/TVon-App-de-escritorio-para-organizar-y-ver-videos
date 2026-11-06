@@ -315,3 +315,5 @@ input[type=range] { accent-color: var(--acento); height: 28px; }
 .mas-teclas summary { cursor: pointer; padding: 6px 0; color: var(--tenue, inherit); }
 .mas-teclas .teclas { margin-top: 6px; }
 .subs-pasos input { flex: 2; min-width: 0; min-height: 38px; padding: 6px 10px; border-radius: 8px; border: 1px solid #3a3f4b; background: #151821; color: inherit; font: inherit; }
+.boton.cargando { opacity: .8; animation: latido 1.2s ease-in-out infinite; }
+@keyframes latido { 50% { opacity: .45; } }

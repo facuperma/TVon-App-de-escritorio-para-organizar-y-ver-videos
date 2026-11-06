@@ -21,6 +21,7 @@ data class Tamano(val texto: String, val escala: Double)
 data class Subtitulos(
     val archivos: List<SubArchivo>, val pistas: List<Pista>, val activos: Boolean, val retraso: Int,
     val escala: Double, val tamanos: List<Tamano>,
+    val sincronizando: Int = -1, // % del análisis de audio de «🪄 Automática»; -1 si no se está sincronizando
 )
 
 data class EnCola(val ruta: String, val nombre: String)
@@ -61,6 +62,7 @@ data class Estado(
                     pistas = s.optJSONArray("pistas").objetos { Pista(it.optString("texto"), it.optBoolean("activa")) },
                     activos = s.optBoolean("activos"),
                     retraso = s.optInt("retraso"),
+                    sincronizando = s.optInt("sincronizando", -1),
                     escala = s.optDouble("escala", 1.0),
                     tamanos = s.optJSONArray("tamanos").objetos { Tamano(it.optString("texto"), it.optDouble("escala")) },
                 )

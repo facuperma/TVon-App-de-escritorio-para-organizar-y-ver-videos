@@ -349,6 +349,7 @@ class Visor(QWidget):
     pedir_pantalla_completa = Signal()
     # (ruta del video, ruta del subtítulo o None, retraso en ms)
     subtitulos_cambiados = Signal(str, object, int)
+    avance_sincronia = Signal(int)  # % del análisis de audio (desde un hilo de fondo)
     # Ruta del capítulo que hay que reproducir a continuación
     reproducir_siguiente = Signal(str)
     # Pide buscar subtítulos en internet para este video (lo resuelve quien usa el visor)
@@ -483,6 +484,13 @@ class Visor(QWidget):
         self.campo_ms.valueChanged.connect(self._campo_ms_cambio)
         fila_subs.insertWidget(fila_subs.indexOf(self.lbl_sincronia) + 1, self.campo_ms)
         self._sincronizando = False
+        self.progreso_sincronia = -1  # -1: no se está sincronizando; 0..100: avance del análisis
+        self.lbl_cargando = QLabel(objectName="pista")
+        self.lbl_cargando.hide()
+        self._giro = 0
+        self._reloj_giro = QTimer(self, interval=130, timeout=self._girar)
+        self.avance_sincronia.connect(self._avance_sincronia)
+        fila_subs.insertWidget(fila_subs.indexOf(self.campo_ms) + 1, self.lbl_cargando)
         btn_auto = QPushButton("🪄 Auto", objectName="chico", toolTip=(
             "Sincroniza solo: compara cuándo se habla en el audio con cuándo hay diálogos en el subtítulo.\n"
             "Tarda un rato según el largo de la película (hace falta ffmpeg)."))
@@ -493,6 +501,7 @@ class Visor(QWidget):
         btn_sinc_ahora.clicked.connect(self.sincronizar_ahora)
         btn_cero = QPushButton("↺", objectName="chico", toolTip="Sin ajuste (como viene el archivo)")
         btn_cero.clicked.connect(lambda: self.fijar_retraso(0))
+        self.btn_auto = btn_auto
         fila_subs.addWidget(btn_auto)
         fila_subs.addWidget(btn_sinc_ahora)
         fila_subs.addWidget(btn_cero)
@@ -784,6 +793,29 @@ class Visor(QWidget):
             self.campo_ms.setValue(ms)
             self.campo_ms.blockSignals(False)
 
+    # --- Indicador de «sincronizando…» (símbolo que gira + porcentaje) ---------------------------------
+
+    def _empezar_carga(self):
+        self.progreso_sincronia = 0
+        self.btn_auto.setEnabled(False)
+        self.lbl_cargando.show()
+        self._reloj_giro.start()
+        self._girar()
+
+    def _terminar_carga(self):
+        self.progreso_sincronia = -1
+        self._reloj_giro.stop()
+        self.lbl_cargando.hide()
+        self.btn_auto.setEnabled(True)
+
+    def _avance_sincronia(self, porcentaje: int):
+        if self._sincronizando:
+            self.progreso_sincronia = porcentaje
+
+    def _girar(self):
+        self._giro = (self._giro + 1) % 4
+        self.lbl_cargando.setText(f"{'◐◓◑◒'[self._giro]} Analizando el audio… {max(0, self.progreso_sincronia)} %")
+
     def _campo_ms_cambio(self, ms: int):
         if self.subs is None:
             self.pantalla.mostrar_osd("No hay un archivo de subtítulos cargado")
@@ -812,20 +844,28 @@ class Visor(QWidget):
                 sincronia.instalar_ffmpeg()
             raise sincronia.ErrorSincronia("Hace falta ffmpeg en la PC para sincronizar solo")
         ruta, subs = self.ruta_video, self.subs
+        duracion_s = max(1, self.reproductor.duration() / 1000)
         self._sincronizando = True
+        self._empezar_carga()
         self.pantalla.mostrar_osd("Analizando el audio… puede tardar un rato")
 
         def listo(resultado):
             self._sincronizando = False
+            self._terminar_carga()
             retraso, _confianza = resultado
             if self.ruta_video == ruta and self.subs is subs:  # si cambió de video mientras tanto, no se toca
                 self.fijar_retraso(retraso)
+                self.pantalla.mostrar_osd(f"✓ Subtítulos sincronizados: {texto_sincronia(retraso)}")
 
         def fallo(mensaje):
             self._sincronizando = False
+            self._terminar_carga()
             self.pantalla.mostrar_osd(mensaje)
 
-        en_segundo_plano(lambda: sincronia.sincronizar(exe, ruta, subs.cues), listo, fallo)
+        def avance(segundos: float):  # desde el hilo de fondo: la señal lo pasa al de la interfaz
+            self.avance_sincronia.emit(min(99, int(segundos * 100 / duracion_s)))
+
+        en_segundo_plano(lambda: sincronia.sincronizar(exe, ruta, subs.cues, avance), listo, fallo)
         return "Analizando el audio… el ajuste se aplica solo al terminar"
 
     def _guardar_subtitulos(self):

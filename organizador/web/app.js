@@ -364,6 +364,11 @@ function mostrarSubtitulos(s, conClave) {
   const conArchivo = s.archivos.some((a) => a.activo);
   for (const b of $$(".subs-retraso button")) b.disabled = !conArchivo;
   $("#subs-retraso").textContent = textoSincronia(s.retraso);
+  // «Sincronizando…» con el avance, y el botón apagado mientras tanto
+  const auto = $("#btn-sinc-auto"), trabajando = (s.sincronizando ?? -1) >= 0;
+  auto.textContent = trabajando ? `⏳ Sincronizando… ${s.sincronizando} %` : "🪄 Automática";
+  auto.disabled = !conArchivo || trabajando;
+  auto.classList.toggle("cargando", trabajando);
   if (document.activeElement !== $("#subs-ms")) $("#subs-ms").placeholder = `${s.retraso} ms`;
   const tamanos = $("#subs-tamanos");
   const firmaT = JSON.stringify([s.tamanos, s.escala]);

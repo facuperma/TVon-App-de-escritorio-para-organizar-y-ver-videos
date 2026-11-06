@@ -1189,6 +1189,7 @@ class _Control:
                 "pistas": [{"texto": texto, "activa": activa} for texto, activa in v.pistas_subtitulos()],
                 "activos": v.subs is not None or r.activeSubtitleTrack() >= 0,
                 "retraso": v.retraso_ms,
+                "sincronizando": v.progreso_sincronia,
                 "escala": v.pantalla.escala_sub,
                 "tamanos": [{"texto": t, "escala": e} for t, e in TAMANOS_SUB],
             } if v.es_video else None,
