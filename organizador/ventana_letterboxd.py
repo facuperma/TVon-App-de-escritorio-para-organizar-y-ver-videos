@@ -231,6 +231,27 @@ class VentanaLetterboxd(QWidget):
                 self.descargas.despertar()
             return self.estado.setText(f"Bajando «{p['titulo']}» del Internet Archive (🎞 Dominio público)")
         texto = f"{p['titulo']} {p['anio']}".strip()
+        self.estado.setText(f"Buscando el torrent de «{texto}» en ext.to…")
+
+        def buscar_ext_to() -> str | None:
+            """El primer link magnet de la búsqueda (en segundo plano: acá no se toca la interfaz)."""
+            respuesta = requests.get(BUSCAR_TORRENT.format(quote_plus(texto)), timeout=15)
+            respuesta.raise_for_status()
+            soup = BeautifulSoup(respuesta.text, "html.parser")
+            return next((a["href"] for a in soup.find_all("a", href=True)
+                         if re.match(r"(?i)magnet:\?xt=urn:bt", a["href"])), None)
+
+        def listo(magnet: str | None):
+            if not magnet:
+                return self._abrir_busqueda(p, texto)
+            # Con _esperando puesto, copiar el magnet lo pone a bajar solo (_portapapeles)
+            self._esperando = p
+            QGuiApplication.clipboard().setText(magnet)
+
+        en_segundo_plano(buscar_ext_to, listo, lambda _m: self._abrir_busqueda(p, texto))
+
+    def _abrir_busqueda(self, p: dict, texto: str):
+        """Si ext.to no se pudo leer (Cloudflare, sin internet, sin resultados): la búsqueda en el navegador."""
         # Copiado también, por si la página no muestra la búsqueda hecha: se pega con Ctrl+V en su buscador
         QGuiApplication.clipboard().setText(texto)
         busqueda = self.bib.config("letterboxd_busqueda") or BUSCAR_TORRENT
@@ -254,15 +275,13 @@ class VentanaLetterboxd(QWidget):
                             "o .zip a Descargas: TorrentVision lo pone solo junto a la película.")
 
     def _portapapeles(self):
-        """Si después de buscar una película se copia un link magnet, se ofrece bajarlo."""
+        """Si después de buscar una película se copia un link magnet, se pone a bajar solo (sin preguntar).
+        Solo el primero que se copie después de la búsqueda: los siguientes se ignoran hasta buscar otra."""
         p = self._esperando
         texto = QGuiApplication.clipboard().text().strip()
         if p is None or self.torrents is None or not re.match(r"(?i)magnet:\?xt=urn:bt", texto):
             return
         self._esperando = None
-        if QMessageBox.question(self, "Bajar con torrent",
-                                f"¿Bajo «{p['titulo']}» ({p['anio']}) con el link magnet que copiaste?") != QMessageBox.Yes:
-            return
         try:
             self.torrents.agregar(texto)
             self.estado.setText(f"«{p['titulo']}» se está bajando: mirá el avance en 🧲 Torrents")
