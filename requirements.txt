@@ -4,3 +4,4 @@ cryptography>=43
 PyChromecast>=14
 requests>=2.32
 beautifulsoup4>=4.12
+numpy>=2.0

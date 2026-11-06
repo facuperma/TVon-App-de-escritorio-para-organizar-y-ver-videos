@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
@@ -33,6 +35,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import io.github.facuperma.tvon.Cast
 import io.github.facuperma.tvon.Modelo
@@ -239,10 +243,26 @@ private fun TarjetaSubtitulos(vm: Modelo, s: Subtitulos, conClave: Boolean) {
                 Boton(texto, Modifier.weight(1f), habilitado = conArchivo, chico = true) { vm.hacer("retraso", "ms" to ms) }
             }
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Boton("🎯 Ahora habla", Modifier.weight(1f), habilitado = conArchivo, chico = true) { vm.hacer("sincronizar_ahora") }
-            Boton("↺ Sin ajuste", Modifier.weight(1f), habilitado = conArchivo, chico = true) { vm.hacer("retraso", "valor" to 0) }
+        // El número exacto, escrito a mano (también con signo: -2500 = salen 2,5 s antes)
+        var ms by rememberSaveable { mutableStateOf("") }
+        val aplicar = {
+            ms.trim().toIntOrNull()?.let { vm.hacer("retraso", "valor" to it.coerceIn(-600_000, 600_000)); ms = "" }
+                ?: vm.mostrarAviso("Escribí un número de milisegundos, por ejemplo -2500 o 1200", true)
         }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(
+                ms, { ms = it.filter { c -> c.isDigit() || c == '-' }.take(7) }, Modifier.weight(1f), singleLine = true,
+                enabled = conArchivo, colors = campoColores(), placeholder = { Text("${s.retraso} ms") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+                keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { aplicar() }),
+            )
+            Boton("Aplicar ms", habilitado = conArchivo, chico = true) { aplicar() }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Boton("🪄 Automática", Modifier.weight(1f), habilitado = conArchivo, chico = true) { vm.hacer("sincronizar_auto") }
+            Boton("🎯 Ahora habla", Modifier.weight(1f), habilitado = conArchivo, chico = true) { vm.hacer("sincronizar_ahora") }
+        }
+        Boton("↺ Sin ajuste", Modifier.fillMaxWidth(), habilitado = conArchivo, chico = true) { vm.hacer("retraso", "valor" to 0) }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             for (t in s.tamanos) Chip(t.texto, t.escala == s.escala) { vm.hacer("tamano_subtitulos", "escala" to t.escala) }
         }

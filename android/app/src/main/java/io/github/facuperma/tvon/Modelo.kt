@@ -216,7 +216,9 @@ class Modelo(app: Application) : AndroidViewModel(app) {
                 return
             } catch (e: ErrorApi) {
                 when {
-                    e.codigo == 401 -> almacen.quitar(c.base) // la PC la desconectó
+                    // La PC no la reconoce (se reinició, perdió la lista...): la vinculación NO se borra, se sigue
+                    // intentando y se puede volver a escanear el QR; si la PC la recupera, vuelve sola
+                    e.codigo == 401 -> mensaje = NO_RECONOCIDO
                     Pc.esCertificado(e) -> mensaje = OTRO_CERTIFICADO
                 }
             }
@@ -224,7 +226,7 @@ class Modelo(app: Application) : AndroidViewModel(app) {
         if (mensaje != OTRO_CERTIFICADO && reencontrar()) return
         if (almacen.conexiones().isEmpty()) {
             fase = Fase.Emparejar("Este celular ya no está conectado a TorrentVision: escaneá el código QR de nuevo (botón 📱 ON en la PC).")
-        } else if (fase != Fase.Lista || mensaje == OTRO_CERTIFICADO) {
+        } else if (fase != Fase.Lista || mensaje == OTRO_CERTIFICADO || mensaje == NO_RECONOCIDO) {
             fase = Fase.SinConexion(mensaje)
         } else {
             conectado = false
@@ -269,7 +271,7 @@ class Modelo(app: Application) : AndroidViewModel(app) {
     private fun manejar(e: ErrorApi, avisar: Boolean) {
         when {
             e.codigo == 401 -> {
-                pc?.let { almacen.quitar(it.base) }
+                conectado = false
                 viewModelScope.launch { conectar() }
             }
             Pc.esCertificado(e) -> fase = Fase.SinConexion(OTRO_CERTIFICADO)

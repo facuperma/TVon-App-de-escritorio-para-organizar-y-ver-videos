@@ -11,10 +11,12 @@ from PySide6.QtGui import (
 from PySide6.QtMultimedia import QAudioOutput, QMediaDevices, QMediaMetaData, QMediaPlayer, QVideoSink
 from PySide6.QtWidgets import (
     QApplication, QFileDialog, QFrame, QHBoxLayout, QLabel, QMenu, QMessageBox, QPushButton,
-    QSizePolicy, QSlider, QStackedWidget, QStyle, QToolButton, QVBoxLayout, QWidget,
+    QSizePolicy, QSlider, QSpinBox, QStackedWidget, QStyle, QToolButton, QVBoxLayout, QWidget,
 )
 
+from . import sincronia
 from .db import RETOMAR_DESDE_MS
+from .tareas import en_segundo_plano
 from .subtitulos import Subtitulos, buscar_junto_a, descripcion, subtitulos_junto_a
 
 TAMANOS_SUB = [("Chico", 0.75), ("Normal", 1.0), ("Grande", 1.3), ("Muy grande", 1.6)]
@@ -473,15 +475,28 @@ class Visor(QWidget):
             boton.clicked.connect(lambda _=False, d=ms: self.ajustar_retraso(d))
             fila_subs.addWidget(boton)
             botones_sinc.append(boton)
+        # El número exacto, escrito a mano (Enter para aplicar) o con las flechas / la rueda, de 100 en 100
+        self.campo_ms = QSpinBox(minimum=-600_000, maximum=600_000, singleStep=100, suffix=" ms",
+                                 keyboardTracking=False, minimumWidth=96)
+        self.campo_ms.setToolTip("Retraso en milisegundos: negativo, los subtítulos salen antes; positivo, después.\n"
+                                 "Escribí el número que quieras y apretá Enter, o usá las flechas.")
+        self.campo_ms.valueChanged.connect(self._campo_ms_cambio)
+        fila_subs.insertWidget(fila_subs.indexOf(self.lbl_sincronia) + 1, self.campo_ms)
+        self._sincronizando = False
+        btn_auto = QPushButton("🪄 Auto", objectName="chico", toolTip=(
+            "Sincroniza solo: compara cuándo se habla en el audio con cuándo hay diálogos en el subtítulo.\n"
+            "Tarda un rato según el largo de la película (hace falta ffmpeg)."))
+        btn_auto.clicked.connect(lambda: self.sincronizar_automatico())
         btn_sinc_ahora = QPushButton("🎯 Ahora", objectName="chico", toolTip=(
             "Tocalo justo cuando alguien empieza a hablar:\n"
             "el subtítulo más cercano se acomoda a ese momento"))
         btn_sinc_ahora.clicked.connect(self.sincronizar_ahora)
         btn_cero = QPushButton("↺", objectName="chico", toolTip="Sin ajuste (como viene el archivo)")
         btn_cero.clicked.connect(lambda: self.fijar_retraso(0))
+        fila_subs.addWidget(btn_auto)
         fila_subs.addWidget(btn_sinc_ahora)
         fila_subs.addWidget(btn_cero)
-        botones_sinc += [btn_sinc_ahora, btn_cero]
+        botones_sinc += [btn_auto, btn_sinc_ahora, btn_cero]
 
         # Aviso de siguiente capítulo, sobre el video
         self.panel_sig = QFrame(self.pantalla, objectName="panelSiguiente")
@@ -764,6 +779,54 @@ class Visor(QWidget):
     def _poner_retraso(self, ms: int):
         self.retraso_ms = ms
         self.lbl_sincronia.setText(texto_sincronia(ms))
+        if self.campo_ms.value() != ms:
+            self.campo_ms.blockSignals(True)  # no volver a aplicar lo que se acaba de aplicar
+            self.campo_ms.setValue(ms)
+            self.campo_ms.blockSignals(False)
+
+    def _campo_ms_cambio(self, ms: int):
+        if self.subs is None:
+            self.pantalla.mostrar_osd("No hay un archivo de subtítulos cargado")
+            self.campo_ms.blockSignals(True)
+            self.campo_ms.setValue(0)
+            self.campo_ms.blockSignals(False)
+            return
+        self.fijar_retraso(ms)
+
+    def sincronizar_automatico(self, preguntar: bool = True):
+        """Calcula el retraso comparando el audio del video con los diálogos del subtítulo (en segundo plano).
+        Devuelve un texto de aviso, o lanza ErrorSincronia si no se puede empezar."""
+        if self.subs is None or not self.subs.cues or not self.ruta_video:
+            self.pantalla.mostrar_osd("No hay un archivo de subtítulos cargado")
+            raise sincronia.ErrorSincronia("Hace falta un archivo de subtítulos cargado")
+        if self._sincronizando:
+            raise sincronia.ErrorSincronia("Ya se está sincronizando")
+        from .remoto import ffmpeg
+        exe = ffmpeg()
+        if not exe:
+            if preguntar and QMessageBox.question(
+                    self, "Falta ffmpeg",
+                    "Para sincronizar solo hace falta ffmpeg (gratis). ¿Lo instalo ahora con winget?\n\n"
+                    "Se abre una ventana negra para seguir el avance; al terminar, volvé a tocar «🪄 Auto».",
+            ) == QMessageBox.Yes:
+                sincronia.instalar_ffmpeg()
+            raise sincronia.ErrorSincronia("Hace falta ffmpeg en la PC para sincronizar solo")
+        ruta, subs = self.ruta_video, self.subs
+        self._sincronizando = True
+        self.pantalla.mostrar_osd("Analizando el audio… puede tardar un rato")
+
+        def listo(resultado):
+            self._sincronizando = False
+            retraso, _confianza = resultado
+            if self.ruta_video == ruta and self.subs is subs:  # si cambió de video mientras tanto, no se toca
+                self.fijar_retraso(retraso)
+
+        def fallo(mensaje):
+            self._sincronizando = False
+            self.pantalla.mostrar_osd(mensaje)
+
+        en_segundo_plano(lambda: sincronia.sincronizar(exe, ruta, subs.cues), listo, fallo)
+        return "Analizando el audio… el ajuste se aplica solo al terminar"
 
     def _guardar_subtitulos(self):
         self.subtitulos_cambiados.emit(self.ruta_video, self.ruta_sub, self.retraso_ms)

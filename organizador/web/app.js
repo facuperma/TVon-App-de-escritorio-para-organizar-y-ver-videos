@@ -364,6 +364,7 @@ function mostrarSubtitulos(s, conClave) {
   const conArchivo = s.archivos.some((a) => a.activo);
   for (const b of $$(".subs-retraso button")) b.disabled = !conArchivo;
   $("#subs-retraso").textContent = textoSincronia(s.retraso);
+  if (document.activeElement !== $("#subs-ms")) $("#subs-ms").placeholder = `${s.retraso} ms`;
   const tamanos = $("#subs-tamanos");
   const firmaT = JSON.stringify([s.tamanos, s.escala]);
   if (tamanos.dataset.firma !== firmaT) {
@@ -429,6 +430,15 @@ function textoSincronia(ms) {
   const s = String(+(Math.abs(ms) / 1000).toFixed(2)).replace(".", ",");
   return `${s} s ${ms > 0 ? "después" : "antes"}`;
 }
+
+// El retraso exacto, escrito a mano (Enter o «Aplicar ms»)
+function aplicarMs() {
+  const campo = $("#subs-ms");
+  if (campo.value === "" || isNaN(+campo.value)) return;
+  accion("retraso", { valor: Math.round(+campo.value) }).then(() => { campo.value = ""; }).catch(() => {});
+}
+$("#subs-ms-aplicar").addEventListener("click", aplicarMs);
+$("#subs-ms").addEventListener("keydown", (ev) => { if (ev.key === "Enter") aplicarMs(); });
 
 // Botones con data-accion: la acción y sus datos salen de los atributos
 document.addEventListener("click", (ev) => {

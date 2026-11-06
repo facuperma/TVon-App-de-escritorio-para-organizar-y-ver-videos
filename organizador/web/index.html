@@ -117,6 +117,11 @@
             <button data-accion="retraso" data-ms="500" class="boton" aria-label="0,5 s después">▶▶</button>
           </div>
           <div class="subs-pasos">
+            <input id="subs-ms" type="number" inputmode="numeric" step="100" min="-600000" max="600000" placeholder="milisegundos" aria-label="Retraso exacto en milisegundos">
+            <button id="subs-ms-aplicar" class="boton">Aplicar ms</button>
+          </div>
+          <div class="subs-pasos">
+            <button data-accion="sincronizar_auto" class="boton">🪄 Automática</button>
             <button data-accion="sincronizar_ahora" class="boton">🎯 Ahora habla</button>
             <button data-accion="retraso" data-valor="0" class="boton">↺ Sin ajuste</button>
           </div>

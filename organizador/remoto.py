@@ -226,6 +226,7 @@ class Remoto(QObject):
         self.puerto = 0
         self.error = ""
         self._sesiones: dict[str, dict] = {}
+        self._borradas: set[str] = set()  # las que se sacaron a propósito: al guardar no se vuelven a sumar
         self._vistas: dict[str, float] = {}
         self._cerrojo = threading.Lock()
         self._transmisiones = 0
@@ -382,7 +383,17 @@ class Remoto(QObject):
         threading.Thread(target=self._responder_descubrimiento, args=(udp, respuesta), daemon=True).start()
 
     def _responder_descubrimiento(self, udp: socket.socket, respuesta: bytes):
+        ip_conocida, revisada = ip_local(), time.time()
         while self._udp is udp:
+            # Si la PC cambió de IP (se cortó la wifi, el router le dio otra), el socket viejo puede quedar
+            # sordo: se abre uno nuevo para que los celulares la sigan encontrando
+            if time.time() - revisada > 20:
+                revisada = time.time()
+                if ip_local() != ip_conocida:
+                    self._udp = None
+                    udp.close()
+                    self._iniciar_descubrimiento()
+                    return
             try:
                 datos, origen = udp.recvfrom(64)
             except socket.timeout:
@@ -487,6 +498,7 @@ class Remoto(QObject):
             vencida = ahora - sesion["usada"] > VIGENCIA
             if vencida:
                 del self._sesiones[huella]
+                self._borradas.add(huella)
             else:
                 self._vistas[huella] = ahora
                 # Se renueva al usarla (se guarda una vez por día para no escribir la base a cada rato)
@@ -505,6 +517,7 @@ class Remoto(QObject):
             vencidas = [h for h, s in self._sesiones.items() if ahora - s["usada"] > VIGENCIA]
             for h in vencidas:
                 del self._sesiones[h]
+                self._borradas.add(h)
         return bool(vencidas)
 
     def desvincular(self, huella: str):
@@ -512,17 +525,21 @@ class Remoto(QObject):
         with self._cerrojo:
             self._sesiones.pop(huella, None)
             self._vistas.pop(huella, None)
+            self._borradas.add(huella)
         self._guardar_sesiones()
         self.estado_cambiado.emit()
 
     def cerrar_sesion(self, token: str):
         with self._cerrojo:
-            self._sesiones.pop(seguridad.huella_sesion(token), None)
+            huella = seguridad.huella_sesion(token)
+            self._sesiones.pop(huella, None)
+            self._borradas.add(huella)
         self._guardar_sesiones()
         self.estado_cambiado.emit()
 
     def desconectar_todos(self):
         with self._cerrojo:
+            self._borradas.update(self._sesiones)
             self._sesiones.clear()
         self._guardar_sesiones()
         self.dejar_de_compartir()
@@ -542,11 +559,27 @@ class Remoto(QObject):
         # La base es del hilo de la interfaz: desde el servidor se guarda a través del puente
         # (sin el cerrojo tomado: la interfaz también lo usa y se trabarían)
         with self._cerrojo:
-            datos = json.dumps(list(self._sesiones.values()))
+            propias, borradas = list(self._sesiones.values()), set(self._borradas)
+
+        def escribir():
+            # Se SUMA a lo que ya está guardado en vez de pisarlo: si hay otro TorrentVision abierto (uno viejo
+            # en segundo plano, por ejemplo) con una lista desactualizada, no puede borrar los celulares vinculados.
+            try:
+                previas = json.loads(self.bib.config("on_sesiones") or "[]")
+            except ValueError:
+                previas = []
+            por_huella = {x["huella"]: x for x in previas if isinstance(x, dict) and "huella" in x
+                          and x["huella"] not in borradas}
+            for x in propias:
+                anterior = por_huella.get(x["huella"])
+                if anterior is None or x.get("usada", 0) >= anterior.get("usada", 0):
+                    por_huella[x["huella"]] = x
+            self.bib.guardar_config("on_sesiones", json.dumps(list(por_huella.values())))
+
         if threading.current_thread() is threading.main_thread():
-            self.bib.guardar_config("on_sesiones", datos)
+            escribir()
         else:
-            self.puente.llamar(lambda: self.bib.guardar_config("on_sesiones", datos))
+            self.puente.llamar(escribir)
 
     # --- Pantalla compartida ---------------------------------------------------------
 
@@ -1525,6 +1558,17 @@ class _Control:
         if self.visor.subs is None:
             raise ErrorRemoto("Hace falta un archivo de subtítulos cargado", 409)
         self.visor.sincronizar_ahora()
+
+    def accion_sincronizar_auto(self):
+        """Compara el audio con los diálogos del subtítulo (tarda un rato: se aplica solo al terminar)."""
+        self._requiere_video()
+        if self.visor.subs is None:
+            raise ErrorRemoto("Hace falta un archivo de subtítulos cargado", 409)
+        from .sincronia import ErrorSincronia
+        try:
+            return {"aviso": self.visor.sincronizar_automatico(preguntar=False)}
+        except ErrorSincronia as e:
+            raise ErrorRemoto(str(e), 409) from e
 
     def accion_tamano_subtitulos(self, escala):
         self.visor.cambiar_tamano_sub(float(escala))
