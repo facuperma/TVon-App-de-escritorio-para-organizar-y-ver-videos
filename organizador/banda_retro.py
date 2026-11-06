@@ -423,11 +423,9 @@ class BandaRetro(QWidget):
                     alfa = 255 if k == 0 else max(0, 200 - k * 38)
                     p.setPen(QColor(180, 255, 200, alfa) if k == 0 else QColor(57, 255, 106, alfa))
                     p.drawText(QPointF(i * paso, y), letras[(i * 7 + int(c[0] / 10) + k) % len(letras)])
-        # Líneas de barrido y un parpadeo muy leve
+        # Líneas de barrido (sin destello de toda la banda: se veía como un parpadeo blanco, un bug)
         for y in range(0, h, 3):
             p.fillRect(0, y, w, 1, QColor(0, 0, 0, 120))
-        if int(self.t * 30) % 97 == 0:
-            p.fillRect(self.rect(), QColor(57, 255, 106, 18))
 
     def _grilla(self, p: QPainter, t: Tema, _sonando: bool):
         """La grilla infinita hacia un sol de atardecer a rayas."""
