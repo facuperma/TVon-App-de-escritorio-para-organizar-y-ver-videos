@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<component name="Tarjeta" extends="Group">
+  <script type="text/brightscript" uri="pkg:/components/Tarjeta.brs" />
+  <interface>
+    <field id="itemContent" type="node" onChange="alContenido" />
+    <field id="width" type="float" />
+    <field id="height" type="float" />
+  </interface>
+  <children>
+    <Rectangle id="sinPoster" width="180" height="250" color="0x1B2A44FF" />
+    <Poster id="poster" width="180" height="250" loadDisplayMode="scaleToZoom" />
+    <Rectangle id="fondoBarra" translation="[0,244]" width="180" height="6" color="0x00000099" visible="false" />
+    <Rectangle id="barra" translation="[0,244]" width="0" height="6" color="0x3DAEEBFF" visible="false" />
+    <Label id="visto" text="✓" translation="[148,6]" color="0x3DAEEBFF" font="font:MediumBoldSystemFont" visible="false" />
+    <Label id="titulo" translation="[0,254]" width="180" height="60" wrap="true" maxLines="2"
+           font="font:SmallestSystemFont" color="0xFFFFFFFF" />
+  </children>
+</component>

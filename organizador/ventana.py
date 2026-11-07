@@ -1699,10 +1699,13 @@ class Ventana(QMainWindow):
 
     def _pedido_de_vinculo(self, id_solicitud: str, nombre: str, ip: str, codigo: str):
         """Un celular pide vincularse sin QR: se aprueba acá, comparando el código con el del celular."""
-        caja = QMessageBox(QMessageBox.Question, "Vincular un celular",
-                           f"<b>📱 {nombre}</b> ({ip}) quiere manejar TorrentVision.<br><br>"
+        roku = nombre.startswith("Roku")
+        caja = QMessageBox(QMessageBox.Question, "Vincular un Roku" if roku else "Vincular un celular",
+                           f"<b>{'📺' if roku else '📱'} {nombre}</b> ({ip}) quiere "
+                           f"{'ver tu biblioteca' if roku else 'manejar TorrentVision'}.<br><br>"
                            f"Código: <span style='font-size: 20pt; font-weight: 700;'>{codigo}</span><br><br>"
-                           "Permitilo solo si es tu celular y muestra <b>este mismo código</b>.", parent=self)
+                           f"Permitilo solo si es tu {'Roku' if roku else 'celular'} y muestra <b>este mismo código</b>.",
+                           parent=self)
         permitir = caja.addButton("Permitir", QMessageBox.AcceptRole)
         caja.addButton("Rechazar", QMessageBox.RejectRole)
         caja.setWindowModality(Qt.NonModal)

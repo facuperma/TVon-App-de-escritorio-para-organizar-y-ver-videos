@@ -1,0 +1,589 @@
+' TorrentVision para Roku: pantalla única que cambia de estado:
+'   buscando → emparejando (código en pantalla) → inicio (filas) → episodios → video
+' La PC (TorrentVision) guarda todo; el Roku solo muestra y reproduce.
+
+sub init()
+    m.fondo = m.top.findNode("fondo")
+    m.seccion = m.top.findNode("seccion")
+    m.mensaje = m.top.findNode("mensaje")
+    m.codigo = m.top.findNode("codigo")
+    m.ayuda = m.top.findNode("ayuda")
+    m.filas = m.top.findNode("filas")
+    m.episodios = m.top.findNode("episodios")
+    m.pie = m.top.findNode("pie")
+    m.video = m.top.findNode("video")
+
+    m.filas.observeField("rowItemSelected", "alElegir")
+    m.episodios.observeField("itemSelected", "alElegirEpisodio")
+    m.video.observeField("state", "alEstadoVideo")
+
+    m.tareas = []          ' las tareas en curso (si nadie las guarda, se pierden)
+    m.pantalla = "buscando"
+    m.base = ""
+    m.token = ""
+    m.compat = ""          ' "" = tal cual, "audio" o "video" = la PC convierte con ffmpeg
+    m.actual = { id: 0, titulo: "", siguiente: 0 }
+    m.reintento = 0
+    m.solicitud = ""
+    m.intentosSondeo = 0
+    m.episodiosAbiertos = false
+
+    leerRegistro()
+
+    ' Una vez por segundo se actualiza lo que el latido le cuenta a la PC
+    m.reloj = CreateObject("roSGNode", "Timer")
+    m.reloj.duration = 1
+    m.reloj.repeat = true
+    m.reloj.observeField("fire", "alReloj")
+    m.reloj.control = "start"
+
+    m.sondeo = CreateObject("roSGNode", "Timer")
+    m.sondeo.duration = 2
+    m.sondeo.repeat = true
+    m.sondeo.observeField("fire", "alSondeo")
+
+    if m.base <> "" and m.token <> "" then
+        iniciarLatido()
+        mostrarInicio()
+    else
+        buscarPC()
+    end if
+end sub
+
+' --- Lo guardado en el Roku --------------------------------------------------------------------------
+
+sub leerRegistro()
+    r = CreateObject("roRegistrySection", "tvon")
+    if r.Exists("base") then m.base = r.Read("base")
+    if r.Exists("token") then m.token = r.Read("token")
+    if r.Exists("compat") then m.compat = r.Read("compat")
+end sub
+
+sub guardarRegistro(clave as String, valor as String)
+    r = CreateObject("roRegistrySection", "tvon")
+    r.Write(clave, valor)
+    r.Flush()
+end sub
+
+sub borrarRegistro(clave as String)
+    r = CreateObject("roRegistrySection", "tvon")
+    r.Delete(clave)
+    r.Flush()
+end sub
+
+' --- Pedidos a la PC ---------------------------------------------------------------------------------
+
+sub pedir(metodo as String, ruta as String, cuerpo as String, etiqueta as String)
+    t = CreateObject("roSGNode", "Api")
+    t.url = m.base + ruta
+    t.metodo = metodo
+    t.cuerpo = cuerpo
+    t.etiqueta = etiqueta
+    t.observeField("respuesta", "alRespuesta")
+    m.tareas.Push(t)
+    if m.tareas.Count() > 12 then m.tareas.Shift()
+    t.control = "RUN"
+end sub
+
+function con_token(ruta as String) as String
+    separador = "?"
+    if Instr(1, ruta, "?") > 0 then separador = "&"
+    return ruta + separador + "t=" + m.token
+end function
+
+function escapar(texto as String) as String
+    u = CreateObject("roUrlTransfer")
+    return u.Escape(texto)
+end function
+
+sub alRespuesta(evento as Object)
+    r = evento.getData()
+    if r = invalid then return
+    if r.codigo = 401 and r.etiqueta <> "estado" then
+        desvincular("Este Roku ya no está vinculado a la PC.")
+        return
+    end if
+    if r.etiqueta = "solicitar" then
+        alSolicitar(r)
+    else if r.etiqueta = "estado" then
+        alEstado(r)
+    else if r.etiqueta = "inicio" then
+        alInicio(r)
+    else if r.etiqueta = "serie" then
+        alSerie(r)
+    else if r.etiqueta = "ficha" then
+        alFicha(r)
+    else if r.etiqueta = "hola" then
+        alHola(r)
+    end if
+end sub
+
+' --- Buscar la PC y emparejar ------------------------------------------------------------------------
+
+sub cambiarPantalla(nombre as String)
+    m.pantalla = nombre
+    m.filas.visible = (nombre = "inicio")
+    m.episodios.visible = (nombre = "episodios")
+    m.video.visible = (nombre = "video")
+    hayTexto = (nombre = "buscando" or nombre = "emparejando" or nombre = "error")
+    m.mensaje.visible = hayTexto
+    m.codigo.visible = hayTexto
+    m.ayuda.visible = hayTexto
+    m.fondo.visible = (nombre <> "video")
+    if nombre = "inicio" then
+        m.seccion.text = ""
+        m.pie.text = "* Opciones"
+        m.filas.setFocus(true)
+    else if nombre = "episodios" then
+        m.pie.text = "Atrás: volver"
+        m.episodios.setFocus(true)
+    else if nombre = "video" then
+        m.pie.text = ""
+        m.video.setFocus(true)
+    else
+        m.pie.text = "* Opciones"
+        m.top.setFocus(true)
+    end if
+end sub
+
+sub buscarPC()
+    m.sondeo.control = "stop"
+    cambiarPantalla("buscando")
+    m.mensaje.text = "Buscando TorrentVision en tu red…"
+    m.codigo.text = ""
+    m.ayuda.text = "Abrí TorrentVision en la PC y encendé ON (botón 📱 ON). La PC y el Roku tienen que estar en la misma red wifi."
+    b = CreateObject("roSGNode", "Buscar")
+    b.observeField("resultado", "alBuscar")
+    m.buscador = b
+    b.control = "RUN"
+end sub
+
+sub alBuscar(evento as Object)
+    r = evento.getData()
+    if r <> invalid and r.ok = true then
+        m.base = "http://" + r.ip + ":" + r.puerto.ToStr()
+        pedirEmparejar()
+    else
+        cambiarPantalla("error")
+        m.mensaje.text = "No encontré la PC."
+        m.codigo.text = ""
+        m.ayuda.text = "Revisá que TorrentVision esté abierto con ON encendido y que la PC esté en la misma red." + Chr(10) + "Apretá OK para volver a buscar, o * para escribir la IP a mano."
+    end if
+end sub
+
+sub pedirEmparejar()
+    cambiarPantalla("emparejando")
+    m.mensaje.text = "Conectando con la PC…"
+    m.codigo.text = ""
+    m.ayuda.text = ""
+    info = CreateObject("roDeviceInfo")
+    cuerpo = FormatJson({ nombre: info.GetFriendlyName() })
+    pedir("POST", "/roku/solicitar", cuerpo, "solicitar")
+end sub
+
+sub alSolicitar(r as Object)
+    if r.codigo = 200 and r.datos <> invalid then
+        m.solicitud = r.datos.id
+        m.intentosSondeo = 0
+        m.mensaje.text = "En la PC (o en la app del celular, pestaña Control → Roku) aprobá este código:"
+        m.codigo.text = r.datos.codigo
+        m.ayuda.text = "Tiene que ser el mismo que ves acá. Si no lo pediste vos, rechazalo."
+        m.sondeo.control = "start"
+    else
+        cambiarPantalla("error")
+        mensaje = "La PC no aceptó el pedido."
+        if r.datos <> invalid and r.datos.error <> invalid then mensaje = r.datos.error
+        m.mensaje.text = mensaje
+        m.codigo.text = ""
+        m.ayuda.text = "Apretá OK para volver a intentar."
+    end if
+end sub
+
+sub alSondeo()
+    if m.pantalla <> "emparejando" or m.solicitud = "" then return
+    m.intentosSondeo = m.intentosSondeo + 1
+    if m.intentosSondeo > 65 then
+        m.sondeo.control = "stop"
+        buscarPC()
+        return
+    end if
+    pedir("GET", "/roku/solicitud?id=" + m.solicitud, "", "estado")
+end sub
+
+sub alEstado(r as Object)
+    if r.datos = invalid then return
+    estado = r.datos.estado
+    if estado = "aprobada" and r.datos.token <> invalid then
+        m.sondeo.control = "stop"
+        m.token = r.datos.token
+        guardarRegistro("base", m.base)
+        guardarRegistro("token", m.token)
+        iniciarLatido()
+        mostrarInicio()
+    else if estado = "rechazada" or estado = "vencida" then
+        m.sondeo.control = "stop"
+        cambiarPantalla("error")
+        m.mensaje.text = "La PC rechazó el pedido o venció."
+        m.codigo.text = ""
+        m.ayuda.text = "Apretá OK para volver a intentar."
+    end if
+end sub
+
+sub desvincular(texto as String)
+    m.sondeo.control = "stop"
+    if m.latido <> invalid then m.latido.control = "STOP"
+    m.video.control = "stop"
+    m.token = ""
+    borrarRegistro("token")
+    cambiarPantalla("error")
+    m.mensaje.text = texto
+    m.codigo.text = ""
+    m.ayuda.text = "Apretá OK para volver a vincular."
+end sub
+
+' --- Latido: lo que se le cuenta a la PC y las órdenes del celular ---------------------------------------------
+
+sub iniciarLatido()
+    if m.latido <> invalid then m.latido.control = "STOP"
+    l = CreateObject("roSGNode", "Latido")
+    l.base = m.base
+    l.token = m.token
+    l.estado = { estado: "inactivo", pos: 0, dur: 0, id: 0, titulo: "" }
+    l.observeField("ordenes", "alOrdenes")
+    l.observeField("desvinculado", "alDesvinculado")
+    m.latido = l
+    l.control = "RUN"
+end sub
+
+sub alDesvinculado()
+    desvincular("La PC desvinculó este Roku.")
+end sub
+
+sub alReloj()
+    if m.latido = invalid then return
+    e = { estado: "inactivo", pos: 0, dur: 0, id: 0, titulo: "" }
+    if m.pantalla = "video" then
+        s = m.video.state
+        e.estado = "reproduciendo"
+        if s = "paused" then e.estado = "pausa"
+        if s = "finished" then e.estado = "terminado"
+        e.pos = Int(m.video.position * 1000)
+        e.dur = Int(m.video.duration * 1000)
+        e.id = m.actual.id
+        e.titulo = m.actual.titulo
+    end if
+    m.latido.estado = e
+end sub
+
+sub alOrdenes(evento as Object)
+    lista = evento.getData()
+    if lista = invalid then return
+    for each o in lista
+        ejecutarOrden(o)
+    end for
+end sub
+
+sub ejecutarOrden(o as Object)
+    c = o.c
+    if c = "reproducir" then
+        reproducir(Int(o.id))
+    else if m.pantalla <> "video" then
+        return
+    else if c = "alternar" then
+        if m.video.state = "paused" then
+            m.video.control = "resume"
+        else
+            m.video.control = "pause"
+        end if
+    else if c = "adelantar" then
+        irA(m.video.position + o.ms / 1000)
+    else if c = "ir_a" then
+        irA(o.ms / 1000)
+    else if c = "detener" then
+        cerrarVideo()
+    else if c = "subtitulos" then
+        if o.activo = true then m.video.globalCaptionMode = "On" else m.video.globalCaptionMode = "Off"
+    end if
+end sub
+
+sub irA(segundos as Float)
+    if segundos < 0 then segundos = 0
+    if m.video.duration > 0 and segundos > m.video.duration - 1 then segundos = m.video.duration - 1
+    m.video.seek = segundos
+end sub
+
+sub alPedido()
+    p = m.top.pedido
+    if p <> invalid and p.id <> invalid and m.token <> "" then reproducir(Int(p.id))
+end sub
+
+' --- Inicio: las filas -----------------------------------------------------------------------------------
+
+sub mostrarInicio()
+    cambiarPantalla("inicio")
+    m.filas.visible = false
+    m.mensaje.visible = true
+    m.mensaje.text = "Cargando tu biblioteca…"
+    pedir("GET", con_token("/roku/inicio"), "", "inicio")
+end sub
+
+sub alInicio(r as Object)
+    if r.codigo <> 200 or r.datos = invalid then
+        cambiarPantalla("error")
+        m.mensaje.text = "No pude leer la biblioteca de la PC."
+        m.codigo.text = ""
+        m.ayuda.text = "¿Está prendida y con ON encendido? Apretá OK para reintentar."
+        m.pantalla = "reintentar"
+        return
+    end if
+    raiz = CreateObject("roSGNode", "ContentNode")
+    for each fila in r.datos.filas
+        nodo = raiz.createChild("ContentNode")
+        nodo.title = fila.titulo
+        for each it in fila.items
+            nodo.appendChild(tarjeta(it))
+        end for
+    end for
+    if raiz.getChildCount() = 0 then
+        cambiarPantalla("error")
+        m.mensaje.text = "La biblioteca está vacía."
+        m.codigo.text = ""
+        m.ayuda.text = "Agregá carpetas o películas en TorrentVision y apretá OK."
+        m.pantalla = "reintentar"
+        return
+    end if
+    m.filas.content = raiz
+    cambiarPantalla("inicio")
+    m.mensaje.visible = false
+end sub
+
+function tarjeta(it as Object) as Object
+    n = CreateObject("roSGNode", "ContentNode")
+    n.title = it.titulo
+    n.description = it.sub
+    if it.poster <> "" then n.HDPosterUrl = m.base + con_token(it.poster)
+    n.addFields({ tipo: it.tipo, idv: it.id, clave: it.clave, progreso: it.progreso, visto: it.visto })
+    return n
+end function
+
+sub alElegir(evento as Object)
+    sel = evento.getData()
+    fila = m.filas.content.getChild(sel[0])
+    if fila = invalid then return
+    item = fila.getChild(sel[1])
+    if item = invalid then return
+    m.episodiosAbiertos = false
+    if item.tipo = "serie" then
+        m.serieTitulo = item.title
+        pedir("GET", con_token("/roku/serie?c=" + escapar(item.clave)), "", "serie")
+    else
+        reproducir(Int(item.idv))
+    end if
+end sub
+
+' --- Series: lista de episodios ------------------------------------------------------------------------
+
+sub alSerie(r as Object)
+    if r.codigo <> 200 or r.datos = invalid then return
+    raiz = CreateObject("roSGNode", "ContentNode")
+    m.idsEpisodios = []
+    elegido = 0
+    i = 0
+    for each e in r.datos.episodios
+        n = raiz.createChild("ContentNode")
+        marca = ""
+        if e.visto = true then marca = "  ✓"
+        if e.progreso > 0 then marca = "  " + Int(e.progreso * 100).ToStr() + "%"
+        n.title = e.titulo + marca
+        m.idsEpisodios.Push(e.id)
+        if r.datos.seguir <> invalid and r.datos.seguir = e.id then elegido = i
+        i = i + 1
+    end for
+    m.episodios.content = raiz
+    cambiarPantalla("episodios")
+    m.seccion.text = r.datos.titulo
+    m.episodios.jumpToItem = elegido
+end sub
+
+sub alElegirEpisodio(evento as Object)
+    i = evento.getData()
+    m.episodiosAbiertos = true
+    if i >= 0 and i < m.idsEpisodios.Count() then reproducir(Int(m.idsEpisodios[i]))
+end sub
+
+' --- Reproducir --------------------------------------------------------------------------------------
+
+sub reproducir(id as Integer)
+    if m.token = "" then return
+    m.reintento = 0
+    pedirFicha(id, m.compat)
+end sub
+
+sub pedirFicha(id as Integer, modo as String)
+    m.pendiente = id
+    m.modoActual = modo
+    pedir("GET", con_token("/roku/ficha?id=" + id.ToStr() + "&modo=" + modo), "", "ficha")
+end sub
+
+sub alFicha(r as Object)
+    if r.codigo <> 200 or r.datos = invalid then
+        texto = "No se pudo abrir el video."
+        if r.datos <> invalid and r.datos.error <> invalid then texto = r.datos.error
+        avisar(texto)
+        return
+    end if
+    f = r.datos
+    c = CreateObject("roSGNode", "ContentNode")
+    c.url = m.base + con_token(f.url)
+    c.title = f.titulo
+    c.streamFormat = f.formato
+    c.playStart = f.pos / 1000
+    pistas = []
+    elegida = ""
+    for each s in f.subtitulos
+        direccion = m.base + con_token("/roku/subtitulo?id=" + f.id.ToStr() + "&n=" + s.n.ToStr())
+        pistas.Push({ Language: "spa", TrackName: direccion, Description: s.texto })
+        if s.elegido = true or elegida = "" then elegida = direccion
+    end for
+    if pistas.Count() > 0 then c.update({ SubtitleTracks: pistas }, true)
+    m.actual = { id: f.id, titulo: f.titulo, siguiente: f.siguiente }
+    m.video.content = c
+    m.video.globalCaptionMode = "Off"
+    if pistas.Count() > 0 then
+        m.video.globalCaptionMode = "On"
+        m.video.subtitleTrack = elegida
+    end if
+    cambiarPantalla("video")
+    m.video.control = "play"
+end sub
+
+sub alEstadoVideo()
+    s = m.video.state
+    if s = "finished" then
+        siguiente = m.actual.siguiente
+        cerrarVideo()
+        if siguiente > 0 then reproducir(Int(siguiente))
+    else if s = "error" then
+        reintentarOAvisar()
+    end if
+end sub
+
+sub reintentarOAvisar()
+    ' Sonido que el Roku no entiende (DTS…) o un contenedor raro: la PC lo convierte (primero solo el audio)
+    if m.reintento = 0 and m.modoActual <> "audio" and m.modoActual <> "video" then
+        m.reintento = 1
+        pedirFicha(Int(m.actual.id), "audio")
+    else if m.reintento = 1 and m.modoActual = "audio" then
+        m.reintento = 2
+        pedirFicha(Int(m.actual.id), "video")
+    else
+        cerrarVideo()
+        avisar("El Roku no puede reproducir este video (ni convertido por la PC).")
+    end if
+end sub
+
+sub cerrarVideo()
+    m.video.control = "stop"
+    if m.episodiosAbiertos = true then
+        cambiarPantalla("episodios")
+    else
+        cambiarPantalla("inicio")
+    end if
+end sub
+
+sub avisar(texto as String)
+    d = CreateObject("roSGNode", "StandardMessageDialog")
+    d.title = "TorrentVision"
+    d.message = [texto]
+    d.buttons = ["OK"]
+    d.observeField("buttonSelected", "alCerrarAviso")
+    m.top.dialog = d
+end sub
+
+sub alCerrarAviso()
+    if m.top.dialog <> invalid then m.top.dialog.close = true
+end sub
+
+' --- Opciones (tecla *) ---------------------------------------------------------------------------------
+
+sub mostrarOpciones()
+    d = CreateObject("roSGNode", "StandardMessageDialog")
+    d.title = "Opciones"
+    d.message = ["Si un video no tiene sonido o no arranca, activá el modo compatible: la PC lo convierte (consume más de la PC y no se puede adelantar)."]
+    estado = "No"
+    if m.compat <> "" then estado = "Sí"
+    d.buttons = ["Modo compatible: " + estado, "Escribir la IP de la PC", "Desvincular de esta PC", "Cerrar"]
+    d.observeField("buttonSelected", "alOpcion")
+    m.top.dialog = d
+end sub
+
+sub alOpcion(evento as Object)
+    i = evento.getData()
+    alCerrarAviso()
+    if i = 0 then
+        if m.compat = "" then m.compat = "audio" else m.compat = ""
+        guardarRegistro("compat", m.compat)
+    else if i = 1 then
+        pedirIP()
+    else if i = 2 then
+        borrarRegistro("token")
+        borrarRegistro("base")
+        if m.latido <> invalid then m.latido.control = "STOP"
+        m.token = ""
+        buscarPC()
+    end if
+end sub
+
+sub pedirIP()
+    d = CreateObject("roSGNode", "StandardKeyboardDialog")
+    d.title = "IP de la PC (la muestra el botón ON de TorrentVision)"
+    d.text = ""
+    d.buttons = ["Conectar", "Cancelar"]
+    d.observeField("buttonSelected", "alIP")
+    m.top.dialog = d
+end sub
+
+sub alIP(evento as Object)
+    i = evento.getData()
+    texto = m.top.dialog.text
+    alCerrarAviso()
+    if i = 0 and texto <> "" then
+        m.base = "http://" + texto.Trim() + ":8770"
+        pedir("GET", "/roku/hola", "", "hola")
+    end if
+end sub
+
+sub alHola(r as Object)
+    if r.codigo = 200 then
+        pedirEmparejar()
+    else
+        avisar("No encontré TorrentVision en esa IP (puerto 8770). Revisá que ON esté encendido.")
+    end if
+end sub
+
+' --- Botones del control remoto ---------------------------------------------------------------------------
+
+function onKeyEvent(tecla as String, presionada as Boolean) as Boolean
+    if not presionada then return false
+    if tecla = "options" and m.pantalla <> "video" then
+        mostrarOpciones()
+        return true
+    end if
+    if m.pantalla = "video" and tecla = "back" then
+        cerrarVideo()
+        return true
+    end if
+    if m.pantalla = "episodios" and tecla = "back" then
+        cambiarPantalla("inicio")
+        return true
+    end if
+    if (m.pantalla = "error" or m.pantalla = "reintentar") and tecla = "OK" then
+        if m.token <> "" then
+            mostrarInicio()
+        else
+            buscarPC()
+        end if
+        return true
+    end if
+    return false
+end function

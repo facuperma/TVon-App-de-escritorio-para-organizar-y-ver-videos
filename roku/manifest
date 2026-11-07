@@ -1,0 +1,13 @@
+title=TorrentVision
+subtitle=Tu biblioteca de la PC en la tele
+major_version=1
+minor_version=0
+build_version=1
+mm_icon_focus_hd=pkg:/images/icono_hd.png
+mm_icon_focus_sd=pkg:/images/icono_sd.png
+splash_screen_hd=pkg:/images/splash_hd.jpg
+splash_screen_sd=pkg:/images/splash_sd.jpg
+splash_color=#0B1220
+splash_min_time=1000
+ui_resolutions=hd
+supports_input_launch=1

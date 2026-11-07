@@ -261,6 +261,9 @@ private fun menuArchivo(vm: Modelo, a: ArchivoBib) {
         Opcion(if (a.tipo == "video") "▶ Reproducir en TorrentVision" else "🖼 Mostrar en TorrentVision") { vm.accion("reproducir", "id" to a.id) },
     )
     if (a.tipo == "video") opciones += Opcion("☰ Agregar a la cola") { vm.accion("cola_agregar", "ids" to ids) }
+    if (a.tipo == "video" && vm.estado?.roku?.let { it.conectado || it.vinculados > 0 } == true) {
+        opciones += Opcion("📺 Ver en el Roku") { vm.accion("roku_reproducir", "id" to a.id) }
+    }
     opciones += listOf(
         Opcion(if (esFav) "☆ Quitar de Favoritos" else "★ Agregar a Favoritos") {
             vm.accion("favoritos", "ids" to ids, "activo" to !esFav)

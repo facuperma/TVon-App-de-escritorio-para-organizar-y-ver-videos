@@ -33,6 +33,14 @@ data class Transmision(
 data class Cast(val disponible: Boolean, val buscando: Boolean, val teles: List<Tele>, val transmision: Transmision?)
 data class Siguiente(val texto: String, val nombre: String)
 
+/** Un Roku que pide permiso para ver la biblioteca (el código tiene que ser el mismo que muestra la tele). */
+data class PedidoRoku(val id: String, val nombre: String, val codigo: String)
+/** Roku: el canal TorrentVision de la tele. Lo maneja la PC; el celular manda las órdenes. */
+data class Roku(
+    val disponible: Boolean, val conectado: Boolean, val nombre: String, val estado: String, val titulo: String,
+    val posicion: Long, val duracion: Long, val vinculados: Int, val pendientes: List<PedidoRoku>,
+)
+
 data class Estado(
     val version: String,
     val archivo: Archivo?,
@@ -47,6 +55,7 @@ data class Estado(
     val moverDescargas: Boolean,
     val opensubtitles: Boolean,
     val cast: Cast?,
+    val roku: Roku?,
 ) {
     companion object {
         fun de(o: JSONObject) = Estado(
@@ -84,6 +93,15 @@ data class Estado(
                         Transmision(it.optString("dispositivo"), it.optString("titulo"), it.optLong("posicion"),
                             it.optLong("duracion"), it.optString("estado"), it.optInt("volumen"))
                     },
+                )
+            },
+            roku = o.optJSONObject("roku")?.let { r ->
+                Roku(
+                    disponible = r.optBoolean("disponible"), conectado = r.optBoolean("conectado"),
+                    nombre = r.optString("nombre"), estado = r.optString("estado"), titulo = r.optString("titulo"),
+                    posicion = r.optLong("posicion"), duracion = r.optLong("duracion"),
+                    vinculados = r.optJSONArray("vinculados")?.length() ?: 0,
+                    pendientes = r.optJSONArray("pendientes").objetos { PedidoRoku(it.optString("id"), it.optString("nombre"), it.optString("codigo")) },
                 )
             },
         )

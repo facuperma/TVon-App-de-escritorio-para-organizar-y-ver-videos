@@ -224,6 +224,10 @@ class Remoto(QObject):
         self.control = _Control(self)
         self.servidor: ThreadingHTTPServer | None = None
         self.puerto = 0
+        self.servidor_roku: ThreadingHTTPServer | None = None
+        self.puerto_roku = 0
+        from .roku import EstadoRoku  # acá y no arriba: roku.py usa cosas de este archivo
+        self.roku = EstadoRoku()
         self.error = ""
         self._sesiones: dict[str, dict] = {}
         self._borradas: set[str] = set()  # las que se sacaron a propósito: al guardar no se vuelven a sumar
@@ -351,6 +355,9 @@ class Remoto(QObject):
         self.cambiar_codigo()
         self.puerto = self.servidor.server_address[1]
         threading.Thread(target=self.servidor.serve_forever, daemon=True).start()
+        from .roku import iniciar_servidor
+        self.servidor_roku = iniciar_servidor(self)
+        self.puerto_roku = self.servidor_roku.server_address[1] if self.servidor_roku else 0
         self._iniciar_descubrimiento()
         self.estado_cambiado.emit()
         return True
@@ -365,6 +372,10 @@ class Remoto(QObject):
         servidor, self.servidor = self.servidor, None
         servidor.shutdown()
         servidor.server_close()
+        if self.servidor_roku is not None:
+            roku, self.servidor_roku = self.servidor_roku, None
+            roku.shutdown()
+            roku.server_close()
         self.estado_cambiado.emit()
 
     def _iniciar_descubrimiento(self):
@@ -378,7 +389,7 @@ class Remoto(QObject):
             return  # otro programa usa el puerto: el celular se conecta igual si la IP no cambió
         udp.settimeout(1)
         self._udp = udp
-        respuesta = json.dumps({"tvon": 1, "puerto": self.puerto,
+        respuesta = json.dumps({"tvon": 1, "puerto": self.puerto, "roku": self.puerto_roku,
                                 "huella": self.huella_certificado.replace(":", "")}).encode()
         threading.Thread(target=self._responder_descubrimiento, args=(udp, respuesta), daemon=True).start()
 
@@ -431,13 +442,13 @@ class Remoto(QObject):
             self.puente.llamar(self.cambiar_codigo)
         return token
 
-    def _nueva_sesion(self, nombre: str) -> str:
-        """Crea la sesión de un celular (queda vinculado) y devuelve su token."""
+    def _nueva_sesion(self, nombre: str, roku: bool = False, ip: str = "") -> str:
+        """Crea la sesión de un celular (o de un Roku) y devuelve su token."""
         token = secrets.token_urlsafe(32)
         huella = seguridad.huella_sesion(token)
         with self._cerrojo:
             self._sesiones[huella] = {"huella": huella, "nombre": nombre, "creada": time.strftime("%d/%m/%Y %H:%M"),
-                                      "usada": time.time()}
+                                      "usada": time.time(), **({"roku": True, "ip": ip} if roku else {})}
         self._guardar_sesiones()
         self.celular_conectado.emit(nombre)
         self.estado_cambiado.emit()
@@ -445,14 +456,19 @@ class Remoto(QObject):
 
     # --- Vincular sin QR: el celular lo pide y se aprueba en la PC ----------------------------------
 
-    def codigo_vinculo(self, id_solicitud: str) -> str:
+    def nombre_de_sesion(self, huella: str) -> str:
+        with self._cerrojo:
+            return self._sesiones.get(huella, {}).get("nombre", "Roku")
+
+    def codigo_vinculo(self, id_solicitud: str, roku: bool = False) -> str:
         """6 números que salen de la huella del certificado y del pedido: el celular calcula los mismos con
         el certificado que ve. Si alguien en la wifi se hiciera pasar por la PC, no coincidirían."""
-        base = (self.huella_certificado.replace(":", "").upper() + id_solicitud).encode()
+        # El Roku no ve el certificado: su código sale solo del pedido (la PC y el Roku muestran el mismo)
+        base = ((self.huella_certificado.replace(":", "").upper() if not roku else "ROKU") + id_solicitud).encode()
         n = int(hashlib.sha256(base).hexdigest()[:8], 16) % 1_000_000
         return f"{n // 1000:03d} {n % 1000:03d}"
 
-    def solicitar_vinculo(self, agente: str, nombre: str, ip: str) -> str | None:
+    def solicitar_vinculo(self, agente: str, nombre: str, ip: str, roku: bool = False) -> str | None:
         """Un celular sin vincular pide permiso. Aparece un cartel en la PC; devuelve el id del pedido
         (None si esa IP ya tiene uno pendiente o pidió demasiadas veces)."""
         ahora = time.time()
@@ -463,8 +479,9 @@ class Remoto(QObject):
             self._fallidos.setdefault(ip, []).append(ahora)  # cuenta como intento: no se puede insistir sin fin
             id_solicitud = secrets.token_hex(8)
             nombre = (nombre.strip() or nombre_dispositivo(agente))[:60]
-            self._solicitudes[id_solicitud] = {"ip": ip, "nombre": nombre, "estado": "pendiente", "creada": ahora}
-        self.solicitud_vinculo.emit(id_solicitud, nombre, ip, self.codigo_vinculo(id_solicitud))
+            self._solicitudes[id_solicitud] = {"ip": ip, "nombre": nombre, "estado": "pendiente", "creada": ahora,
+                                               "roku": roku}
+        self.solicitud_vinculo.emit(id_solicitud, nombre, ip, self.codigo_vinculo(id_solicitud, roku))
         return id_solicitud
 
     def resolver_vinculo(self, id_solicitud: str, aprobada: bool):
@@ -483,17 +500,18 @@ class Remoto(QObject):
             if s["estado"] != "aprobada":
                 return s["estado"], None
             del self._solicitudes[id_solicitud]
-            nombre = s["nombre"]
-        return "aprobada", self._nueva_sesion(nombre)
+            nombre, roku = s["nombre"], s.get("roku", False)
+        return "aprobada", self._nueva_sesion(nombre, roku, ip if roku else "")
 
-    def sesion_valida(self, token: str | None) -> bool:
+    def sesion_valida(self, token: str | None, roku: bool = False) -> bool:
+        """roku=True: solo sirve la sesión de un Roku; si no, solo la de un celular (nunca se mezclan)."""
         if not token:
             return False
         huella = seguridad.huella_sesion(token)
         ahora = time.time()
         with self._cerrojo:
             sesion = self._sesiones.get(huella)
-            if sesion is None:
+            if sesion is None or bool(sesion.get("roku")) != roku:
                 return False
             vencida = ahora - sesion["usada"] > VIGENCIA
             if vencida:
@@ -526,6 +544,7 @@ class Remoto(QObject):
             self._sesiones.pop(huella, None)
             self._vistas.pop(huella, None)
             self._borradas.add(huella)
+        self.roku.olvidar(huella)
         self._guardar_sesiones()
         self.estado_cambiado.emit()
 
@@ -554,6 +573,25 @@ class Remoto(QObject):
                       "vence": time.strftime("%d/%m/%Y", time.localtime(s["usada"] + VIGENCIA))}
                      for t, s in self._sesiones.items()]
         return sorted(lista, key=lambda s: (s["visto"] is None, s["visto"] or 0, -s["usada"]))
+
+    def estado_roku(self) -> dict:
+        """Para el celular: el Roku que está conectado ahora, los vinculados y los pedidos esperando permiso."""
+        ahora = time.time()
+        with self._cerrojo:
+            vinculados = [{"huella": h, "nombre": s["nombre"]} for h, s in self._sesiones.items() if s.get("roku")]
+            pendientes = [{"id": i, "nombre": q["nombre"], "codigo": self.codigo_vinculo(i, True)}
+                          for i, q in getattr(self, "_solicitudes", {}).items()
+                          if q.get("roku") and q["estado"] == "pendiente" and ahora - q["creada"] < 120]
+        activo = self.roku.ultimo()
+        return {
+            "disponible": self.servidor_roku is not None,
+            "conectado": activo is not None,
+            "nombre": activo["nombre"] if activo else "",
+            "estado": activo["estado"] if activo else "desconectado",
+            "titulo": activo["titulo"] if activo else "",
+            "posicion": activo["pos"] if activo else 0, "duracion": activo["dur"] if activo else 0,
+            "vinculados": vinculados, "pendientes": pendientes,
+        }
 
     def _guardar_sesiones(self):
         # La base es del hilo de la interfaz: desde el servidor se guarda a través del puente
@@ -1285,6 +1323,7 @@ class _Control:
             "mover_descargas": self.bib.config("mover_descargas") == "1",
             "opensubtitles": bool(self.bib.config("os_api_key")),
             "cast": self.ventana.transmisor.estado(),
+            "roku": self.remoto.estado_roku(),
         }
 
     def biblioteca(self) -> dict:
@@ -1891,6 +1930,46 @@ class _Control:
 
     def accion_cast_detener(self):
         self.ventana.transmisor.detener()
+
+    # Roku: el celular manda las órdenes y el Roku las busca en su próximo latido (cada 2 s)
+
+    def _orden_roku(self, **orden):
+        if not self.remoto.roku.encolar(orden):
+            raise ErrorRemoto("No hay un Roku conectado: abrí TorrentVision en el Roku", 409)
+
+    def accion_roku_reproducir(self, id):
+        (aid, _ruta, tipo), = self._archivos([id])
+        if tipo != "video":
+            raise ErrorRemoto("Solo se pueden ver videos en el Roku")
+        if self.remoto.roku.encolar({"c": "reproducir", "id": aid}):
+            return
+        # Con el canal cerrado, la PC lo abre (control externo del Roku) y le pasa qué reproducir.
+        # La IP es la que tenía el Roku cuando se vinculó
+        from .roku import abrir_canal_por_ecp
+        with self.remoto._cerrojo:
+            ips = [s.get("ip") for s in self.remoto._sesiones.values() if s.get("roku") and s.get("ip")]
+        if not any(abrir_canal_por_ecp(ip, aid) for ip in ips):
+            raise ErrorRemoto("No hay un Roku conectado: abrí TorrentVision en el Roku "
+                              "(y revisá que esté prendido y en la misma red)", 409)
+
+    def accion_roku_play_pausa(self):
+        self._orden_roku(c="alternar")
+
+    def accion_roku_adelantar(self, ms):
+        self._orden_roku(c="adelantar", ms=int(ms))
+
+    def accion_roku_ir_a(self, ms):
+        self._orden_roku(c="ir_a", ms=max(0, int(ms)))
+
+    def accion_roku_detener(self):
+        self._orden_roku(c="detener")
+
+    def accion_roku_subtitulos(self, activo):
+        self._orden_roku(c="subtitulos", activo=bool(activo))
+
+    def accion_roku_resolver(self, id, permitir):
+        """Aprobar o rechazar desde el celular el pedido de un Roku (también se puede en la PC)."""
+        self.remoto.resolver_vinculo(str(id), bool(permitir))
 
     # Torrents: el celular manda el link magnet y baja la PC
 

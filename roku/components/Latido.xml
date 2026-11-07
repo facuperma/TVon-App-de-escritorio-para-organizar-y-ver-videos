@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<component name="Latido" extends="Task">
+  <script type="text/brightscript" uri="pkg:/components/Latido.brs" />
+  <interface>
+    <field id="base" type="string" />
+    <field id="token" type="string" />
+    <field id="estado" type="assocarray" />
+    <field id="ordenes" type="array" alwaysNotify="true" />
+    <field id="desvinculado" type="boolean" value="false" alwaysNotify="true" />
+  </interface>
+</component>

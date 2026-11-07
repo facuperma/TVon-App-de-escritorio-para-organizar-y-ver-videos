@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<component name="Api" extends="Task">
+  <script type="text/brightscript" uri="pkg:/components/Api.brs" />
+  <interface>
+    <field id="url" type="string" />
+    <field id="metodo" type="string" value="GET" />
+    <field id="cuerpo" type="string" />
+    <field id="etiqueta" type="string" />
+    <field id="respuesta" type="assocarray" />
+  </interface>
+</component>

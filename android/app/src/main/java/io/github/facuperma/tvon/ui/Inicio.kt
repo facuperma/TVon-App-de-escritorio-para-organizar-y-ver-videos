@@ -207,6 +207,9 @@ private fun menuCartel(vm: Modelo, c: Cartel) {
     c.id?.let { id ->
         opciones += Opcion("📱 Ver en el celular") { vm.verAcaId(id) }
         opciones += Opcion("📺 Ver en la PC") { vm.accion("reproducir", "id" to id) }
+        if (vm.estado?.roku?.let { it.conectado || it.vinculados > 0 } == true) {
+            opciones += Opcion("📺 Ver en el Roku") { vm.accion("roku_reproducir", "id" to id) }
+        }
         opciones += Opcion("☰ A la cola de la PC") { vm.accion("cola_agregar", "ids" to listOf(id)) }
         opciones += Opcion(if (c.visto) "↺ Marcar como no visto" else "✓ Marcar como visto") {
             vm.accion("visto", "ids" to listOf(id), "visto" to !c.visto); vm.cargarInicio(); vm.cargarCatalogo()
@@ -297,6 +300,9 @@ private fun DetalleSerie(vm: Modelo, s: SerieDet) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Boton("📱 Ver en el celular", Modifier.weight(1f), Estilo.PRIMARIO) { vm.verAcaId(id) }
                         Boton("📺 En la PC", Modifier.weight(1f)) { vm.hacer("reproducir", "id" to id) }
+                        if (vm.estado?.roku?.let { it.conectado || it.vinculados > 0 } == true) {
+                            Boton("📺 Roku", Modifier.weight(1f)) { vm.hacer("roku_reproducir", "id" to id) }
+                        }
                     }
                 }
             }

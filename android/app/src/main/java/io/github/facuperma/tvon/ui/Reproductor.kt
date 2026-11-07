@@ -40,7 +40,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import io.github.facuperma.tvon.Cast
+import io.github.facuperma.tvon.Roku
 import io.github.facuperma.tvon.Modelo
 import io.github.facuperma.tvon.Subtitulos
 import io.github.facuperma.tvon.textoSincronia
@@ -132,6 +134,7 @@ fun PestanaReproductor(vm: Modelo) {
         }
 
         e?.cast?.let { TarjetaTele(vm, it, hay) }
+        e?.roku?.takeIf { it.disponible }?.let { TarjetaRoku(vm, it) }
 
         Tarjeta {
             val cola = e?.cola.orEmpty()
@@ -184,6 +187,46 @@ private fun TarjetaTele(vm: Modelo, c: Cast, hayVideo: Boolean) {
                             vm.hacer("cast_iniciar", "dispositivo" to tele.id)
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+/** El Roku: aprobar su código la primera vez y manejar lo que está viendo. */
+@Composable
+private fun TarjetaRoku(vm: Modelo, r: Roku) {
+    Tarjeta {
+        TituloTarjeta("📺 Roku")
+        for (p in r.pendientes) {
+            Text("${p.nombre} pide permiso", color = C.titulo, fontWeight = FontWeight.SemiBold)
+            Text(p.codigo, color = C.acento, fontWeight = FontWeight.Bold, fontSize = 26.sp)
+            Pista("Aprobalo solo si es el mismo código que muestra la tele.")
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Boton("✓ Permitir", Modifier.weight(1f), chico = true, estilo = Estilo.PRIMARIO) {
+                    vm.hacer("roku_resolver", "id" to p.id, "permitir" to true)
+                }
+                Boton("✕ Rechazar", Modifier.weight(1f), chico = true) { vm.hacer("roku_resolver", "id" to p.id, "permitir" to false) }
+            }
+        }
+        when {
+            !r.conectado -> Pista(
+                if (r.vinculados > 0) "No está conectado. Prendé la tele y abrí TorrentVision en el Roku, o elegí una película y tocá «Ver en el Roku»."
+                else "Abrí el canal TorrentVision en el Roku: se conecta solo a la PC y acá aparece su código para aprobar."
+            )
+            r.estado == "inactivo" -> Pista("${r.nombre} conectado. Elegí una película y tocá «Ver en el Roku», o usá el control de la tele.")
+            else -> {
+                Text(r.titulo, color = C.titulo, fontWeight = FontWeight.SemiBold)
+                Pista(tiempo(r.posicion) + " / " + tiempo(r.duracion) + if (r.estado == "pausa") " · en pausa" else "")
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                    Redondo("↺30") { vm.hacer("roku_adelantar", "ms" to -30000) }
+                    Redondo(if (r.estado == "pausa") "▶" else "⏸", grande = true) { vm.hacer("roku_play_pausa") }
+                    Redondo("30↻") { vm.hacer("roku_adelantar", "ms" to 30000) }
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Boton("💬 Subtítulos sí", Modifier.weight(1f), chico = true) { vm.hacer("roku_subtitulos", "activo" to true) }
+                    Boton("No", Modifier.weight(1f), chico = true) { vm.hacer("roku_subtitulos", "activo" to false) }
+                    Boton("⏹ Parar", Modifier.weight(1f), chico = true) { vm.hacer("roku_detener") }
                 }
             }
         }

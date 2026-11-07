@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<component name="Escena" extends="Scene">
+  <script type="text/brightscript" uri="pkg:/components/Escena.brs" />
+  <interface>
+    <field id="pedido" type="assocarray" alwaysNotify="true" onChange="alPedido" />
+  </interface>
+  <children>
+    <Rectangle id="fondo" color="0x0B1220FF" width="1280" height="720" />
+    <Label id="logo" text="TorrentVision" translation="[60,28]" font="font:MediumBoldSystemFont" color="0x3DAEEBFF" />
+    <Label id="seccion" text="" translation="[1000,36]" width="220" horizAlign="right" font="font:SmallSystemFont" color="0x9FB3CCFF" />
+    <Label id="mensaje" text="" translation="[90,230]" width="1100" height="120" wrap="true" horizAlign="center"
+           font="font:MediumSystemFont" color="0xFFFFFFFF" />
+    <Label id="codigo" text="" translation="[90,340]" width="1100" horizAlign="center"
+           font="font:LargeBoldSystemFont" color="0x3DAEEBFF" />
+    <Label id="ayuda" text="" translation="[160,440]" width="960" height="160" wrap="true" horizAlign="center"
+           font="font:SmallSystemFont" color="0x9FB3CCFF" />
+    <RowList id="filas" translation="[40,90]" itemComponentName="Tarjeta" itemSize="[1200,330]"
+             rowItemSize="[[180,314]]" rowItemSpacing="[[16,0]]" numRows="2" itemSpacing="[0,30]"
+             showRowLabel="[true]" rowLabelOffset="[[0,6]]" focusXOffset="[0]" rowFocusAnimationStyle="floatingFocus"
+             visible="false" />
+    <LabelList id="episodios" translation="[160,110]" itemSize="[960,48]" numRows="10" visible="false" />
+    <Label id="pie" text="" translation="[60,676]" width="1160" font="font:SmallestSystemFont" color="0x6F86A6FF" />
+    <Video id="video" translation="[0,0]" width="1280" height="720" visible="false" />
+  </children>
+</component>
