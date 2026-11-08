@@ -27,6 +27,10 @@ sub init()
     m.solicitud = ""
     m.intentosSondeo = 0
     m.episodiosAbiertos = false
+    m.pc = ""              ' id de la PC vinculada: si le cambia la IP, se la busca por este id
+    m.ultimoPase = ""
+    m.reubicando = false
+    m.reubicado = false
 
     leerRegistro()
 
@@ -57,6 +61,20 @@ sub leerRegistro()
     if r.Exists("base") then m.base = r.Read("base")
     if r.Exists("token") then m.token = r.Read("token")
     if r.Exists("compat") then m.compat = r.Read("compat")
+    if r.Exists("pc") then m.pc = r.Read("pc")
+end sub
+
+sub vinculado(token as String, datos as Object)
+    m.token = token
+    guardarRegistro("base", m.base)
+    guardarRegistro("token", m.token)
+    if datos <> invalid and datos.id <> invalid then
+        m.pc = datos.id
+        guardarRegistro("pc", m.pc)
+    end if
+    m.reubicado = false
+    iniciarLatido()
+    mostrarInicio()
 end sub
 
 sub guardarRegistro(clave as String, valor as String)
@@ -105,6 +123,13 @@ sub alRespuesta(evento as Object)
     end if
     if r.etiqueta = "solicitar" then
         alSolicitar(r)
+    else if r.etiqueta = "pase" then
+        alPase(r)
+    else if r.etiqueta = "id" then
+        if r.codigo = 200 and r.datos <> invalid and r.datos.id <> invalid then
+            m.pc = r.datos.id
+            guardarRegistro("pc", m.pc)
+        end if
     else if r.etiqueta = "estado" then
         alEstado(r)
     else if r.etiqueta = "inicio" then
@@ -151,8 +176,24 @@ sub buscarPC()
     cambiarPantalla("buscando")
     m.mensaje.text = "Buscando TorrentVision en tu red…"
     m.codigo.text = ""
-    m.ayuda.text = "Abrí TorrentVision en la PC y encendé ON (botón 📱 ON). La PC y el Roku tienen que estar en la misma red wifi."
+    m.ayuda.text = "Lo más fácil: en la app del celular, Control → Roku → «Conectar un Roku». O abrí TorrentVision en la PC con ON encendido (misma red wifi)."
     b = CreateObject("roSGNode", "Buscar")
+    b.observeField("resultado", "alBuscar")
+    m.buscador = b
+    b.control = "RUN"
+end sub
+
+' La PC vinculada no contesta en su IP de siempre: se la busca en la red por su id (no se confunde con otra PC)
+sub reubicar()
+    m.reubicado = true
+    m.reubicando = true
+    if m.latido <> invalid then m.latido.control = "STOP"
+    cambiarPantalla("buscando")
+    m.mensaje.text = "Buscando tu PC en la red…"
+    m.codigo.text = ""
+    m.ayuda.text = "¿Está prendida, con TorrentVision abierto y ON encendido?"
+    b = CreateObject("roSGNode", "Buscar")
+    b.quiero = m.pc
     b.observeField("resultado", "alBuscar")
     m.buscador = b
     b.control = "RUN"
@@ -160,6 +201,22 @@ end sub
 
 sub alBuscar(evento as Object)
     r = evento.getData()
+    if m.pantalla <> "buscando" then return   ' mientras tanto se vinculó desde el celular
+    if m.reubicando then
+        m.reubicando = false
+        if r <> invalid and r.ok = true then
+            m.base = "http://" + r.ip + ":" + r.puerto.ToStr()
+            guardarRegistro("base", m.base)
+            iniciarLatido()
+            mostrarInicio()
+        else
+            cambiarPantalla("error")
+            m.mensaje.text = "No encontré tu PC en la red."
+            m.ayuda.text = "Prendé la PC y abrí TorrentVision con ON encendido. Apretá OK para reintentar."
+            m.pantalla = "reintentar"
+        end if
+        return
+    end if
     if r <> invalid and r.ok = true then
         m.base = "http://" + r.ip + ":" + r.puerto.ToStr()
         pedirEmparejar()
@@ -215,17 +272,44 @@ sub alEstado(r as Object)
     estado = r.datos.estado
     if estado = "aprobada" and r.datos.token <> invalid then
         m.sondeo.control = "stop"
-        m.token = r.datos.token
-        guardarRegistro("base", m.base)
-        guardarRegistro("token", m.token)
-        iniciarLatido()
-        mostrarInicio()
+        vinculado(r.datos.token, r.datos)
     else if estado = "rechazada" or estado = "vencida" then
         m.sondeo.control = "stop"
         cambiarPantalla("error")
         m.mensaje.text = "La PC rechazó el pedido o venció."
         m.codigo.text = ""
         m.ayuda.text = "Apretá OK para volver a intentar."
+    end if
+end sub
+
+' «Conectar el Roku» desde el celular: la PC abrió el canal con un pase de un solo uso (sin código)
+sub alVincular()
+    v = m.top.vincular
+    if v = invalid or v.pase = invalid or v.pase = m.ultimoPase then return
+    m.ultimoPase = v.pase
+    m.sondeo.control = "stop"
+    m.reubicando = false
+    if m.latido <> invalid then m.latido.control = "STOP"
+    if m.pantalla = "video" then m.video.control = "stop"
+    m.base = "http://" + v.ip + ":" + v.puerto
+    cambiarPantalla("emparejando")
+    m.mensaje.text = "Conectando con la PC…"
+    m.codigo.text = ""
+    m.ayuda.text = ""
+    info = CreateObject("roDeviceInfo")
+    pedir("POST", "/roku/pase", FormatJson({ pase: v.pase, nombre: info.GetFriendlyName() }), "pase")
+end sub
+
+sub alPase(r as Object)
+    if r.codigo = 200 and r.datos <> invalid and r.datos.token <> invalid then
+        vinculado(r.datos.token, r.datos)
+    else
+        cambiarPantalla("error")
+        mensaje = "No se pudo conectar con la PC."
+        if r.datos <> invalid and r.datos.error <> invalid then mensaje = r.datos.error
+        m.mensaje.text = mensaje
+        m.codigo.text = ""
+        m.ayuda.text = "Volvé a tocar «Conectar un Roku» en el celular, o apretá OK para buscar la PC."
     end if
 end sub
 
@@ -328,6 +412,10 @@ sub mostrarInicio()
 end sub
 
 sub alInicio(r as Object)
+    if r.codigo <= 0 and m.pc <> "" and not m.reubicado then
+        reubicar()   ' sin respuesta: quizás el router le dio otra IP a la PC
+        return
+    end if
     if r.codigo <> 200 or r.datos = invalid then
         cambiarPantalla("error")
         m.mensaje.text = "No pude leer la biblioteca de la PC."
@@ -353,6 +441,8 @@ sub alInicio(r as Object)
         return
     end if
     m.filas.content = raiz
+    m.reubicado = false
+    if m.pc = "" then pedir("GET", "/roku/hola", "", "id")   ' vinculado con una versión anterior
     cambiarPantalla("inicio")
     m.mensaje.visible = false
 end sub
@@ -528,6 +618,8 @@ sub alOpcion(evento as Object)
     else if i = 2 then
         borrarRegistro("token")
         borrarRegistro("base")
+        borrarRegistro("pc")
+        m.pc = ""
         if m.latido <> invalid then m.latido.control = "STOP"
         m.token = ""
         buscarPC()
@@ -579,6 +671,7 @@ function onKeyEvent(tecla as String, presionada as Boolean) as Boolean
     end if
     if (m.pantalla = "error" or m.pantalla = "reintentar") and tecla = "OK" then
         if m.token <> "" then
+            m.reubicado = false
             mostrarInicio()
         else
             buscarPC()

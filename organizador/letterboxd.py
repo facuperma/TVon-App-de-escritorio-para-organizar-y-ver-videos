@@ -5,6 +5,7 @@ pública, como la ve cualquiera sin cuenta. Si la watchlist es privada, no se ve
 cambia su página, esto deja de encontrar películas y lo avisa.
 """
 import html
+import json
 import re
 import time
 import unicodedata
@@ -157,3 +158,33 @@ def titulos_en_otros_idiomas(titulo: str, anio: str) -> list[str]:
     nombres |= {a["value"] for lista in e.get("aliases", {}).values() for a in lista}
     nombres.discard(titulo)
     return sorted(nombres)[:40]
+
+
+def detalle(url: str) -> dict:
+    """Lo que muestra la página de una película (datos estructurados que Letterboxd pone para los buscadores):
+    sinopsis, póster (como dirección), director, duración, géneros y puntaje. Lo que falte queda vacío."""
+    pagina = _pagina(url)
+    m = re.search(r'<script type="application/ld\+json">(.*?)</script>', pagina, re.S)
+    datos = {}
+    if m:
+        try:
+            datos = json.loads(re.sub(r"/\*.*?\*/", "", m.group(1), flags=re.S).strip())
+        except ValueError:
+            datos = {}
+    if not isinstance(datos, dict):
+        datos = {}
+    minutos = 0
+    if d := re.fullmatch(r"PT(?:(\d+)H)?(?:(\d+)M)?", str(datos.get("duration") or "")):
+        minutos = int(d.group(1) or 0) * 60 + int(d.group(2) or 0)
+    directores = [p.get("name", "") for p in datos.get("director") or [] if isinstance(p, dict)]
+    generos = datos.get("genre") or []
+    puntaje = (datos.get("aggregateRating") or {}).get("ratingValue")
+    og = re.search(r'<meta[^>]+property="og:description"[^>]+content="([^"]*)"', pagina)
+    return {
+        "sinopsis": html.unescape(datos.get("description") or (og.group(1) if og else "")).strip(),
+        "poster_url": datos.get("image") or "",
+        "director": ", ".join(d for d in directores if d),
+        "minutos": minutos,
+        "generos": [g for g in ([generos] if isinstance(generos, str) else generos) if isinstance(g, str)][:4],
+        "puntaje": round(float(puntaje), 1) if isinstance(puntaje, (int, float)) else None,
+    }

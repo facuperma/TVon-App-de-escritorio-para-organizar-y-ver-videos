@@ -96,6 +96,8 @@ def main():
         "--add-data", f"{apk_celular()};organizador/apk",
         # Chromecast: zeroconf y pychromecast cargan partes propias que PyInstaller no ve solo
         "--collect-submodules", "zeroconf", "--collect-submodules", "pychromecast",
+        # Cuentas guardadas en la PC (el servidor de cuentas corre adentro de la app)
+        "--hidden-import", "servidor_social.servidor",
         "--distpath", str(SALIDA / "dist"), "--workpath", str(SALIDA / "build"),
         "--specpath", str(SALIDA), str(RAIZ / "main.py"),
     ], check=True)

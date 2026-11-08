@@ -2,6 +2,7 @@
 <component name="Buscar" extends="Task">
   <script type="text/brightscript" uri="pkg:/components/Buscar.brs" />
   <interface>
+    <field id="quiero" type="string" />
     <field id="resultado" type="assocarray" />
   </interface>
 </component>

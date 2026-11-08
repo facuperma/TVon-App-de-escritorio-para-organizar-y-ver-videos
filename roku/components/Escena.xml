@@ -3,6 +3,7 @@
   <script type="text/brightscript" uri="pkg:/components/Escena.brs" />
   <interface>
     <field id="pedido" type="assocarray" alwaysNotify="true" onChange="alPedido" />
+    <field id="vincular" type="assocarray" alwaysNotify="true" onChange="alVincular" />
   </interface>
   <children>
     <Rectangle id="fondo" color="0x0B1220FF" width="1280" height="720" />

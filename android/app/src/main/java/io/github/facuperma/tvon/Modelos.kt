@@ -39,7 +39,10 @@ data class PedidoRoku(val id: String, val nombre: String, val codigo: String)
 data class Roku(
     val disponible: Boolean, val conectado: Boolean, val nombre: String, val estado: String, val titulo: String,
     val posicion: Long, val duracion: Long, val vinculados: Int, val pendientes: List<PedidoRoku>,
+    val buscando: Boolean = false, val conectando: String = "", val encontrados: List<RokuEnRed> = emptyList(),
 )
+/** Un Roku que la PC encontró en la wifi («Conectar un Roku»). */
+data class RokuEnRed(val ip: String, val nombre: String, val vinculado: Boolean)
 
 data class Estado(
     val version: String,
@@ -102,6 +105,8 @@ data class Estado(
                     posicion = r.optLong("posicion"), duracion = r.optLong("duracion"),
                     vinculados = r.optJSONArray("vinculados")?.length() ?: 0,
                     pendientes = r.optJSONArray("pendientes").objetos { PedidoRoku(it.optString("id"), it.optString("nombre"), it.optString("codigo")) },
+                    buscando = r.optBoolean("buscando"), conectando = r.optString("conectando"),
+                    encontrados = r.optJSONArray("encontrados").objetos { RokuEnRed(it.optString("ip"), it.optString("nombre"), it.optBoolean("vinculado")) },
                 )
             },
         )

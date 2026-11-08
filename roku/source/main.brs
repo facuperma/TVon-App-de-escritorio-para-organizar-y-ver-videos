@@ -23,7 +23,14 @@ end sub
 
 sub pedirDesde(escena as Object, datos as Dynamic)
     if datos <> invalid and datos.contentId <> invalid then
-        id = Int(Val(datos.contentId.ToStr()))
+        c = datos.contentId.ToStr()
+        ' «Conectar el Roku» desde el celular: v|ip de la PC|puerto|pase de un solo uso
+        if Left(c, 2) = "v|" then
+            partes = c.Split("|")
+            if partes.Count() = 4 then escena.vincular = { ip: partes[1], puerto: partes[2], pase: partes[3] }
+            return
+        end if
+        id = Int(Val(c))
         if id > 0 then escena.pedido = { id: id }
     end if
 end sub

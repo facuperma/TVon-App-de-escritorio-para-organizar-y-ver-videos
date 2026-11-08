@@ -43,6 +43,8 @@ from .subtitulos_online import buscar_para_visor, subtitulos_automaticos
 from .chromecast import Transmisor
 from .ventana_cast import VentanaCast
 from .ventana_letterboxd import VentanaLetterboxd
+from .avatar3d import Munequito
+from .ventana_avatar import EstadoSocial, VentanaAvatar
 from .ventana_torrents import VentanaTorrents
 from .ventana_video import VentanaVideo
 from .visor import REPRODUCIR, VISTA_PREVIA, Visor, atajos_reproductor, texto_progreso
@@ -88,6 +90,7 @@ class Ventana(QMainWindow):
         self.ventana_dominio: VentanaDominioPublico | None = None
         self.ventana_torrents: VentanaTorrents | None = None
         self.ventana_letterboxd: VentanaLetterboxd | None = None
+        self.ventana_avatar: VentanaAvatar | None = None
         self.transmisor = Transmisor()  # Chromecast
         self.ventana_cast: VentanaCast | None = None
         self.aviso: AvisoFlotante | None = None
@@ -119,6 +122,7 @@ class Ventana(QMainWindow):
         self.resize(1400, 820)
         self.setAcceptDrops(True)
 
+        self.social = EstadoSocial(biblioteca)  # tu muñequito, tu cuenta y tus puntos
         self._crear_barra()
 
         # --- Columna izquierda: filtros y categorías -------------------------
@@ -392,12 +396,35 @@ class Ventana(QMainWindow):
         config = barra.addMenu("&Configuración")
         config.addAction("Preferencias…", self._abrir_configuracion)
         config.addAction("📱 ON: manejar desde el celular…", self._abrir_on)
+        config.addAction("🎬 Tu Protagonista, cuenta y amigos…", self._abrir_avatar)
         apagar = config.addAction("Apagar la PC al terminar el video")
         apagar.setCheckable(True)
         apagar.toggled.connect(self.chk_apagar.setChecked)
         self.chk_apagar.toggled.connect(apagar.setChecked)
 
         barra.addAction("Acerca de", self._acerca_de)
+
+        # Arriba a la derecha (siempre a la vista): tu muñequito con tu nombre y tus puntos.
+        # Tocalo para editarlo, tu cuenta y tus amigos
+        # Del alto justo de la barra: si es más alto, la barra crece y Archivo, Vista… quedan pegados arriba
+        alto = max(22, barra.sizeHint().height())
+        esquina = QWidget()
+        esquina.setFixedHeight(alto)
+        fila = QHBoxLayout(esquina)
+        fila.setContentsMargins(0, 0, 8, 0)
+        fila.setSpacing(6)
+        self.lbl_munequito = QLabel(objectName="pista")
+        self.lbl_munequito.setCursor(Qt.PointingHandCursor)
+        self.lbl_munequito.mousePressEvent = lambda _e: self._abrir_avatar()
+        self.munequito = Munequito(self.social.avatar, encuadre="busto")
+        self.munequito.setFixedSize(alto + 6, alto)
+        self.munequito.tocado.connect(self._abrir_avatar)
+        fila.addWidget(self.lbl_munequito)
+        fila.addWidget(self.munequito)
+        self._esquina = esquina  # PySide no se queda con el widget de la esquina: sin esto se borra
+        barra.setCornerWidget(esquina, Qt.TopRightCorner)
+        self.social.cambio.connect(self._munequito_cambio)
+        self._munequito_cambio()
         barra.addAction("Reportar un bug", self._reportar_bug)
 
     def _acerca_de(self):
@@ -905,6 +932,8 @@ class Ventana(QMainWindow):
             return
         progreso = self.bib.progresos().get(ruta)
         if bool(progreso and progreso[2]) != bool(item.data(0, ROL_VISTO)):
+            if progreso and progreso[2]:
+                self.social.avisar_visto()  # suma puntos en tu cuenta
             self._cargar_archivos()
             self._actualizar_conteos()
         else:
@@ -912,6 +941,8 @@ class Ventana(QMainWindow):
 
     def _marcar_vistos(self, rutas: list[str], visto: bool):
         self.bib.marcar_vistos(rutas, visto)
+        if visto:
+            self.social.avisar_visto()
         self._cargar_archivos()
         self._actualizar_conteos()
         self.statusBar().showMessage(
@@ -1477,6 +1508,21 @@ class Ventana(QMainWindow):
         elegido = self.bib.subtitulos_de(ruta)
         subtitulo = elegido[0] if elegido else next(iter(subtitulos_junto_a(ruta)), None)
         return ruta, self.bib.posicion_guardada(ruta), subtitulo
+
+    def _munequito_cambio(self):
+        self.munequito.poner(self.social.avatar)
+        self.munequito.setToolTip(self.social.resumen())
+        self.lbl_munequito.setToolTip(self.social.resumen())
+        p = self.social.perfil
+        self.lbl_munequito.setText(f"{p['nombre']} · {p['puntos']} pts" if p else
+                                   (self.social.usuario if self.social.conectado else "🎬 Armá tu Protagonista"))
+
+    def _abrir_avatar(self):
+        if self.ventana_avatar is None:
+            self.ventana_avatar = VentanaAvatar(self.social)
+        self.ventana_avatar.show()
+        self.ventana_avatar.raise_()
+        self.ventana_avatar.activateWindow()
 
     def _abrir_letterboxd(self):
         if self.ventana_letterboxd is None:

@@ -1,7 +1,7 @@
 title=TorrentVision
 subtitle=Tu biblioteca de la PC en la tele
 major_version=1
-minor_version=0
+minor_version=1
 build_version=1
 mm_icon_focus_hd=pkg:/images/icono_hd.png
 mm_icon_focus_sd=pkg:/images/icono_sd.png

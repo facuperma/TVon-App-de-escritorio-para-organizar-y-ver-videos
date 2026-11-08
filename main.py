@@ -15,7 +15,7 @@ from organizador.inicio_windows import ARGUMENTO
 from organizador.tema import ESTILO
 from organizador.ventana import Ventana
 
-VERSION = "1.10.16"
+VERSION = "1.10.17"
 INSTANCIA = "TVon-una-sola-vez"
 
 # Empaquetado con PyInstaller, los recursos están en sys._MEIPASS

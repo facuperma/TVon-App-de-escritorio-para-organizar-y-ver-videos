@@ -57,7 +57,7 @@ CONFIG_DEFECTO = {
 }
 
 # Se guardan cifrados (seguridad.proteger): claves de OpenSubtitles, TMDb y ON
-SECRETOS = {"os_api_key", "os_usuario", "os_clave", "on_codigo", "on_clave_cert", "on_sesiones", "tmdb_api_key"}
+SECRETOS = {"os_api_key", "os_usuario", "os_clave", "on_codigo", "on_clave_cert", "on_sesiones", "tmdb_api_key", "social_token"}
 
 CATEGORIA_DOMINIO_PUBLICO = "Dominio público"
 # Un video cuenta como visto al pasar este punto (los créditos no hace falta verlos)

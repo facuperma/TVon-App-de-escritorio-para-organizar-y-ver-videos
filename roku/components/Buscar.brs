@@ -18,6 +18,8 @@ sub buscar()
         if partes.Count() = 4 then destinos.Push(partes[0] + "." + partes[1] + "." + partes[2] + ".255:8765")
     end for
 
+    ' quiero = el id de la PC ya vinculada (si le cambió la IP): las demás PC de la casa no cuentan
+    quiero = m.top.quiero
     for intento = 1 to 6
         for each destino in destinos
             direccion = CreateObject("roSocketAddress")
@@ -26,15 +28,20 @@ sub buscar()
             udp.SendStr("TVON?")
         end for
         evento = wait(1500, puerto)
-        if type(evento) = "roSocketEvent" and udp.GetCountRcvdBytes() > 0 then
+        while type(evento) = "roSocketEvent" and udp.GetCountRcvdBytes() > 0
             texto = udp.ReceiveStr(512)
             datos = ParseJson(texto)
             origen = udp.GetReceivedFromAddress()
             if datos <> invalid and datos.tvon <> invalid and datos.roku <> invalid and datos.roku > 0 and origen <> invalid then
-                m.top.resultado = { ok: true, ip: origen.GetHostName(), puerto: datos.roku }
-                return
+                id = ""
+                if datos.id <> invalid then id = datos.id
+                if quiero = "" or quiero = id then
+                    m.top.resultado = { ok: true, ip: origen.GetHostName(), puerto: datos.roku, id: id }
+                    return
+                end if
             end if
-        end if
+            evento = wait(200, puerto)
+        end while
     end for
     m.top.resultado = { ok: false }
 end sub

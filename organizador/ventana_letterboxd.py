@@ -5,16 +5,17 @@ import re
 import requests
 from urllib.parse import quote_plus
 
-from PySide6.QtCore import Qt, QUrl
-from PySide6.QtGui import QBrush, QColor, QDesktopServices, QGuiApplication
+from PySide6.QtCore import Qt, QTimer, QUrl
+from PySide6.QtGui import QBrush, QColor, QDesktopServices, QGuiApplication, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView, QButtonGroup, QCheckBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMessageBox, QPushButton,
-    QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
+    QScrollArea, QSplitter, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
 )
 
 from . import archive, letterboxd
 from .temas import tema
 from .db import Biblioteca
+from .red import bajar_bytes
 from .tareas import en_segundo_plano
 from bs4 import BeautifulSoup
 
@@ -42,7 +43,9 @@ class VentanaLetterboxd(QWidget):
             self._traducciones = {}
         QGuiApplication.clipboard().dataChanged.connect(self._portapapeles)
         self.setWindowTitle("Letterboxd — TorrentVision")
-        self.resize(820, 600)
+        self.resize(1040, 640)
+        self._detalles: dict[str, tuple[dict, bytes | None]] = {}  # url -> (datos, póster) ya traídos
+        self._previsto = ""
         self._listas: dict[str, list[dict]] = {}  # lo ya traído, para no volver a pedirlo
         self._vista = "watchlist"
 
@@ -74,6 +77,11 @@ class VentanaLetterboxd(QWidget):
         self.lista.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.lista.header().setSectionResizeMode(0, QHeaderView.Stretch)
         self.lista.itemDoubleClicked.connect(lambda item: self._buscar([item]))
+        # La vista previa se pide un momento después de pararse en una película (no al pasar rápido con las flechas)
+        self._espera = QTimer(self, singleShot=True, interval=250)
+        self._espera.timeout.connect(self._previsualizar)
+        self.lista.currentItemChanged.connect(lambda *_: self._espera.start())
+        self.panel = self._armar_panel()
 
         btn_buscar = QPushButton("⬇ Bajarla", objectName="primario")
         btn_buscar.setToolTip("Si es de dominio público, la baja gratis del Internet Archive.\n"
@@ -92,9 +100,88 @@ class VentanaLetterboxd(QWidget):
         capa.addLayout(fila)
         capa.addWidget(QLabel("Se lee tu watchlist pública. Doble clic en una película para bajarla.",
                               objectName="pista", wordWrap=True))
-        capa.addWidget(self.lista, 1)
+        division = QSplitter(Qt.Horizontal)
+        division.addWidget(self.lista)
+        division.addWidget(self.panel)
+        division.setStretchFactor(0, 3)
+        division.setStretchFactor(1, 2)
+        division.setChildrenCollapsible(False)
+        capa.addWidget(division, 1)
         capa.addWidget(self.estado)
         capa.addLayout(abajo)
+
+    def _armar_panel(self) -> QWidget:
+        """La vista previa: portada, título, datos y sinopsis de la película elegida."""
+        panel = QWidget()
+        panel.setMinimumWidth(260)
+        self.portada = QLabel(alignment=Qt.AlignCenter)
+        self.portada.setFixedSize(200, 300)
+        self.portada.setStyleSheet("background: rgba(127,127,127,0.15); border-radius: 6px;")
+        self.prev_titulo = QLabel(wordWrap=True, textFormat=Qt.RichText)
+        self.prev_datos = QLabel(wordWrap=True, objectName="pista")
+        self.prev_sinopsis = QLabel(wordWrap=True, alignment=Qt.AlignTop | Qt.AlignLeft)
+        self.prev_sinopsis.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        desplazable = QScrollArea(widgetResizable=True, frameShape=QScrollArea.NoFrame)
+        desplazable.setWidget(self.prev_sinopsis)
+        capa = QVBoxLayout(panel)
+        capa.addWidget(self.portada, 0, Qt.AlignHCenter)
+        capa.addWidget(self.prev_titulo)
+        capa.addWidget(self.prev_datos)
+        capa.addWidget(desplazable, 1)
+        self._vista_previa_vacia()
+        return panel
+
+    def _vista_previa_vacia(self, texto: str = "Elegí una película para ver su portada y de qué trata."):
+        self.portada.clear()
+        self.prev_titulo.clear()
+        self.prev_datos.clear()
+        self.prev_sinopsis.setText(texto)
+
+    def _previsualizar(self):
+        item = self.lista.currentItem()
+        p = item.data(0, ROL) if item else None
+        if not p:
+            return self._vista_previa_vacia()
+        self._previsto = p["url"]
+        self.prev_titulo.setText(f"<b style='font-size: 14pt'>{p['titulo']}</b> {p['anio']}")
+        if p["url"] in self._detalles:
+            return self._poner_detalle(p, *self._detalles[p["url"]])
+        self.portada.clear()
+        self.prev_datos.clear()
+        self.prev_sinopsis.setText("Cargando…")
+
+        def traer():
+            datos = letterboxd.detalle(p["url"])
+            imagen = None
+            if datos["poster_url"]:
+                try:
+                    imagen = bajar_bytes(datos["poster_url"], timeout=20)
+                except Exception:  # noqa: BLE001 - sin portada, el resto se muestra igual
+                    pass
+            return datos, imagen
+
+        def listo(resultado):
+            self._detalles[p["url"]] = resultado
+            if self._previsto == p["url"]:
+                self._poner_detalle(p, *resultado)
+
+        def fallo(mensaje):
+            if self._previsto == p["url"]:
+                self.prev_sinopsis.setText(f"No se pudo traer la vista previa: {mensaje}")
+
+        en_segundo_plano(traer, listo, fallo)
+
+    def _poner_detalle(self, p: dict, datos: dict, imagen: bytes | None):
+        pixmap = QPixmap()
+        if imagen and pixmap.loadFromData(imagen):
+            self.portada.setPixmap(pixmap.scaled(self.portada.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        else:
+            self.portada.setText("Sin portada")
+        partes = [f"Dirigida por {datos['director']}" if datos["director"] else "",
+                  f"{datos['minutos']} min" if datos["minutos"] else "", " · ".join(datos["generos"]),
+                  f"★ {datos['puntaje']}" if datos["puntaje"] else ""]
+        self.prev_datos.setText("  ·  ".join(x for x in partes if x))
+        self.prev_sinopsis.setText(datos["sinopsis"] or "Letterboxd no tiene sinopsis de esta película.")
 
     def showEvent(self, evento):
         super().showEvent(evento)

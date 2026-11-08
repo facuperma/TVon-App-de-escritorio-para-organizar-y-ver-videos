@@ -209,10 +209,26 @@ private fun TarjetaRoku(vm: Modelo, r: Roku) {
                 Boton("✕ Rechazar", Modifier.weight(1f), chico = true) { vm.hacer("roku_resolver", "id" to p.id, "permitir" to false) }
             }
         }
+        if (!r.conectado) {
+            // La PC busca los Roku de la wifi y abre el canal con un pase: se vincula solo, sin código
+            when {
+                r.conectando.isNotEmpty() -> Pista("Abriendo TorrentVision en el Roku… se conecta solo en unos segundos.")
+                r.buscando -> Pista("Buscando Rokus en la wifi…")
+            }
+            for (t in r.encontrados) {
+                Boton("📺 ${t.nombre}" + if (t.vinculado) " · abrir" else " · conectar", Modifier.fillMaxWidth(), chico = true,
+                    estilo = if (t.vinculado) Estilo.NORMAL else Estilo.PRIMARIO) {
+                    vm.hacer("roku_conectar", "ip" to t.ip)
+                }
+            }
+            Boton(if (r.encontrados.isEmpty()) "📡 Conectar un Roku" else "📡 Buscar de nuevo", Modifier.fillMaxWidth(), chico = true) {
+                vm.hacer("roku_buscar")
+            }
+        }
         when {
             !r.conectado -> Pista(
-                if (r.vinculados > 0) "No está conectado. Prendé la tele y abrí TorrentVision en el Roku, o elegí una película y tocá «Ver en el Roku»."
-                else "Abrí el canal TorrentVision en el Roku: se conecta solo a la PC y acá aparece su código para aprobar."
+                if (r.vinculados > 0) "No está conectado. Tocá «Conectar un Roku» (la tele tiene que estar prendida), o elegí una película y tocá «Ver en el Roku»."
+                else "Tocá «Conectar un Roku»: la PC abre TorrentVision en la tele y queda vinculado, sin códigos."
             )
             r.estado == "inactivo" -> Pista("${r.nombre} conectado. Elegí una película y tocá «Ver en el Roku», o usá el control de la tele.")
             else -> {

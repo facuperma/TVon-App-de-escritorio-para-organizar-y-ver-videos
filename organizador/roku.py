@@ -10,11 +10,15 @@ con estas protecciones:
 """
 from __future__ import annotations
 
+import html
 import json
+import re
+import socket
 import threading
 import time
 import urllib.request
 from pathlib import Path
+from urllib.parse import quote
 
 from . import seguridad
 from .remoto import ErrorRemoto, _entero, _Manejador, _Servidor, ffmpeg
@@ -35,6 +39,10 @@ class EstadoRoku:
         self._latidos: dict[str, dict] = {}   # huella de sesión -> último latido
         self._ordenes: dict[str, list] = {}   # huella de sesión -> órdenes pendientes
         self._guardado: dict[str, float] = {}
+        # «Conectar el Roku» desde el celular: los Roku de la red y qué está pasando
+        self.encontrados: list[dict] = []
+        self.buscando = False
+        self.conectando = ""
 
     def latido(self, huella: str, nombre: str, ip: str, datos: dict) -> list[dict]:
         """Registra el latido y devuelve (y vacía) las órdenes pendientes de ese Roku."""
@@ -96,6 +104,78 @@ def abrir_canal_por_ecp(ip: str, contenido: int | None = None, canal: str = "dev
         return False
 
 
+def _pedir_ecp(ip: str, ruta: str, metodo: str = "GET", tiempo: float = 3) -> bytes | None:
+    if not seguridad.ip_permitida(ip):
+        return None
+    pedido = urllib.request.Request(f"http://{ip}:{PUERTO_ECP}{ruta}", data=b"" if metodo == "POST" else None,
+                                    method=metodo)
+    try:
+        with urllib.request.urlopen(pedido, timeout=tiempo) as r:
+            return r.read(65536)
+    except OSError:
+        return None
+
+
+def _etiqueta(xml: bytes, *nombres: str) -> str:
+    texto = xml.decode("utf-8", "replace")
+    for nombre in nombres:
+        m = re.search(rf"<{nombre}>([^<]{{1,80}})</{nombre}>", texto)
+        if m and m.group(1).strip():
+            return html.unescape(m.group(1).strip())
+    return ""
+
+
+def buscar_rokus(espera: float = 2.5) -> list[dict]:
+    """Los Roku de la red de la casa (SSDP, como hace la app oficial): [{"ip", "nombre"}]."""
+    ips: list[str] = []
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+    try:
+        s.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 2)
+        s.settimeout(0.3)
+        pregunta = (b"M-SEARCH * HTTP/1.1\r\nHost: 239.255.255.250:1900\r\nMan: \"ssdp:discover\"\r\n"
+                    b"ST: roku:ecp\r\nMX: 2\r\n\r\n")
+        fin = time.time() + espera
+        enviadas = 0
+        while time.time() < fin:
+            if enviadas < 3 and time.time() > fin - espera + enviadas * 0.8:
+                s.sendto(pregunta, ("239.255.255.250", 1900))
+                enviadas += 1
+            try:
+                datos, (ip, _p) = s.recvfrom(2048)
+            except OSError:
+                continue
+            if b"roku:ecp" in datos.lower() and ip not in ips and seguridad.ip_permitida(ip):
+                ips.append(ip)
+    finally:
+        s.close()
+    rokus = []
+    for ip in ips:
+        info = _pedir_ecp(ip, "/query/device-info") or b""
+        nombre = _etiqueta(info, "user-device-name", "friendly-device-name", "default-device-name", "model-name")
+        rokus.append({"ip": ip, "nombre": nombre or f"Roku ({ip})"})
+    return rokus
+
+
+def ip_local_hacia(ip: str) -> str:
+    """La IP de esta PC en la red por la que se llega a ese aparato."""
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect((ip, PUERTO_ECP))  # UDP: no manda nada, solo elige la interfaz
+        return s.getsockname()[0]
+    finally:
+        s.close()
+
+
+def vincular_por_ecp(ip: str, puerto_pc: int, pase: str, canal: str = "dev") -> bool:
+    """Abre el canal en el Roku con un pase de un solo uso: el Roku se vincula solo, sin código.
+    Si el canal ya está abierto, el pase le llega como «input» (sin reabrirlo)."""
+    contenido = quote(f"v|{ip_local_hacia(ip)}|{puerto_pc}|{pase}", safe="")
+    consulta = f"?contentId={contenido}&mediaType=movie"
+    activa = _pedir_ecp(ip, "/query/active-app") or b""
+    ruta = "/input" if f'id="{canal}"'.encode() in activa else f"/launch/{canal}"
+    return _pedir_ecp(ip, ruta + consulta, "POST", 5) is not None
+
+
 class _ManejadorRoku(_Manejador):
     """El servidor del Roku (HTTP). Reusa de ON el video por partes, los subtítulos y los pósters."""
 
@@ -105,10 +185,10 @@ class _ManejadorRoku(_Manejador):
 
     def _get(self, ruta: str, consulta: dict):
         if ruta == "/roku/hola":
-            return self._json({"tvon": 1, "roku": 1})
+            return self._json({"tvon": 1, "roku": 1, "id": self.remoto.id_pc})
         if ruta == "/roku/solicitud":
             estado, token = self.remoto.estado_vinculo(str(consulta.get("id", ""))[:40], self.client_address[0])
-            return self._json({"estado": estado, "token": token})
+            return self._json({"estado": estado, "token": token, "id": self.remoto.id_pc})
         token = self._sesion(consulta)
         control = self.remoto.control
         llamar = self.remoto.puente.llamar
@@ -136,6 +216,8 @@ class _ManejadorRoku(_Manejador):
             raise ErrorRemoto("Falta la cabecera X-TVon", 403)
         if ruta == "/roku/solicitar":
             return self._solicitar_roku()
+        if ruta == "/roku/pase":
+            return self._usar_pase()
         if ruta == "/roku/latido":
             return self._latido(consulta)
         raise ErrorRemoto("No existe", 404)
@@ -158,6 +240,18 @@ class _ManejadorRoku(_Manejador):
         if resultado is None:
             raise ErrorRemoto("Ya hay un pedido de este Roku esperando en la PC", 409)
         self._json({"id": resultado, "codigo": self.remoto.codigo_vinculo(resultado, roku=True)})
+
+    def _usar_pase(self):
+        """El Roku que la PC abrió desde el celular («Conectar un Roku») canjea su pase por un token."""
+        ip = self.client_address[0]
+        if self.remoto.demasiados_intentos(ip):
+            raise ErrorRemoto("Demasiados intentos: esperá 10 minutos", 429)
+        datos = self._cuerpo()
+        nombre = ("Roku " + str(datos.get("nombre", "")).strip()[:NOMBRE_LIMITE]).strip()
+        token = self.remoto.usar_pase_roku(str(datos.get("pase", ""))[:80], ip, nombre)
+        if not token:
+            raise ErrorRemoto("El pase venció o ya se usó: volvé a tocar «Conectar un Roku» en el celular", 403)
+        self._json({"token": token, "id": self.remoto.id_pc})
 
     def _latido(self, consulta: dict):
         token = self._sesion(consulta)

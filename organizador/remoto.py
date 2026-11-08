@@ -390,7 +390,7 @@ class Remoto(QObject):
         udp.settimeout(1)
         self._udp = udp
         respuesta = json.dumps({"tvon": 1, "puerto": self.puerto, "roku": self.puerto_roku,
-                                "huella": self.huella_certificado.replace(":", "")}).encode()
+                                "huella": self.huella_certificado.replace(":", ""), "id": self.id_pc}).encode()
         threading.Thread(target=self._responder_descubrimiento, args=(udp, respuesta), daemon=True).start()
 
     def _responder_descubrimiento(self, udp: socket.socket, respuesta: bytes):
@@ -455,6 +455,37 @@ class Remoto(QObject):
         return token
 
     # --- Vincular sin QR: el celular lo pide y se aprueba en la PC ----------------------------------
+
+    @property
+    def id_pc(self) -> str:
+        """Identifica a esta PC en la red (sale del certificado): el Roku la reencuentra si le cambia la IP."""
+        return self.huella_certificado.replace(":", "").lower()[:16]
+
+    def pase_roku(self, ip: str) -> str:
+        """Pase de un solo uso (2 minutos) para el Roku de esa IP: lo abre la PC por pedido de un celular
+        vinculado, así que no hace falta aprobar un código."""
+        pase = secrets.token_urlsafe(18)
+        ahora = time.time()
+        with self._cerrojo:
+            self._pases = {p: d for p, d in getattr(self, "_pases", {}).items() if ahora - d["creado"] < 120}
+            self._pases[pase] = {"ip": ip, "creado": ahora}
+        return pase
+
+    def usar_pase_roku(self, pase: str, ip: str, nombre: str) -> str | None:
+        with self._cerrojo:
+            d = getattr(self, "_pases", {}).pop(pase, None)
+            if d is None or d["ip"] != ip or time.time() - d["creado"] > 120:
+                self._fallidos.setdefault(ip, []).append(time.time())
+                return None
+            # Un Roku nuevo reemplaza al vinculado antes desde la misma IP (si no, quedarían repetidos)
+            viejas = [h for h, s in self._sesiones.items() if s.get("roku") and s.get("ip") == ip]
+            for h in viejas:
+                del self._sesiones[h]
+                self._borradas.add(h)
+        for h in viejas:
+            self.roku.olvidar(h)
+        self.roku.conectando = ""
+        return self._nueva_sesion(nombre or "Roku", True, ip)
 
     def nombre_de_sesion(self, huella: str) -> str:
         with self._cerrojo:
@@ -579,6 +610,7 @@ class Remoto(QObject):
         ahora = time.time()
         with self._cerrojo:
             vinculados = [{"huella": h, "nombre": s["nombre"]} for h, s in self._sesiones.items() if s.get("roku")]
+            ips_vinculadas = {s.get("ip") for s in self._sesiones.values() if s.get("roku")}
             pendientes = [{"id": i, "nombre": q["nombre"], "codigo": self.codigo_vinculo(i, True)}
                           for i, q in getattr(self, "_solicitudes", {}).items()
                           if q.get("roku") and q["estado"] == "pendiente" and ahora - q["creada"] < 120]
@@ -591,6 +623,8 @@ class Remoto(QObject):
             "titulo": activo["titulo"] if activo else "",
             "posicion": activo["pos"] if activo else 0, "duracion": activo["dur"] if activo else 0,
             "vinculados": vinculados, "pendientes": pendientes,
+            "buscando": self.roku.buscando, "conectando": self.roku.conectando,
+            "encontrados": [{**r, "vinculado": r["ip"] in ips_vinculadas} for r in self.roku.encontrados],
         }
 
     def _guardar_sesiones(self):
@@ -1970,6 +2004,43 @@ class _Control:
     def accion_roku_resolver(self, id, permitir):
         """Aprobar o rechazar desde el celular el pedido de un Roku (también se puede en la PC)."""
         self.remoto.resolver_vinculo(str(id), bool(permitir))
+
+    def accion_roku_buscar(self):
+        """Busca los Roku de la wifi (tarda unos segundos: el resultado llega en el estado)."""
+        estado = self.remoto.roku
+        if estado.buscando:
+            return
+        estado.buscando = True
+
+        def buscar():
+            from .roku import buscar_rokus
+            try:
+                estado.encontrados = buscar_rokus()
+            finally:
+                estado.buscando = False
+                self.remoto.estado_cambiado.emit()
+
+        threading.Thread(target=buscar, daemon=True).start()
+
+    def accion_roku_conectar(self, ip):
+        """El celular eligió un Roku: la PC le abre el canal con un pase y se vincula solo (sin código)."""
+        ip = str(ip)
+        if not any(r["ip"] == ip for r in self.remoto.roku.encontrados):
+            raise ErrorRemoto("Ese Roku no apareció en la búsqueda: buscá de nuevo")
+        if not self.remoto.servidor_roku:
+            raise ErrorRemoto("La PC no pudo abrir el servidor para el Roku (puertos 8770 a 8779 ocupados)", 409)
+        pase = self.remoto.pase_roku(ip)
+        estado = self.remoto.roku
+        estado.conectando = ip
+
+        def abrir():
+            from .roku import vincular_por_ecp
+            if not vincular_por_ecp(ip, self.remoto.puerto_roku, pase):
+                estado.conectando = ""
+                self.remoto.estado_cambiado.emit()
+
+        threading.Thread(target=abrir, daemon=True).start()
+        return {"aviso": "Abriendo TorrentVision en el Roku…"}
 
     # Torrents: el celular manda el link magnet y baja la PC
 
