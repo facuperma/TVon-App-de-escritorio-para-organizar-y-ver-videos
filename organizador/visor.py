@@ -5,7 +5,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QLocale, QPointF, QRectF, QSize, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import (
-    QBrush, QColor, QConicalGradient, QFont, QFontMetrics, QKeySequence, QPainter, QPainterPath, QPen, QPixmap,
+    QBrush, QColor, QConicalGradient, QCursor, QFont, QFontMetrics, QKeySequence, QPainter, QPainterPath, QPen, QPixmap,
     QShortcut,
 )
 from PySide6.QtMultimedia import QAudioOutput, QMediaDevices, QMediaMetaData, QMediaPlayer, QVideoSink
@@ -707,7 +707,12 @@ class Visor(QWidget):
             self._timer_ocultar.start()
 
     def _ocultar_controles(self):
-        en_uso = (self.controles.underMouse() or self.barra_subs.underMouse()
+        # Con el cursor de verdad: underMouse() queda «pegado» en True después de usar un menú o una lista
+        # desplegable (Qt no avisa que el mouse salió), y los controles no se ocultaban más
+        def encima(w):
+            return w.isVisible() and w.rect().contains(w.mapFromGlobal(QCursor.pos()))
+        desplegado = QApplication.activePopupWidget() is not None
+        en_uso = (encima(self.controles) or encima(self.barra_subs) or desplegado
                   or self.menu_subs.isVisible() or self.menu_cola.isVisible())
         if not self._modo_completo:
             return

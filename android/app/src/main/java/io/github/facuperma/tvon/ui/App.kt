@@ -360,6 +360,7 @@ private fun PantallaCarga() {
         val inicio = withFrameNanos { it }
         while (true) withFrameNanos { t = (it - inicio) / 1e9f }
     }
+    Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         Box(Modifier.size(150.dp).offset(y = (4 * kotlin.math.sin(t * 1.1f)).dp), contentAlignment = Alignment.Center) {
             Image(painterResource(R.drawable.logo), null,
@@ -384,5 +385,10 @@ private fun PantallaCarga() {
         TituloTVon(26)
         Text("Torrent para todos", color = C.tenue, fontSize = 15.sp, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
             modifier = Modifier.padding(top = 4.dp).graphicsLayer { alpha = 0.6f + 0.4f * kotlin.math.sin(t * 1.6f + 1f) })
+    }
+    // Abajo, chiquito: la versión de la app
+    Text("versión ${io.github.facuperma.tvon.BuildConfig.VERSION_NAME}", color = C.tenue, fontSize = 11.sp,
+        modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 14.dp)
+            .graphicsLayer { alpha = 0.7f })
     }
 }

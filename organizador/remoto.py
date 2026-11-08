@@ -621,6 +621,8 @@ class Remoto(QObject):
             "nombre": activo["nombre"] if activo else "",
             "estado": activo["estado"] if activo else "desconectado",
             "titulo": activo["titulo"] if activo else "",
+            "id": activo["id"] if activo else 0,
+            "subs": activo.get("subs", []) if activo else [], "sub": activo.get("sub", -1) if activo else -1,
             "posicion": activo["pos"] if activo else 0, "duracion": activo["dur"] if activo else 0,
             "vinculados": vinculados, "pendientes": pendientes,
             "buscando": self.roku.buscando, "conectando": self.roku.conectando,
@@ -2001,6 +2003,10 @@ class _Control:
     def accion_roku_subtitulos(self, activo):
         self._orden_roku(c="subtitulos", activo=bool(activo))
 
+    def accion_roku_subtitulo(self, n):
+        """Elegir uno de los subtítulos del video que está en el Roku (-1: sin subtítulos)."""
+        self._orden_roku(c="subtitulo", n=int(n))
+
     def accion_roku_resolver(self, id, permitir):
         """Aprobar o rechazar desde el celular el pedido de un Roku (también se puede en la PC)."""
         self.remoto.resolver_vinculo(str(id), bool(permitir))
@@ -2012,10 +2018,13 @@ class _Control:
             return
         estado.buscando = True
 
+        with self.remoto._cerrojo:
+            conocidas = [x.get("ip") for x in self.remoto._sesiones.values() if x.get("roku") and x.get("ip")]
+
         def buscar():
             from .roku import buscar_rokus
             try:
-                estado.encontrados = buscar_rokus()
+                estado.encontrados = buscar_rokus(conocidas=conocidas)
             finally:
                 estado.buscando = False
                 self.remoto.estado_cambiado.emit()

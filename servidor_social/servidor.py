@@ -42,7 +42,7 @@ OPCIONES_AVATAR = {
     "boca": ("sonrisa", "seria", "sorpresa", "lengua"),
     "barba": ("ninguna", "bigote", "candado", "barba"),
     "cuerpo": ("normal", "flaco", "robusto"),
-    "ropa": ("remera", "buzo", "campera", "vestido"),
+    "ropa": ("remera", "boca", "buzo", "campera", "vestido"),
     "estampa": ("lisa", "rayas", "logo"),
     "cabeza": ("ninguno", "gorra", "gorro", "sombrero", "galera", "corona"),
     "lentes": ("ninguno", "anteojos", "lentes3d", "sol", "antifaz"),

@@ -9,6 +9,8 @@ import tempfile
 from bisect import bisect_right
 from pathlib import Path
 
+from PySide6.QtCore import QFile
+
 EXT_SUBTITULOS = {".srt", ".vtt"}
 # Así vienen los de subdivx. El tar de Windows (bsdtar) abre los tres.
 EXT_COMPRIMIDOS = {".zip", ".rar", ".7z"}
@@ -110,17 +112,62 @@ def _tar(argumentos: list[str], timeout: int) -> subprocess.CompletedProcess | N
         return None
 
 
+def _externo() -> tuple[str, Path] | None:
+    """WinRAR (UnRAR) o 7-Zip, si están instalados: el tar de Windows no abre los .rar «sólidos» (muy comunes en
+    los packs de subtítulos de subdivx) ni algunos .7z."""
+    for base in (os.environ.get("ProgramFiles", r"C:\Program Files"), os.environ.get("ProgramFiles(x86)", ""),
+                 os.environ.get("ProgramW6432", "")):
+        if not base:
+            continue
+        if (unrar := Path(base, "WinRAR", "UnRAR.exe")).exists():
+            return "unrar", unrar
+        if (siete := Path(base, "7-Zip", "7z.exe")).exists():
+            return "7z", siete
+    return None
+
+
+def _correr(argumentos: list[str], timeout: int) -> subprocess.CompletedProcess | None:
+    try:
+        return subprocess.run(argumentos, capture_output=True, timeout=timeout,
+                              creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0)
+    except (subprocess.TimeoutExpired, OSError):
+        return None
+
+
 def listar_comprimido(archivo: Path) -> list[str]:
     """Los nombres de los archivos que trae un .zip/.rar/.7z ([] si no se puede abrir)."""
     resultado = _tar(["-tf", str(archivo)], 60)
-    if resultado is None or resultado.returncode != 0:
+    if resultado is not None and resultado.returncode == 0:
+        return [n for n in resultado.stdout.decode("utf-8", "replace").splitlines() if n and not n.endswith("/")]
+    externo = _externo()
+    if externo is None:
         return []
-    return [n for n in resultado.stdout.decode("utf-8", "replace").splitlines() if n and not n.endswith("/")]
+    tipo, programa = externo
+    if tipo == "unrar":
+        r = _correr([str(programa), "vb", str(archivo)], 60)
+        lineas = r.stdout.decode("utf-8", "replace").splitlines() if r and r.returncode == 0 else []
+        return [n for n in lineas if n and Path(n).suffix]  # sin las carpetas
+    r = _correr([str(programa), "l", "-slt", "-ba", str(archivo)], 60)
+    if not r or r.returncode != 0:
+        return []
+    texto = r.stdout.decode("utf-8", "replace")
+    return [b.split("Path = ", 1)[1].splitlines()[0] for b in texto.split("\n\n")
+            if "Path = " in b and "Folder = +" not in b]
 
 
 def extraer_comprimido(archivo: Path, carpeta: Path, timeout: int = 60) -> bool:
     resultado = _tar(["-xf", str(archivo), "-C", str(carpeta)], timeout)
-    return resultado is not None and resultado.returncode == 0
+    if resultado is not None and resultado.returncode == 0:
+        return True
+    externo = _externo()
+    if externo is None:
+        return False
+    tipo, programa = externo
+    if tipo == "unrar":
+        r = _correr([str(programa), "x", "-o+", "-y", "-inul", str(archivo), str(carpeta) + os.sep], timeout)
+    else:
+        r = _correr([str(programa), "x", "-y", f"-o{carpeta}", str(archivo)], timeout)
+    return r is not None and r.returncode == 0
 
 
 _ESPANOL = re.compile(r"(?i)(?<![a-z])(es|spa|esp|spanish|espa[nñ]ol|latino|castellano)(?![a-z])")
@@ -132,7 +179,7 @@ def idioma_de(sub: Path) -> str:
     return "en" if _INGLES.search(sub.stem) and not _ESPANOL.search(sub.stem) else "es"
 
 
-def colocar_subtitulo(archivo: Path, ruta_video: str, idioma: str = "es") -> str | None:
+def colocar_subtitulo(archivo: Path, ruta_video: str, idioma: str = "es", borrar_origen: bool = True) -> str | None:
     """Pone un subtítulo descargado (suelto o comprimido) junto al video, como «video.es.srt».
     Si el comprimido trae varios, elige el que más se parece al nombre del video.
     Devuelve la ruta nueva, o None si no había subtítulos."""
@@ -147,13 +194,25 @@ def colocar_subtitulo(archivo: Path, ruta_video: str, idioma: str = "es") -> str
             return None
         nombre = _palabras(video.stem)
         elegido = max(candidatos, key=lambda p: (len(_palabras(p.stem) & nombre), p.stat().st_size))
+        # El mismo subtítulo bajado otra vez: no se repite; el que se bajó va a la Papelera
+        contenido = elegido.read_bytes()
+        for ya in subtitulos_junto_a(ruta_video):
+            try:
+                igual = Path(ya).read_bytes() == contenido
+            except OSError:
+                igual = False
+            if igual:
+                if borrar_origen and not QFile.moveToTrash(str(archivo)):
+                    archivo.unlink(missing_ok=True)
+                return ya
         destino = video.with_name(f"{video.stem}.{idioma}{elegido.suffix.lower()}")
         n = 2
         while destino.exists():
             destino = video.with_name(f"{video.stem}.{idioma}{n}{elegido.suffix.lower()}")
             n += 1
         shutil.copyfile(elegido, destino)
-    archivo.unlink(missing_ok=True)  # ya está junto al video: no queda suelto en Descargas
+    if borrar_origen:
+        archivo.unlink(missing_ok=True)  # ya está junto al video: no queda suelto en Descargas
     return str(destino)
 
 

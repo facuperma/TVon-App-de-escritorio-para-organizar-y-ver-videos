@@ -22,5 +22,16 @@
     <LabelList id="episodios" translation="[160,110]" itemSize="[960,48]" numRows="10" visible="false" />
     <Label id="pie" text="" translation="[60,676]" width="1160" font="font:SmallestSystemFont" color="0x6F86A6FF" />
     <Video id="video" translation="[0,0]" width="1280" height="720" visible="false" />
+    <!-- El menú que se abre durante la película (flechas arriba/abajo o la tecla de asterisco) -->
+    <Group id="panel" visible="false">
+      <Rectangle translation="[800,0]" width="480" height="720" color="0x0B1220E8" />
+      <Rectangle translation="[800,0]" width="4" height="720" color="0x3DAEEBFF" />
+      <Label id="panelTitulo" translation="[840,56]" width="410" height="80" wrap="true" maxLines="2"
+             font="font:MediumBoldSystemFont" color="0xFFFFFFFF" />
+      <Label id="panelInfo" translation="[840,140]" width="410" font="font:SmallSystemFont" color="0x9FB3CCFF" />
+      <LabelList id="menuVideo" translation="[840,196]" itemSize="[410,54]" numRows="8" />
+      <Label translation="[840,660]" width="410" text="OK: elegir   Atrás: cerrar" font="font:SmallestSystemFont"
+             color="0x6F86A6FF" />
+    </Group>
   </children>
 </component>

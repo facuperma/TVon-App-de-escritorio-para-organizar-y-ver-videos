@@ -7,6 +7,7 @@ import base64
 import json
 import math
 import re
+import threading
 
 import numpy as np
 from PySide6.QtCore import QPointF, QRectF, Qt, QTimer, Signal
@@ -22,7 +23,8 @@ OPCIONES = {
     "boca": {"sonrisa": "Sonrisa", "seria": "Seria", "sorpresa": "¡Sorpresa!", "lengua": "Sacando la lengua"},
     "barba": {"ninguna": "Sin barba", "bigote": "Bigote", "candado": "Candado", "barba": "Barba"},
     "cuerpo": {"normal": "Normal", "flaco": "Flaco", "robusto": "Robusto"},
-    "ropa": {"remera": "Remera", "buzo": "Buzo con capucha", "campera": "Campera", "vestido": "Vestido"},
+    "ropa": {"remera": "Remera", "boca": "Camiseta de Boca", "buzo": "Buzo con capucha", "campera": "Campera",
+             "vestido": "Vestido"},
     "estampa": {"lisa": "Lisa", "rayas": "Rayas", "logo": "Logo en el pecho"},
     "cabeza": {"ninguno": "Nada", "gorra": "Gorra", "gorro": "Gorro con pompón", "sombrero": "Sombrero",
                "galera": "Galera de cine", "corona": "Corona"},
@@ -274,13 +276,32 @@ def _tronco(m: _Escena, y0, y1, r0, r1, colores, escala_z, lados=12):
         _cilindro(m, (0, a, 0), ra, b - a, color, lados=lados, escala_z=escala_z, radio_arriba=rb)
 
 
+def _elip(m: _Escena, centro, semiejes, color, planos=(), desde_y=None):
+    """Elipsoide (con planos que lo recortan: el sólido queda donde n·x <= k)."""
+    pieza = _Elipsoide(centro, semiejes, color, desde_y=desde_y)
+    for n, k in planos:
+        pieza.planos.append((np.asarray(n, float), float(k)))
+    m.piezas.append(pieza)
+
+
+def _oscurecer(hexa: str, f: float) -> str:
+    r, g, b = _rgb(hexa)
+    return "#%02x%02x%02x" % tuple(int(max(0, min(1, c * f)) * 255) for c in (r, g, b))
+
+
+BOCA_AZUL, BOCA_ORO = "#0b3a86", "#f3c300"
+
+
 def armar(spec: dict):
     """Las piezas del muñequito según su descripción. Pies en y=0, la cabeza arriba (≈ 3,3 de alto).
     Devuelve un Modelo: las piezas y la foto de la cara (si hay), que va hundida en la cabeza."""
     s = normalizar(spec)
     m = _Escena()
-    piel, pelo, ca = s["piel"], s["pelo"], s["accesorio_color"]
+    piel, pelo, ca, detalle = s["piel"], s["pelo"], s["accesorio_color"], s["estampa_color"]
     foto = pixmap_de_foto(s.get("foto", ""))
+    ropa = s["ropa"]
+    boca_jrs = ropa == "boca"
+    remera = BOCA_AZUL if boca_jrs else s["remera"]
     # Contextura: radio del torso (abajo, arriba), profundidad y separación de brazos y piernas
     r0, r1, ez, bx, px = {"flaco": (0.36, 0.33, 0.7, 0.48, 0.19), "robusto": (0.54, 0.47, 0.8, 0.66, 0.25)}.get(
         s["cuerpo"], (0.44, 0.4, 0.72, 0.56, 0.22))
@@ -288,97 +309,128 @@ def armar(spec: dict):
     def frente(y):  # z del pecho a esa altura
         return (r0 + (r1 - r0) * (y - 1.0) / 0.95) * ez
 
-    ropa, remera = s["ropa"], s["remera"]
-    # Piernas y zapatillas
+    # --- Piernas, cadera y zapatillas (redondeadas, con suela)
+    suela = "#cfd3d8" if _rgb(s["zapatillas"])[0] > 0.8 else "#f2f2f2"
     for x in (-px, px):
-        _caja(m, (x, 0.09, 0.06), (0.27, 0.18, 0.44), s["zapatillas"])
+        _elip(m, (x, 0.13, 0.08), (0.15, 0.11, 0.25), s["zapatillas"], desde_y=0.05)
+        _caja(m, (x, 0.035, 0.08), (0.29, 0.07, 0.5), suela)
         _cilindro(m, (x, 0.16, 0), 0.14, 0.92, piel if ropa == "vestido" else s["pantalon"], lados=8)
-    # Torso: liso o a rayas; el vestido es un cono desde las rodillas
-    franjas = [remera, s["estampa_color"]] * 3 if s["estampa"] == "rayas" else [remera]
+        if ropa != "vestido":
+            _cilindro(m, (x, 0.16, 0), 0.155, 0.06, _oscurecer(s["pantalon"], 0.85))  # ruedo
+    if ropa != "vestido":
+        _elip(m, (0, 1.04, 0), (r0 * 0.98, 0.16, r0 * ez * 0.98), s["pantalon"])  # cadera
+        _cilindro(m, (0, 0.98, 0), r0 * 1.0, 0.07, _oscurecer(s["pantalon"], 0.7), escala_z=ez)  # cinturón
+    # --- Torso
+    if boca_jrs:
+        franjas = [BOCA_AZUL, BOCA_ORO, BOCA_AZUL]
+    elif s["estampa"] == "rayas":
+        franjas = [remera, detalle] * 3
+    else:
+        franjas = [remera]
     if ropa == "vestido":
         _tronco(m, 0.55, 1.95, 0.66, r1, franjas[:-1] if len(franjas) > 1 else franjas, ez)
+        _cilindro(m, (0, 1.3, 0), 0.0 + (0.66 + (r1 - 0.66) * 0.536) * 1.01, 0.07, detalle, escala_z=ez)  # cinta
     else:
         _tronco(m, 1.0, 1.95, r0, r1, franjas, ez)
-    if s["estampa"] == "logo":
-        _caja(m, (0, 1.58, frente(1.58) + 0.01), (0.34, 0.26, 0.03), s["estampa_color"])
-        _caja(m, (0, 1.58, frente(1.58) + 0.03), (0.22, 0.05, 0.02), remera)
+    # Hombros redondos y cuello de la remera
+    for x in (-1, 1):
+        _elip(m, (x * (bx - 0.05), 1.84, 0), (0.15, 0.12, 0.14), remera)
+    _cilindro(m, (0, 1.93, 0), 0.17, 0.05, BOCA_ORO if boca_jrs else _oscurecer(remera, 0.82), escala_z=0.9)
+    if s["estampa"] == "logo" and not boca_jrs:
+        _elip(m, (0, 1.6, frente(1.6) - 0.01), (0.16, 0.12, 0.04), detalle)
+        _elip(m, (0, 1.6, frente(1.6) + 0.015), (0.09, 0.03, 0.02), remera)
+    if boca_jrs:
+        _caja(m, (0.17, 1.74, frente(1.74) + 0.005), (0.09, 0.1, 0.02), BOCA_ORO)  # escudito (sin marca)
     if ropa == "campera":
-        # Abierta: se ve la remera de abajo (color de la estampa) en una franja del frente, y el cuello
-        _caja(m, (0, 1.47, frente(1.47) + 0.005), (0.2, 0.9, 0.03), s["estampa_color"])
-        for x in (-0.15, 0.15):
-            _caja(m, (x, 1.9, frente(1.9) - 0.03), (0.2, 0.1, 0.12), remera)
+        # Abierta: se ve la remera de abajo; cierre y solapas
+        _caja(m, (0, 1.47, frente(1.47) + 0.005), (0.2, 0.9, 0.03), detalle)
+        for x in (-0.11, 0.11):
+            _caja(m, (x, 1.47, frente(1.47) + 0.02), (0.025, 0.9, 0.02), "#c9ccd1")
+            _caja(m, (x * 1.5, 1.88, frente(1.88) - 0.02), (0.17, 0.12, 0.1), _oscurecer(remera, 0.85))
     elif ropa == "buzo":
-        _esfera(m, (0, 2.0, -0.3), 0.36, remera, escala=(1.1, 0.75, 0.7), lat=6, lon=10)  # capucha
-        _caja(m, (0, 1.22, frente(1.22) + 0.01), (0.46, 0.2, 0.03), remera)              # bolsillo
+        _elip(m, (0, 2.02, -0.3), (0.42, 0.3, 0.26), remera)                       # capucha
+        _elip(m, (0, 2.02, -0.24), (0.3, 0.2, 0.2), _oscurecer(remera, 0.7))       # adentro de la capucha
+        _elip(m, (0, 1.24, frente(1.24) - 0.03), (0.25, 0.12, 0.05), _oscurecer(remera, 0.9))  # bolsillo
         for x in (-0.09, 0.09):
-            _caja(m, (x, 1.74, frente(1.74) + 0.02), (0.025, 0.24, 0.02), s["estampa_color"])  # cordones
-    # Brazos: manga corta con remera y vestido; larga con buzo y campera
+            _cilindro(m, (x, 1.58, frente(1.7) + 0.02), 0.014, 0.3, detalle, lados=6)  # cordones
+            _elip(m, (x, 1.57, frente(1.6) + 0.02), (0.025, 0.035, 0.025), detalle)
+    # --- Brazos: manga corta (remera, vestido, Boca) o larga (buzo, campera), con puño
     larga = ropa in ("buzo", "campera")
     for x in (-bx, bx):
         if larga:
-            _cilindro(m, (x, 1.22, 0), 0.12, 0.66, remera, lados=8)
+            _cilindro(m, (x, 1.24, 0), 0.115, 0.64, remera, lados=10, radio_arriba=0.125)
+            _cilindro(m, (x, 1.2, 0), 0.12, 0.07, _oscurecer(remera, 0.8), lados=10)
         else:
-            _cilindro(m, (x, 1.22, 0), 0.1, 0.4, piel, lados=8)
-            _cilindro(m, (x, 1.6, 0), 0.125, 0.28, remera, lados=8)
-        _esfera(m, (x, 1.14, 0), 0.13, piel, lat=6, lon=8)
-    _cilindro(m, (0, 1.9, 0), 0.13, 0.2, piel, lados=8)
-    # Cabeza (grande, estilo muñequito)
+            _cilindro(m, (x, 1.22, 0), 0.095, 0.42, piel, lados=10, radio_arriba=0.105)
+            _cilindro(m, (x, 1.6, 0), 0.13, 0.26, remera, lados=10, radio_arriba=0.14)
+            if boca_jrs:
+                _cilindro(m, (x, 1.6, 0), 0.135, 0.045, BOCA_ORO, lados=10)
+        _elip(m, (x, 1.12, 0.01), (0.12, 0.14, 0.12), piel)                       # mano
+    _cilindro(m, (0, 1.9, 0), 0.13, 0.2, piel, lados=10)
+    # --- Cabeza: orejas, nariz, cejas, ojos con brillo, boca
     _esfera(m, (0, 2.58, 0), 0.64, piel, lat=10, lon=14, marca="cabeza")
+    for x in (-0.62, 0.62):
+        _elip(m, (x, 2.54, 0.02), (0.08, 0.14, 0.1), piel)
     if foto is None:
+        _elip(m, (0, 2.5, 0.63), (0.065, 0.06, 0.05), _oscurecer(piel, 0.96))   # nariz
         for x in (-0.22, 0.22):
-            _esfera(m, (x, 2.62, 0.55), 0.085, s["ojos"], escala=(1, 1.25, 0.55), lat=6, lon=8)
-            _esfera(m, (x + 0.03, 2.66, 0.6), 0.025, "#ffffff", lat=4, lon=6)
+            _elip(m, (x, 2.62, 0.55), (0.085, 0.106, 0.047), s["ojos"])
+            _elip(m, (x + 0.03, 2.66, 0.59), (0.026, 0.026, 0.012), "#ffffff")
+            _elip(m, (x, 2.78, 0.57), (0.1, 0.022, 0.03), _oscurecer(pelo, 0.9))  # ceja
         boca = s["boca"]
+        labio = "#7a3b2e"
         if boca in ("sonrisa", "lengua"):
-            for dx, y in ((-0.11, 2.385), (-0.04, 2.355), (0.04, 2.355), (0.11, 2.385)):
-                _caja(m, (dx, y, 0.6), (0.085, 0.04, 0.05), "#7a3b2e")
+            _elip(m, (0, 2.39, 0.585), (0.13, 0.06, 0.03), labio, planos=[((0, 1, 0), 2.39)])
             if boca == "lengua":
-                _esfera(m, (0.02, 2.31, 0.6), 0.06, "#e8707a", escala=(1, 0.8, 0.5), lat=4, lon=6)
+                _elip(m, (0.02, 2.33, 0.6), (0.055, 0.045, 0.03), "#e8707a")
         elif boca == "sorpresa":
-            _esfera(m, (0, 2.36, 0.59), 0.07, "#5a2a20", escala=(1, 1.25, 0.45), lat=5, lon=8)
+            _elip(m, (0, 2.36, 0.59), (0.07, 0.088, 0.032), "#5a2a20")
         else:
-            _caja(m, (0, 2.36, 0.6), (0.2, 0.045, 0.05), "#7a3b2e")
-    # Desde acá, lo que va sobre la cara (encima de la foto): barba, pelo de arriba, sombreros, lentes
-    m.encima = True
-    # Barba (del color del pelo)
+            _elip(m, (0, 2.37, 0.6), (0.1, 0.018, 0.025), labio)
+    # --- Barba (del color del pelo)
     b = s["barba"]
     if b in ("bigote", "candado"):
-        _caja(m, (0, 2.43, 0.6), (0.32, 0.07, 0.07), pelo)
+        for x in (-0.085, 0.085):
+            _elip(m, (x, 2.435, 0.6), (0.11, 0.04, 0.05), pelo)
     if b == "candado":
-        _caja(m, (0, 2.2, 0.5), (0.2, 0.14, 0.14), pelo)
+        _elip(m, (0, 2.22, 0.5), (0.1, 0.08, 0.08), pelo)
     elif b == "barba":
         _esfera(m, (0, 2.3, 0.2), 0.5, pelo, escala=(1.06, 0.62, 0.86), lat=7, lon=12)
-    # Pelo. Con algo en la cabeza, lo que sobresale arriba (cresta, rodete, afro) no se ve
+    # --- Pelo. Con algo en la cabeza, lo que sobresale arriba (cresta, rodete, afro) no se ve
     p, sombrero = s["peinado"], s["cabeza"]
     tapado = sombrero != "ninguno"
     if p in ("corto", "flequillo", "largo", "rodete", "cresta", "colita", "trenzas") or (tapado and p != "pelado"):
         _esfera(m, (0, 2.62, -0.03), 0.68, pelo, hasta=0.42, lat=10, lon=14)
         if p != "largo":
             # La nuca: el pelo baja por atrás y por los costados (si no, de espaldas parecía un casquito)
-            nuca = _Elipsoide((0, 2.6, -0.04), (0.67, 0.67, 0.67), pelo, desde_y=2.18)
-            nuca.planos.append((np.array([0.0, 0.0, 1.0]), -0.06))
-            m.piezas.append(nuca)
+            _elip(m, (0, 2.6, -0.04), (0.67, 0.67, 0.67), pelo, planos=[((0, 0, 1), -0.06)], desde_y=2.18)
+            for x in (-0.57, 0.57):
+                _elip(m, (x, 2.68, 0.22), (0.05, 0.1, 0.07), pelo)  # patillas (adelante de la oreja)
     if p == "flequillo":
-        _esfera(m, (0.08, 2.98, 0.4), 0.42, pelo, escala=(1.15, 0.34, 0.55), lat=6, lon=10)
-    m.encima = p not in ("largo", "colita", "trenzas", "rodete", "rulos", "afro")  # lo de atrás y los costados, no
-    if p == "largo":
-        # Pelo largo atrás: una pieza redondeada (con una caja, la cabeza se veía a través desde atrás)
-        _esfera(m, (0, 2.3, -0.2), 0.7, pelo, escala=(1.0, 1.3, 0.75), lat=9, lon=14)
-        for x in (-0.58, 0.58):
-            _esfera(m, (x, 2.3, 0.05), 0.2, pelo, escala=(0.6, 2.6, 1.2), lat=6, lon=8)
+        for x, y in ((-0.24, 2.9), (0.02, 2.93), (0.27, 2.88)):
+            _elip(m, (x, y, 0.47), (0.22, 0.11, 0.16), pelo)
+    elif p == "largo":
+        _elip(m, (0, 2.3, -0.2), (0.7, 0.92, 0.53), pelo)
+        for x in (-0.6, 0.6):
+            _elip(m, (x, 2.42, 0.04), (0.12, 0.42, 0.22), pelo)
+            _elip(m, (x * 0.97, 2.02, 0.0), (0.1, 0.2, 0.19), pelo)
     elif p == "colita":
-        _esfera(m, (0, 2.78, -0.68), 0.16, pelo, lat=5, lon=8)
-        _esfera(m, (0, 2.42, -0.8), 0.15, pelo, escala=(1, 1.9, 1), lat=6, lon=8)
+        _elip(m, (0, 2.8, -0.66), (0.08, 0.08, 0.06), ca)                    # gomita
+        _elip(m, (0, 2.62, -0.78), (0.15, 0.24, 0.15), pelo)
+        _elip(m, (0, 2.3, -0.8), (0.11, 0.2, 0.11), pelo)
     elif p == "trenzas":
         for x in (-0.56, 0.56):
-            for i in range(5):
-                _esfera(m, (x * (1 - i * 0.04), 2.32 - i * 0.17, -0.02), 0.11 - i * 0.008, pelo, lat=4, lon=6)
-            _esfera(m, (x * 0.84, 1.55, -0.02), 0.05, ca, lat=4, lon=6)  # gomita
+            for i in range(6):
+                _elip(m, (x * (1 - i * 0.035), 2.36 - i * 0.14, -0.02), (0.1 - i * 0.006,) * 3, pelo)
+            _elip(m, (x * 0.8, 1.52, -0.02), (0.05, 0.04, 0.05), ca)       # gomita
+            _elip(m, (x * 0.8, 1.42, -0.02), (0.06, 0.08, 0.06), pelo)    # puntita
     elif p == "rodete" and not tapado:
-        _esfera(m, (0, 3.22, -0.32), 0.24, pelo, lat=6, lon=8)
+        _elip(m, (0, 3.24, -0.3), (0.25, 0.22, 0.25), pelo)
+        _cilindro(m, (0, 3.0, -0.27), 0.16, 0.06, ca, lados=12)
     elif p == "cresta" and not tapado:
-        for i, z in enumerate((0.36, 0.1, -0.16, -0.42)):
-            _caja(m, (0, 3.3 - abs(i - 1.5) * 0.06, z), (0.14, 0.32, 0.24), pelo)
+        for i, z in enumerate((0.38, 0.14, -0.1, -0.34, -0.56)):
+            alto = 0.26 - abs(i - 1.5) * 0.04
+            _elip(m, (0, 3.2 - abs(i - 1.5) * 0.05 - (0.08 if i == 4 else 0), z), (0.08, alto, 0.13), pelo)
     elif p in ("rulos", "afro"):
         grande = p == "afro"
         radio, bola = (0.74, 0.3) if grande else (0.62, 0.24)
@@ -390,80 +442,91 @@ def armar(spec: dict):
                 if (z > 0.5 and y < 0.75) or (tapado and y > 0.45):
                     continue  # que no le tape la cara (ni atraviese el sombrero)
                 _esfera(m, (x * radio, 2.62 + y * (radio - 0.02), z * radio - 0.05), bola, pelo, lat=5, lon=7)
-    m.encima = True
-    # Cabeza: gorra, gorro, sombrero, galera, corona
+    # --- Cabeza: gorra, gorro, sombrero, galera, corona
     if sombrero == "gorra":
         _esfera(m, (0, 2.68, -0.02), 0.7, ca, hasta=0.4, lat=10, lon=14)
-        _caja(m, (0, 2.96, 0.62), (0.8, 0.05, 0.5), ca)
+        _elip(m, (0, 2.93, 0.52), (0.47, 0.05, 0.5), _oscurecer(ca, 0.85), planos=[((0, 0, -1), -0.4)])  # visera
+        _elip(m, (0, 3.33, -0.02), (0.06, 0.04, 0.06), _oscurecer(ca, 0.8))   # botón
     elif sombrero == "gorro":
         _esfera(m, (0, 2.7, -0.02), 0.71, ca, hasta=0.45, lat=10, lon=14)
-        _cilindro(m, (0, 2.84, -0.02), 0.71, 0.12, s["estampa_color"], lados=14)
-        _esfera(m, (0, 3.42, -0.02), 0.14, s["estampa_color"], lat=5, lon=8)
+        _cilindro(m, (0, 2.82, -0.02), 0.725, 0.14, detalle, lados=14)
+        _elip(m, (0, 3.43, -0.02), (0.15, 0.15, 0.15), detalle)
     elif sombrero == "sombrero":
-        _cilindro(m, (0, 2.96, 0), 1.0, 0.04, ca, lados=16)
-        _cilindro(m, (0, 2.99, 0), 0.6, 0.36, ca, lados=14, radio_arriba=0.54)
+        _elip(m, (0, 2.98, 0), (1.0, 0.04, 0.95), ca)
+        _cilindro(m, (0, 2.99, 0), 0.6, 0.36, ca, lados=14, radio_arriba=0.52)
+        _elip(m, (0, 3.35, 0), (0.52, 0.07, 0.52), ca)
         _cilindro(m, (0, 3.0, 0), 0.605, 0.08, "#1d1d1f", lados=14)
     elif sombrero == "galera":
-        _cilindro(m, (0, 2.96, 0), 0.82, 0.04, "#1d1d1f", lados=16)
+        _elip(m, (0, 2.98, 0), (0.84, 0.035, 0.8), "#1d1d1f")
         _cilindro(m, (0, 2.99, 0), 0.58, 0.66, "#1d1d1f", lados=14, radio_arriba=0.6)
-        _cilindro(m, (0, 3.0, 0), 0.585, 0.11, ca, lados=14)
+        _cilindro(m, (0, 3.0, 0), 0.59, 0.11, ca, lados=14)
     elif sombrero == "corona":
-        _cilindro(m, (0, 3.0, 0), 0.5, 0.2, "#e0b23a", lados=12, radio_arriba=0.56)
-        for j in range(6):
-            ph = 2 * math.pi * j / 6
-            _esfera(m, (0.55 * math.cos(ph), 3.24, 0.55 * math.sin(ph)), 0.065, "#e0b23a", lat=4, lon=6)
-        _esfera(m, (0, 3.1, 0.52), 0.06, ca, lat=4, lon=6)
-    # Lentes
+        oro = "#e0b23a"
+        _cilindro(m, (0, 3.0, 0), 0.5, 0.2, oro, lados=14, radio_arriba=0.56)
+        for j in range(8):
+            ph = 2 * math.pi * j / 8
+            _elip(m, (0.55 * math.cos(ph), 3.25, 0.55 * math.sin(ph)), (0.06, 0.08, 0.06), oro)
+        for j, gema in enumerate((ca, "#2f7fd1", "#2e9f6b")):
+            ph = math.pi / 2 + (j - 1) * 0.55
+            _elip(m, (0.535 * math.cos(ph), 3.1, 0.535 * math.sin(ph)), (0.05, 0.05, 0.03), gema)
+    # --- Lentes: marcos redondeados con vidrio adentro
     lentes = s["lentes"]
     if lentes in ("anteojos", "lentes3d", "sol"):
         marco = {"anteojos": "#151515", "lentes3d": "#f4f4f4", "sol": ca}[lentes]
         for x, vidrio in ((-0.22, "#d43a3a"), (0.22, "#2ec5d6")):
-            _caja(m, (x, 2.62, 0.66), (0.3, 0.24, 0.03), marco)
-            if lentes == "lentes3d":
-                _caja(m, (x, 2.62, 0.685), (0.24, 0.18, 0.02), vidrio)
-            elif lentes == "sol":
-                _caja(m, (x, 2.61, 0.685), (0.26, 0.19, 0.02), "#141414")
-        _caja(m, (0, 2.66, 0.66), (0.16, 0.04, 0.03), marco)
+            _elip(m, (x, 2.62, 0.655), (0.155, 0.125, 0.025), marco)
+            tono = vidrio if lentes == "lentes3d" else ("#141414" if lentes == "sol" else "#bfe3f0")
+            _elip(m, (x, 2.62, 0.672), (0.125, 0.097, 0.015), tono)
+            _elip(m, (x - 0.04, 2.66, 0.684), (0.035, 0.02, 0.006), "#ffffff")   # reflejo
+        _caja(m, (0, 2.65, 0.66), (0.14, 0.035, 0.03), marco)
+        for x in (-0.38, 0.38):
+            _caja(m, (x, 2.64, 0.45), (0.03, 0.035, 0.42), marco)               # patillas
     elif lentes == "antifaz":
-        _caja(m, (0, 2.64, 0.64), (0.9, 0.26, 0.05), ca)
+        _elip(m, (0, 2.64, 0.6), (0.5, 0.15, 0.08), ca)
         for x in (-0.22, 0.22):
-            _caja(m, (x, 2.64, 0.67), (0.2, 0.12, 0.02), "#141414")
-    m.encima = False
-    # Extra
+            _elip(m, (x, 2.64, 0.665), (0.1, 0.06, 0.02), "#141414")
+    # --- Extra
     e = s["extra"]
     if e == "auriculares":
-        pasos = 9
         alto = 0.9 if p in ("rulos", "afro") else 0.76
-        m.encima = True  # la vincha pasa por arriba de la cabeza; los parlantes de los costados, no
-        for i in range(pasos):
-            ang = math.pi * i / (pasos - 1)
-            _caja(m, (math.cos(ang) * 0.74, 2.6 + math.sin(ang) * alto, 0), (0.13, 0.13, 0.16), "#1d1d1f")
-        m.encima = False
+        for i in range(29):
+            ang = math.pi * i / 28
+            _elip(m, (math.cos(ang) * 0.72, 2.6 + math.sin(ang) * alto, 0), (0.075, 0.075, 0.09), "#1d1d1f")
         for x in (-0.7, 0.7):
-            _cilindro(m, (x - 0.08 if x < 0 else x - 0.1, 2.5, 0), 0.2, 0.18, ca, lados=10)
+            _elip(m, (x, 2.52, 0), (0.1, 0.2, 0.19), ca)
+            _elip(m, (x * 0.93, 2.52, 0), (0.06, 0.16, 0.15), "#1d1d1f")
     elif e == "pochoclos":
-        _cilindro(m, (bx + 0.16, 1.0, 0.22), 0.16, 0.34, "#f4f4f4", lados=10, radio_arriba=0.2,
+        cx = bx + 0.16
+        _cilindro(m, (cx, 1.0, 0.22), 0.16, 0.34, "#f4f4f4", lados=12, radio_arriba=0.21,
                   colores_lados=["#d43a3a", "#f4f4f4"])
-        for dx, dz in ((0, 0), (0.09, 0.05), (-0.08, 0.06), (0.05, -0.08), (-0.06, -0.06)):
-            _esfera(m, (bx + 0.16 + dx, 1.38, 0.22 + dz), 0.075, "#f6e7b0", lat=4, lon=6)
+        for dx, dy, dz in ((0, 0.06, 0), (0.1, 0.02, 0.05), (-0.09, 0.03, 0.07), (0.06, 0.02, -0.1), (-0.07, 0.01, -0.08),
+                           (0.03, 0.12, 0.04), (-0.04, 0.1, -0.03), (0.12, 0.0, -0.03), (-0.12, 0.0, 0.0)):
+            _elip(m, (cx + dx, 1.38 + dy, 0.22 + dz), (0.075, 0.065, 0.075), "#f6e7b0")
     elif e == "gaseosa":
-        _cilindro(m, (bx + 0.12, 1.0, 0.22), 0.12, 0.38, ca, lados=10, radio_arriba=0.15,
-                  colores_lados=[ca, "#f4f4f4"])
-        _cilindro(m, (bx + 0.12, 1.38, 0.22), 0.155, 0.04, "#f4f4f4", lados=10)
-        _caja(m, (bx + 0.15, 1.52, 0.22), (0.03, 0.26, 0.03), "#f4f4f4")
+        cx = bx + 0.12
+        _cilindro(m, (cx, 1.0, 0.22), 0.12, 0.38, ca, lados=12, radio_arriba=0.15, colores_lados=[ca, "#f4f4f4"])
+        _elip(m, (cx, 1.38, 0.22), (0.155, 0.07, 0.155), "#f4f4f4", desde_y=1.38)   # tapa
+        _cilindro(m, (cx + 0.04, 1.4, 0.22), 0.022, 0.3, "#f4f4f4", lados=6)        # sorbete
+        _cilindro(m, (cx + 0.04, 1.6, 0.22), 0.024, 0.06, ca, lados=6)
     elif e == "claqueta":
         cx = bx + 0.14
-        _caja(m, (cx, 1.25, 0.24), (0.06, 0.34, 0.46), "#1d1d1f")
-        _caja(m, (cx, 1.47, 0.24), (0.07, 0.08, 0.48), "#f4f4f4")
-        for z in (0.06, 0.24, 0.42):
-            _caja(m, (cx, 1.47, z), (0.075, 0.085, 0.07), "#1d1d1f")
+        _caja(m, (cx, 1.24, 0.24), (0.05, 0.34, 0.48), "#1d1d1f")
+        for i, z in enumerate((0.04, 0.14, 0.24, 0.34, 0.44)):
+            _caja(m, (cx, 1.46, z), (0.06, 0.08, 0.1), "#f4f4f4" if i % 2 else "#1d1d1f")
+        for z in (0.12, 0.36):
+            _caja(m, (cx + 0.03, 1.22, z), (0.01, 0.025, 0.18), "#f4f4f4")          # rayitas de tiza
     elif e == "bufanda":
-        _cilindro(m, (0, 1.86, 0), 0.3, 0.16, ca, lados=12, escala_z=0.85)
-        _caja(m, (0.14, 1.55, frente(1.55) + 0.05), (0.16, 0.42, 0.06), ca)
+        _cilindro(m, (0, 1.84, 0), 0.31, 0.17, ca, lados=14, escala_z=0.85, colores_lados=[ca, detalle])
+        for i in range(3):
+            _caja(m, (0.14, 1.66 - i * 0.14, frente(1.6) + 0.06), (0.17, 0.14, 0.06), ca if i % 2 == 0 else detalle)
+        for dx in (-0.05, 0, 0.05):
+            _caja(m, (0.14 + dx, 1.33, frente(1.6) + 0.06), (0.02, 0.08, 0.02), ca)  # flecos
     elif e == "capa":
-        _caja(m, (0, 1.32, -r1 * ez - 0.06), (r1 * 2.4, 1.25, 0.04), ca)
-        _cilindro(m, (0, 1.9, 0), r1 * 0.95, 0.07, ca, lados=12, escala_z=ez)
-    techo = {"galera": 3.68, "gorro": 3.58, "sombrero": 3.38, "corona": 3.33}.get(sombrero, 3.32)
+        _caja(m, (0, 1.3, -r1 * ez - 0.06), (r1 * 2.5, 1.3, 0.035), ca)
+        _cilindro(m, (0, 1.88, 0), r1 * 0.98, 0.09, ca, lados=14, escala_z=ez)
+        for x in (-0.14, 0.14):
+            _elip(m, (x, 1.86, frente(1.86) + 0.02), (0.05, 0.05, 0.03), "#e0b23a")  # broches
+    techo = {"galera": 3.68, "gorro": 3.6, "sombrero": 3.45, "corona": 3.36}.get(sombrero, 3.32)
     if not tapado:
         techo = max(techo, {"afro": 3.66, "cresta": 3.48, "rodete": 3.48, "rulos": 3.48}.get(p, 3.32))
     return Modelo(m.piezas, foto, techo)
@@ -559,11 +622,11 @@ def renderizar(modelo: Modelo, ancho: int, alto: int, giro: float = 0.0, inclina
         nv /= np.maximum(np.linalg.norm(nv, axis=1, keepdims=True), 1e-6)
         difusa = np.clip(nv @ _LUZ.astype(np.float32), 0, 1)
         relleno = np.clip(nv @ _RELLENO.astype(np.float32), 0, 1)
-        brillo = np.clip(nv @ _MEDIO.astype(np.float32), 0, 1) ** 28
+        brillo = np.clip(nv @ _MEDIO.astype(np.float32), 0, 1) ** 40
         borde = np.clip(1 - nv[:, 2], 0, 1) ** 3
         foto = plano[lleno]
         luz = np.where(foto, 0.72 + 0.32 * difusa, 0.38 + 0.62 * difusa + 0.14 * relleno)
-        extra = (0.22 * brillo + 0.10 * borde) * np.where(foto, 0.3, 1.0)
+        extra = (0.12 * brillo + 0.10 * borde) * np.where(foto, 0.3, 1.0)
         rgb[lleno] = col[lleno] * luz[:, None] + extra[:, None]
     # Contorno: donde la profundidad salta (entre piezas o contra el fondo) se oscurece un poco
     p = np.where(lleno, prof, 1e3).reshape(H, W)
@@ -644,90 +707,156 @@ def imagen(spec: dict, alto: int = 96, encuadre: str = "cuerpo", giro: float = -
     return pix
 
 
+class _Dibujante:
+    """Dibuja los cuadros de un muñequito en un hilo aparte (numpy suelta el GIL en las cuentas pesadas), así la
+    ventana nunca espera. Siempre elige el cuadro pendiente más cercano al ángulo que se está mostrando."""
+
+    def __init__(self, avisar):
+        self._avisar = avisar           # se llama desde el hilo: tiene que ser una señal (llega encolada)
+        self._cond = threading.Condition()
+        self._pendientes: set[int] = set()
+        self._trabajo = None            # (generación, modelo, ancho, alto, dpr, encuadre, paso, muestras)
+        self._cerca = 0
+        self._vivo = True
+        threading.Thread(target=self._bucle, daemon=True, name="munequito").start()
+
+    def pedir(self, trabajo, claves, cerca):
+        with self._cond:
+            if trabajo != self._trabajo:
+                self._trabajo = trabajo
+                self._pendientes = set()
+            self._pendientes.update(claves)
+            self._cerca = cerca
+            self._cond.notify()
+
+    def ya_esta(self, clave):
+        with self._cond:
+            self._pendientes.discard(clave)
+
+    def parar(self):
+        with self._cond:
+            self._vivo = False
+            self._cond.notify()
+
+    def _bucle(self):
+        while True:
+            with self._cond:
+                while self._vivo and not self._pendientes:
+                    self._cond.wait()
+                if not self._vivo:
+                    return
+                clave = min(self._pendientes, key=lambda c: abs(c - self._cerca))
+                self._pendientes.discard(clave)
+                trabajo = self._trabajo
+            gen, modelo, ancho, alto, dpr, encuadre, paso, muestras = trabajo
+            try:
+                img = renderizar(modelo, ancho, alto, clave * paso, encuadre=encuadre, muestras=muestras)
+                img.setDevicePixelRatio(dpr)
+                self._avisar(gen, clave, img)
+            except RuntimeError:
+                return  # el widget ya no existe
+
+
 class Munequito(QWidget):
     """El muñequito girando despacio. Con arrastrable=True se lo gira con el mouse (en el editor).
 
-    Cada ángulo se dibuja una sola vez y se guarda (el saltito es solo correr la imagen): la primera vez rápido y,
-    con el programa tranquilo, se lo vuelve a dibujar con bordes suaves."""
+    Cada ángulo se dibuja una sola vez, en otro hilo, y se guarda (el saltito es solo correr la imagen); mientras
+    tanto se muestra el cuadro listo más cercano."""
     tocado = Signal()
-    PASO = 0.05          # radianes entre cuadros guardados
-    MAXIMO = 90          # cuadros guardados (los más viejos se tiran)
+    _listo = Signal(int, int, QImage)
+    PASO = 0.03          # radianes entre cuadros guardados
+    MAXIMO = 140         # cuadros guardados (los más lejanos se tiran)
 
     def __init__(self, spec: dict | None = None, encuadre: str = "cuerpo", arrastrable: bool = False, parent=None):
         super().__init__(parent)
         self.encuadre = encuadre
         self.arrastrable = arrastrable
         self._geo = armar(spec or PREDETERMINADO)
-        self._cuadros: dict[int, tuple[QImage, bool]] = {}
+        self._gen = 0
+        self._cuadros: dict[int, QImage] = {}
         self._t = 0.0
         self._giro_mano = 0.0
         self._clave = 0
         self._arrastre: float | None = None
-        self._reloj = QTimer(self, interval=60)
+        self._listo.connect(self._recibir)
+        self._dibujante = _Dibujante(self._listo.emit)
+        self.destroyed.connect(self._dibujante.parar)
+        self._reloj = QTimer(self, interval=33)
         self._reloj.timeout.connect(self._avanzar)
-        self._pulir = QTimer(self, interval=120)
-        self._pulir.timeout.connect(self._pulir_uno)
         self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed) if encuadre == "busto" else None
         self.setCursor(Qt.OpenHandCursor if arrastrable else Qt.PointingHandCursor)
 
+    def _invalidar(self):
+        self._gen += 1
+        self._cuadros.clear()
+        self._pedir()
+        self.update()
+
     def poner(self, spec: dict):
         self._geo = armar(spec)
-        self._cuadros.clear()
-        self.update()
+        self._invalidar()
 
     def resizeEvent(self, evento):
         super().resizeEvent(evento)
-        self._cuadros.clear()
+        self._invalidar()
 
     def showEvent(self, evento):
         super().showEvent(evento)
         self._reloj.start()
-        self._pulir.start()
+        self._pedir()
 
     def hideEvent(self, evento):
         super().hideEvent(evento)
         self._reloj.stop()
-        self._pulir.stop()
-
-    def _avanzar(self):
-        self._t += 0.06
-        self.update()
 
     def _area(self) -> QRectF:
         m = 2 if self.height() > 40 else 0
         return QRectF(self.rect()).adjusted(m, m, -m, -m)
 
-    def _cuadro(self, clave: int, fino: bool) -> QImage:
+    def _trabajo(self):
         dpr = self.devicePixelRatioF()
         r = self._area()
         ancho, alto = max(1, round(r.width() * dpr)), max(1, round(r.height() * dpr))
-        chico = ancho * alto < 60000
-        muestras = (3 if ancho * alto < 9000 else 2) if (fino or chico) else 1
-        img = renderizar(self._geo, ancho, alto, clave * self.PASO, encuadre=self.encuadre, muestras=muestras)
-        img.setDevicePixelRatio(dpr)
-        if len(self._cuadros) >= self.MAXIMO:
-            self._cuadros.pop(next(iter(self._cuadros)))
-        self._cuadros[clave] = (img, fino or chico)
-        return img
+        muestras = 3 if ancho * alto < 9000 else 2
+        return (self._gen, self._geo, ancho, alto, dpr, self.encuadre, self.PASO, muestras)
 
-    def _pulir_uno(self):
-        """Vuelve a dibujar con bordes suaves el cuadro provisorio más cercano al ángulo de ahora."""
-        if self._arrastre is not None:
+    def _pedir(self):
+        """Todos los ángulos del vaivén (y el de ahora, si se lo está girando con el mouse)."""
+        centro = round(self._giro_mano / self.PASO)
+        ancho = int(0.58 / self.PASO) + 1
+        claves = {c for c in range(centro - ancho, centro + ancho + 1) if c not in self._cuadros}
+        claves.add(self._clave) if self._clave not in self._cuadros else None
+        if claves:
+            self._dibujante.pedir(self._trabajo(), claves, self._clave)
+
+    def _recibir(self, gen: int, clave: int, img: QImage):
+        if gen != self._gen:
             return
-        pendientes = [c for c, (_img, fino) in self._cuadros.items() if not fino]
-        if pendientes:
-            self._cuadro(min(pendientes, key=lambda c: abs(c - self._clave)), True)
+        if len(self._cuadros) >= self.MAXIMO:
+            self._cuadros.pop(max(self._cuadros, key=lambda c: abs(c - self._clave)))
+        self._cuadros[clave] = img
+        self.update()
+
+    def _avanzar(self):
+        self._t += 0.033
+        self.update()
 
     def paintEvent(self, _evento):
         giro = math.sin(self._t * 0.7) * 0.55 + self._giro_mano
         salto = abs(math.sin(self._t * 2.2)) * 0.04
-        self._clave = round(giro / self.PASO)
-        guardado = self._cuadros.get(self._clave)
-        img = guardado[0] if guardado else self._cuadro(self._clave, False)
+        clave = round(giro / self.PASO)
+        if clave != self._clave:
+            self._clave = clave
+            if clave not in self._cuadros:
+                self._pedir()
+        img = self._cuadros.get(clave)
+        if img is None and self._cuadros:
+            img = self._cuadros[min(self._cuadros, key=lambda c: abs(c - clave))]
+        if img is None:
+            return  # el primer cuadro llega en un ratito
         r = self._area()
         escala, _ = _encuadre(self._geo, r.width(), r.height(), self.encuadre)
         p = QPainter(self)
-        p.setRenderHint(QPainter.SmoothPixmapTransform)
         p.drawImage(r.topLeft() - QPointF(0, salto * escala), img)
         p.end()
 
@@ -749,3 +878,4 @@ class Munequito(QWidget):
         if self._arrastre is not None:
             self._arrastre = None
             self.setCursor(Qt.OpenHandCursor)
+            self._pedir()

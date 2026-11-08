@@ -13,6 +13,7 @@ from __future__ import annotations
 import html
 import json
 import re
+import select
 import socket
 import threading
 import time
@@ -52,6 +53,9 @@ class EstadoRoku:
                 "estado": str(datos.get("estado", "inactivo"))[:20],
                 "pos": _entero(datos.get("pos")), "dur": _entero(datos.get("dur")),
                 "id": _entero(datos.get("id")), "titulo": str(datos.get("titulo", ""))[:120],
+                # Los subtítulos que tiene el video en el Roku y cuál está puesto (-1: ninguno), para el celular
+                "subs": [str(x)[:60] for x in datos.get("subs", [])][:30] if isinstance(datos.get("subs"), list) else [],
+                "sub": _entero(datos.get("sub", -1)) if datos.get("sub") is not None else -1,
             }
             return self._ordenes.pop(huella, [])
 
@@ -125,32 +129,97 @@ def _etiqueta(xml: bytes, *nombres: str) -> str:
     return ""
 
 
-def buscar_rokus(espera: float = 2.5) -> list[dict]:
-    """Los Roku de la red de la casa (SSDP, como hace la app oficial): [{"ip", "nombre"}]."""
-    ips: list[str] = []
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+def _ips_locales() -> list[str]:
+    """Las IPv4 de esta PC en redes privadas (la de la casa primero). Con una VPN (Radmin, Hamachi…) la búsqueda
+    salía por la placa de la VPN y el Roku no la escuchaba: hay que preguntar por cada placa."""
+    ips = set()
     try:
-        s.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 2)
-        s.settimeout(0.3)
-        pregunta = (b"M-SEARCH * HTTP/1.1\r\nHost: 239.255.255.250:1900\r\nMan: \"ssdp:discover\"\r\n"
-                    b"ST: roku:ecp\r\nMX: 2\r\n\r\n")
+        ips.update(i[4][0] for i in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET))
+    except OSError:
+        pass
+    try:
+        ips.add(ip_local_hacia("192.168.1.1"))  # la de la ruta por defecto
+    except OSError:
+        pass
+    privadas = [ip for ip in ips if seguridad.ip_permitida(ip) and not ip.startswith("127.")]
+    return sorted(privadas, key=lambda ip: (not ip.startswith("192.168."), ip))
+
+
+def _escanear_red(ip_pc: str, tiempo: float = 0.6) -> list[str]:
+    """Plan B: pregunta a todas las IPs de la red de la casa (/24) si tienen el control de Roku (puerto 8060)."""
+    base = ip_pc.rsplit(".", 1)[0]
+    encontradas: list[str] = []
+
+    def probar(ip):
+        try:
+            with socket.create_connection((ip, PUERTO_ECP), timeout=tiempo):
+                encontradas.append(ip)
+        except OSError:
+            pass
+
+    hilos = [threading.Thread(target=probar, args=(f"{base}.{n}",), daemon=True) for n in range(1, 255)
+             if f"{base}.{n}" != ip_pc]
+    for h in hilos:
+        h.start()
+    for h in hilos:
+        h.join(tiempo + 0.5)
+    return encontradas
+
+
+def buscar_rokus(espera: float = 2.5, conocidas: list[str] | tuple = ()) -> list[dict]:
+    """Los Roku de la red de la casa: SSDP (como la app oficial) por cada placa de red; si no aparece ninguno,
+    se prueban las IPs ya conocidas y se recorre la red. [{"ip", "nombre"}]"""
+    ips: list[str] = []
+    pregunta = (b"M-SEARCH * HTTP/1.1\r\nHost: 239.255.255.250:1900\r\nMan: \"ssdp:discover\"\r\n"
+                b"ST: roku:ecp\r\nMX: 2\r\n\r\n")
+    socks = []
+    locales = _ips_locales()
+    for local in locales or ["0.0.0.0"]:
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+            s.bind((local, 0))
+            s.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 2)
+            if local != "0.0.0.0":
+                s.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_IF, socket.inet_aton(local))
+            s.setblocking(False)
+            socks.append(s)
+        except OSError:
+            continue
+    try:
         fin = time.time() + espera
         enviadas = 0
         while time.time() < fin:
             if enviadas < 3 and time.time() > fin - espera + enviadas * 0.8:
-                s.sendto(pregunta, ("239.255.255.250", 1900))
+                for s in socks:
+                    try:
+                        s.sendto(pregunta, ("239.255.255.250", 1900))
+                    except OSError:
+                        pass
                 enviadas += 1
-            try:
-                datos, (ip, _p) = s.recvfrom(2048)
-            except OSError:
-                continue
-            if b"roku:ecp" in datos.lower() and ip not in ips and seguridad.ip_permitida(ip):
-                ips.append(ip)
+            listos = select.select(socks, [], [], 0.2)[0] if socks else []
+            for s in listos:
+                try:
+                    datos, (ip, _p) = s.recvfrom(2048)
+                except OSError:
+                    continue
+                if b"roku:ecp" in datos.lower() and ip not in ips and seguridad.ip_permitida(ip):
+                    ips.append(ip)
     finally:
-        s.close()
+        for s in socks:
+            s.close()
+    if not ips:
+        for ip in conocidas:
+            if ip and ip not in ips and _pedir_ecp(ip, "/query/device-info", tiempo=1.5):
+                ips.append(ip)
+    if not ips:
+        for local in locales:
+            if local.startswith(("192.168.", "10.", "172.")):
+                ips.extend(ip for ip in _escanear_red(local) if ip not in ips)
     rokus = []
     for ip in ips:
         info = _pedir_ecp(ip, "/query/device-info") or b""
+        if b"<device-info" not in info:
+            continue  # tenía el puerto abierto pero no es un Roku
         nombre = _etiqueta(info, "user-device-name", "friendly-device-name", "default-device-name", "model-name")
         rokus.append({"ip": ip, "nombre": nombre or f"Roku ({ip})"})
     return rokus
@@ -261,8 +330,9 @@ class _ManejadorRoku(_Manejador):
         ordenes = self.remoto.roku.latido(huella, nombre, self.client_address[0], datos)
         # Por dónde va queda en la misma base que la PC y el celular (seguir viendo en cualquier lado)
         aid, pos, dur = _entero(datos.get("id")), _entero(datos.get("pos")), _entero(datos.get("dur"))
-        if aid > 0 and dur > 0 and datos.get("estado") in ("reproduciendo", "pausa", "terminado") \
-                and (datos.get("estado") == "terminado" or self.remoto.roku.guardar_progreso_ahora(huella)):
+        # «detenido»: el Roku salió del video (atrás o Parar): se guarda ya, sin esperar los 10 s
+        if aid > 0 and dur > 0 and datos.get("estado") in ("reproduciendo", "pausa", "terminado", "detenido") \
+                and (datos.get("estado") in ("terminado", "detenido") or self.remoto.roku.guardar_progreso_ahora(huella)):
             posicion = dur if datos.get("estado") == "terminado" else pos
             try:
                 self.remoto.puente.llamar(lambda: self.remoto.control.accion_progreso_celular(aid, posicion, dur))

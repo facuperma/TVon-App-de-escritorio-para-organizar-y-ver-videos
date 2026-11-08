@@ -16,6 +16,18 @@ sub init()
     m.filas.observeField("rowItemSelected", "alElegir")
     m.episodios.observeField("itemSelected", "alElegirEpisodio")
     m.video.observeField("state", "alEstadoVideo")
+    m.panel = m.top.findNode("panel")
+    m.panelTitulo = m.top.findNode("panelTitulo")
+    m.panelInfo = m.top.findNode("panelInfo")
+    m.menuVideo = m.top.findNode("menuVideo")
+    m.menuVideo.observeField("itemSelected", "alMenuVideo")
+    m.pistas = []          ' los subtítulos del video: [{ TrackName, Description }]
+    m.modoMenu = "principal"
+    m.accionesMenu = []
+    ' Si la PC no contesta (apagada, TorrentVision cerrado), se reintenta sola cada unos segundos
+    m.reintentoTimer = CreateObject("roSGNode", "Timer")
+    m.reintentoTimer.duration = 8
+    m.reintentoTimer.observeField("fire", "alReintento")
 
     m.tareas = []          ' las tareas en curso (si nadie las guarda, se pierden)
     m.pantalla = "buscando"
@@ -109,9 +121,9 @@ function con_token(ruta as String) as String
     return ruta + separador + "t=" + m.token
 end function
 
+' (roUrlTransfer no se puede crear en el hilo de la pantalla: se usa el método del texto)
 function escapar(texto as String) as String
-    u = CreateObject("roUrlTransfer")
-    return u.Escape(texto)
+    return texto.EncodeUriComponent()
 end function
 
 sub alRespuesta(evento as Object)
@@ -355,6 +367,12 @@ sub alReloj()
         e.dur = Int(m.video.duration * 1000)
         e.id = m.actual.id
         e.titulo = m.actual.titulo
+        nombres = []
+        for each p in m.pistas
+            nombres.Push(p.Description)
+        end for
+        e.subs = nombres
+        e.sub = subtituloActual()
     end if
     m.latido.estado = e
 end sub
@@ -387,6 +405,8 @@ sub ejecutarOrden(o as Object)
         cerrarVideo()
     else if c = "subtitulos" then
         if o.activo = true then m.video.globalCaptionMode = "On" else m.video.globalCaptionMode = "Off"
+    else if c = "subtitulo" then
+        elegirSubtitulo(Int(o.n))
     end if
 end sub
 
@@ -420,8 +440,9 @@ sub alInicio(r as Object)
         cambiarPantalla("error")
         m.mensaje.text = "No pude leer la biblioteca de la PC."
         m.codigo.text = ""
-        m.ayuda.text = "¿Está prendida y con ON encendido? Apretá OK para reintentar."
+        m.ayuda.text = "¿Está prendida, con TorrentVision abierto y ON encendido? Vuelvo a intentar solo en unos segundos (u OK para ya)."
         m.pantalla = "reintentar"
+        m.reintentoTimer.control = "start"
         return
     end if
     raiz = CreateObject("roSGNode", "ContentNode")
@@ -536,6 +557,7 @@ sub alFicha(r as Object)
         if s.elegido = true or elegida = "" then elegida = direccion
     end for
     if pistas.Count() > 0 then c.update({ SubtitleTracks: pistas }, true)
+    m.pistas = pistas
     m.actual = { id: f.id, titulo: f.titulo, siguiente: f.siguiente }
     m.video.content = c
     m.video.globalCaptionMode = "Off"
@@ -572,7 +594,135 @@ sub reintentarOAvisar()
     end if
 end sub
 
+sub alReintento()
+    if m.pantalla = "reintentar" and m.token <> "" then
+        m.reubicado = false
+        mostrarInicio()
+    end if
+end sub
+
+' --- El menú durante la película ----------------------------------------------------------------------
+
+sub abrirPanel()
+    m.modoMenu = "principal"
+    armarMenu()
+    m.panelTitulo.text = m.actual.titulo
+    m.panel.visible = true
+    m.menuVideo.setFocus(true)
+end sub
+
+sub cerrarPanel()
+    m.panel.visible = false
+    if m.pantalla = "video" then m.video.setFocus(true)
+end sub
+
+function subtituloActual() as Integer
+    if m.video.globalCaptionMode <> "On" then return -1
+    for i = 0 to m.pistas.Count() - 1
+        if m.pistas[i].TrackName = m.video.subtitleTrack then return i
+    end for
+    return -1
+end function
+
+sub armarMenu()
+    raiz = CreateObject("roSGNode", "ContentNode")
+    m.accionesMenu = []
+    actual = subtituloActual()
+    if m.modoMenu = "subs" then
+        m.panelInfo.text = "Subtítulos"
+        opciones = [["Sin subtítulos", -1]]
+        for i = 0 to m.pistas.Count() - 1
+            opciones.Push([m.pistas[i].Description, i])
+        end for
+        for each o in opciones
+            marca = "     "
+            if o[1] = actual then marca = "✓  "
+            n = raiz.createChild("ContentNode")
+            n.title = marca + o[0]
+            m.accionesMenu.Push("sub:" + o[1].ToStr())
+        end for
+    else
+        m.panelInfo.text = reloj(Int(m.video.position)) + " / " + reloj(Int(m.video.duration))
+        nombre = "no"
+        if actual >= 0 then nombre = m.pistas[actual].Description
+        pausa = "Pausar"
+        if m.video.state = "paused" then pausa = "Seguir viendo"
+        opciones = [[pausa, "pausa"], ["Volver 30 segundos", "atras30"], ["Adelantar 1 minuto", "adelante60"]]
+        if m.pistas.Count() > 0 then opciones.Push(["Subtítulos: " + nombre, "subs"])
+        if m.actual.siguiente > 0 then opciones.Push(["Siguiente capítulo", "siguiente"])
+        opciones.Push(["Parar y volver a la lista", "parar"])
+        opciones.Push(["Cerrar este menú", "cerrar"])
+        for each o in opciones
+            n = raiz.createChild("ContentNode")
+            n.title = o[0]
+            m.accionesMenu.Push(o[1])
+        end for
+    end if
+    m.menuVideo.content = raiz
+    m.menuVideo.jumpToItem = 0
+end sub
+
+function reloj(segundos as Integer) as String
+    if segundos < 0 then segundos = 0
+    h = Int(segundos / 3600)
+    mi = Int((segundos mod 3600) / 60)
+    s = segundos mod 60
+    if h > 0 then return h.ToStr() + ":" + Right("0" + mi.ToStr(), 2) + ":" + Right("0" + s.ToStr(), 2)
+    return mi.ToStr() + ":" + Right("0" + s.ToStr(), 2)
+end function
+
+sub alMenuVideo()
+    i = m.menuVideo.itemSelected
+    if i < 0 or i >= m.accionesMenu.Count() then return
+    accion = m.accionesMenu[i]
+    if Left(accion, 4) = "sub:" then
+        elegirSubtitulo(Int(Val(accion.Mid(4))))
+        cerrarPanel()
+    else if accion = "subs" then
+        m.modoMenu = "subs"
+        armarMenu()
+    else if accion = "pausa" then
+        if m.video.state = "paused" then
+            m.video.control = "resume"
+        else
+            m.video.control = "pause"
+        end if
+        cerrarPanel()
+    else if accion = "atras30" then
+        irA(m.video.position - 30)
+        cerrarPanel()
+    else if accion = "adelante60" then
+        irA(m.video.position + 60)
+        cerrarPanel()
+    else if accion = "siguiente" then
+        siguiente = m.actual.siguiente
+        cerrarPanel()
+        cerrarVideo()
+        reproducir(Int(siguiente))
+    else if accion = "parar" then
+        cerrarPanel()
+        cerrarVideo()
+    else
+        cerrarPanel()
+    end if
+end sub
+
+sub elegirSubtitulo(n as Integer)
+    if n < 0 or n >= m.pistas.Count() then
+        m.video.globalCaptionMode = "Off"
+    else
+        m.video.globalCaptionMode = "On"
+        m.video.subtitleTrack = m.pistas[n].TrackName
+    end if
+end sub
+
 sub cerrarVideo()
+    ' Por dónde iba, ya (el latido lo guarda cada 10 s: así no se pierde nada al salir)
+    if m.actual.id > 0 and m.video.duration > 0 and m.pantalla = "video" then
+        fin = { estado: "detenido", pos: Int(m.video.position * 1000), dur: Int(m.video.duration * 1000), id: m.actual.id, titulo: m.actual.titulo }
+        pedir("POST", con_token("/roku/latido"), FormatJson(fin), "fin")
+    end if
+    m.panel.visible = false
     m.video.control = "stop"
     if m.episodiosAbiertos = true then
         cambiarPantalla("episodios")
@@ -661,9 +811,28 @@ function onKeyEvent(tecla as String, presionada as Boolean) as Boolean
         mostrarOpciones()
         return true
     end if
-    if m.pantalla = "video" and tecla = "back" then
-        cerrarVideo()
-        return true
+    if m.pantalla = "video" then
+        if m.panel.visible then
+            if tecla = "back" or tecla = "options" or tecla = "left" then
+                if m.modoMenu = "subs" and tecla <> "options" then
+                    m.modoMenu = "principal"
+                    armarMenu()
+                else
+                    cerrarPanel()
+                end if
+                return true
+            end if
+            return false
+        end if
+        if tecla = "back" then
+            cerrarVideo()
+            return true
+        end if
+        if tecla = "options" or tecla = "up" or tecla = "down" then
+            abrirPanel()
+            return true
+        end if
+        return false
     end if
     if m.pantalla = "episodios" and tecla = "back" then
         cambiarPantalla("inicio")

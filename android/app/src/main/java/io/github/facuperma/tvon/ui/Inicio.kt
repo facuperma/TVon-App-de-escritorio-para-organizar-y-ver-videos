@@ -208,7 +208,7 @@ private fun menuCartel(vm: Modelo, c: Cartel) {
         opciones += Opcion("📱 Ver en el celular") { vm.verAcaId(id) }
         opciones += Opcion("📺 Ver en la PC") { vm.accion("reproducir", "id" to id) }
         if (vm.estado?.roku?.let { it.conectado || it.vinculados > 0 } == true) {
-            opciones += Opcion("📺 Ver en el Roku") { vm.accion("roku_reproducir", "id" to id) }
+            opciones += Opcion("📺 Ver en la tele") { vm.accion("roku_reproducir", "id" to id) }
         }
         opciones += Opcion("☰ A la cola de la PC") { vm.accion("cola_agregar", "ids" to listOf(id)) }
         opciones += Opcion(if (c.visto) "↺ Marcar como no visto" else "✓ Marcar como visto") {
@@ -355,9 +355,16 @@ private fun DetalleVideo(vm: Modelo, f: FichaVideo) {
             Boton("📱 Ver en el celular", Modifier.fillMaxWidth(), Estilo.PRIMARIO, habilitado = f.existe) { vm.verAca(f) }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Boton("📺 Ver en la PC", Modifier.weight(1f), habilitado = f.existe) {
+            Boton("💻 Ver en la PC", Modifier.weight(1f), habilitado = f.existe) {
                 vm.correr { vm.accion("reproducir", "id" to f.id); vm.irA(Pestana.REPRODUCTOR) }
             }
+            if (vm.estado?.roku?.let { it.conectado || it.vinculados > 0 } == true) {
+                Boton("📺 En la tele", Modifier.weight(1f), habilitado = f.existe) {
+                    vm.correr { vm.accion("roku_reproducir", "id" to f.id); vm.irA(Pestana.REPRODUCTOR) }
+                }
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Boton("☰ A la cola", Modifier.weight(1f)) { vm.hacer("cola_agregar", "ids" to listOf(f.id)) }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

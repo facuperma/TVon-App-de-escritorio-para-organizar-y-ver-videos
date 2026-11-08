@@ -81,12 +81,44 @@ class UbicarEnDescargas(unittest.TestCase):
         self.assertFalse(carpeta.exists())
         self.assertTrue(otro.exists())  # lo que no es un subtítulo no se toca
         self.assertEqual(len(self.listos), 2)
-        # Otro subtítulo para un video que ya tiene: no se agrega ni se borra
+        # El mismo subtítulo bajado otra vez: no se repite (el bajado va a la Papelera)
         repetido = self.descargas / "Before.Sunrise.1995.srt"
         repetido.write_text(SRT, encoding="utf-8")
         self._viejo(repetido)
         self.vig._ubicar_subtitulos(self.vig_bib())
-        self.assertTrue(repetido.exists())
+        self.assertFalse(repetido.exists())
+        self.assertFalse(self.video.with_name(self.video.stem + ".es2.srt").exists())
+        # Otro distinto para un video que ya tiene: se agrega como «.es2» (seguramente el primero no andaba)
+        nuevo = self.descargas / "Before.Sunrise.1995.otro.srt"
+        nuevo.write_text(SRT.replace("00:00:01", "00:00:02"), encoding="utf-8")
+        self._viejo(nuevo)
+        self.vig._ubicar_subtitulos(self.vig_bib())
+        self.assertFalse(nuevo.exists())
+        self.assertTrue(self.video.with_name(self.video.stem + ".es2.srt").exists())
+
+    def test_pack_de_temporada(self):
+        """Un .zip con un subtítulo por capítulo: cada uno con su capítulo; el pack espera a los que faltan."""
+        carpeta = self.video.parent
+        caps = [carpeta / f"Twin.Peaks.S02E0{i}.720p.mkv" for i in (1, 2, 3)]
+        for v in caps[:2]:
+            v.write_bytes(b"0")
+        self.bib.agregar_archivos(caps[:2])
+        pack = self.descargas / "Twin Peaks S02 - [carbonero119] [490879].zip"
+        with zipfile.ZipFile(pack, "w") as z:
+            for i in (1, 2, 3):
+                z.writestr(f"Twin Peaks S02/Twin.Peaks.S02E0{i}.Titulo.720p.BluRay.srt", SRT.replace("Hola", f"cap {i}"))
+        self._viejo(pack)
+        self.vig._ubicar_subtitulos(self.vig_bib())
+        self.assertTrue(caps[0].with_name(caps[0].stem + ".es.srt").exists())
+        self.assertIn("cap 2", caps[1].with_name(caps[1].stem + ".es.srt").read_text(encoding="utf-8"))
+        self.assertTrue(pack.exists())  # falta el capítulo 3
+        caps[2].write_bytes(b"0")
+        self.bib.agregar_archivos(caps[2:])
+        self.vig.despertar()
+        self.vig._ubicar_subtitulos(self.vig_bib())
+        self.assertIn("cap 3", caps[2].with_name(caps[2].stem + ".es.srt").read_text(encoding="utf-8"))
+        self.assertFalse(caps[0].with_name(caps[0].stem + ".es2.srt").exists())  # no se repite
+        self.assertFalse(pack.exists())  # ya están todos: a la Papelera
 
     def test_viejos_no_se_tocan(self):
         sub = self.descargas / "Before.Sunrise.1995.srt"

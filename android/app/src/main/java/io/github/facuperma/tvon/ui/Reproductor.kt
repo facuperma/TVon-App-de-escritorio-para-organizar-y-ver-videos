@@ -68,6 +68,7 @@ fun PestanaReproductor(vm: Modelo) {
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp, vertical = 6.dp)
     ) {
+        e?.roku?.takeIf { it.disponible && it.viendo }?.let { TarjetaRoku(vm, it) }
         Tarjeta {
             Text(e?.archivo?.nombre ?: "Nada en reproducción", color = C.titulo, fontWeight = FontWeight.SemiBold)
             Pista(rep?.let { ESTADOS[it.estado].orEmpty() } ?: if (e?.archivo != null) "🖼 Imagen" else "Elegí algo en la Biblioteca")
@@ -134,7 +135,7 @@ fun PestanaReproductor(vm: Modelo) {
         }
 
         e?.cast?.let { TarjetaTele(vm, it, hay) }
-        e?.roku?.takeIf { it.disponible }?.let { TarjetaRoku(vm, it) }
+        e?.roku?.takeIf { it.disponible && !it.viendo }?.let { TarjetaRoku(vm, it) }
 
         Tarjeta {
             val cola = e?.cola.orEmpty()
@@ -193,6 +194,48 @@ private fun TarjetaTele(vm: Modelo, c: Cast, hayVideo: Boolean) {
     }
 }
 
+/** Lo que se ve en la tele: los mismos controles que para la PC (barra, pausa, saltos, subtítulos, parar). Es aparte
+ *  del reproductor de la PC: en la PC y en el celular se puede ver otra cosa mientras tanto. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ControlesRoku(vm: Modelo, r: Roku) {
+    Text("📺 Ahora en la tele: ${r.titulo}", color = C.titulo, fontWeight = FontWeight.SemiBold)
+    var arrastre by remember { mutableStateOf<Float?>(null) }
+    val duracion = r.duracion.coerceAtLeast(1L).toFloat()
+    val posicion = arrastre ?: r.posicion.toFloat()
+    Slider(
+        value = posicion.coerceIn(0f, duracion), valueRange = 0f..duracion, colors = deslizador(),
+        onValueChange = { arrastre = it },
+        onValueChangeFinished = {
+            arrastre?.let { ms -> vm.correr { try { vm.accion("roku_ir_a", "ms" to ms.toLong()) } finally { arrastre = null } } }
+        },
+    )
+    Row(Modifier.fillMaxWidth()) {
+        Pista(tiempo(posicion.toLong()) + if (r.estado == "pausa") " · en pausa" else "", Modifier.weight(1f))
+        Pista(tiempo(r.duracion))
+    }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+        Redondo("↺30") { vm.hacer("roku_adelantar", "ms" to -30000) }
+        Redondo("↺10") { vm.hacer("roku_adelantar", "ms" to -10000) }
+        Redondo(if (r.estado == "pausa") "▶" else "⏸", grande = true) { vm.hacer("roku_play_pausa") }
+        Redondo("10↻") { vm.hacer("roku_adelantar", "ms" to 10000) }
+        Redondo("30↻") { vm.hacer("roku_adelantar", "ms" to 30000) }
+    }
+    if (r.subs.isNotEmpty()) {
+        Pista("💬 Subtítulos")
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Boton((if (r.sub < 0) "✓ " else "") + "Sin subtítulos", chico = true,
+                estilo = if (r.sub < 0) Estilo.PRIMARIO else Estilo.NORMAL) { vm.hacer("roku_subtitulo", "n" to -1) }
+            r.subs.forEachIndexed { i, nombre ->
+                Boton((if (r.sub == i) "✓ " else "") + nombre, chico = true,
+                    estilo = if (r.sub == i) Estilo.PRIMARIO else Estilo.NORMAL) { vm.hacer("roku_subtitulo", "n" to i) }
+            }
+        }
+    }
+    Boton("⏹ Parar en la tele", Modifier.fillMaxWidth(), chico = true) { vm.hacer("roku_detener") }
+    Pista("En la tele también: flechas arriba/abajo o ✱ abren el menú; Atrás vuelve a la lista.")
+}
+
 /** El Roku: aprobar su código la primera vez y manejar lo que está viendo. */
 @Composable
 private fun TarjetaRoku(vm: Modelo, r: Roku) {
@@ -231,20 +274,7 @@ private fun TarjetaRoku(vm: Modelo, r: Roku) {
                 else "Tocá «Conectar un Roku»: la PC abre TorrentVision en la tele y queda vinculado, sin códigos."
             )
             r.estado == "inactivo" -> Pista("${r.nombre} conectado. Elegí una película y tocá «Ver en el Roku», o usá el control de la tele.")
-            else -> {
-                Text(r.titulo, color = C.titulo, fontWeight = FontWeight.SemiBold)
-                Pista(tiempo(r.posicion) + " / " + tiempo(r.duracion) + if (r.estado == "pausa") " · en pausa" else "")
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-                    Redondo("↺30") { vm.hacer("roku_adelantar", "ms" to -30000) }
-                    Redondo(if (r.estado == "pausa") "▶" else "⏸", grande = true) { vm.hacer("roku_play_pausa") }
-                    Redondo("30↻") { vm.hacer("roku_adelantar", "ms" to 30000) }
-                }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Boton("💬 Subtítulos sí", Modifier.weight(1f), chico = true) { vm.hacer("roku_subtitulos", "activo" to true) }
-                    Boton("No", Modifier.weight(1f), chico = true) { vm.hacer("roku_subtitulos", "activo" to false) }
-                    Boton("⏹ Parar", Modifier.weight(1f), chico = true) { vm.hacer("roku_detener") }
-                }
-            }
+            else -> ControlesRoku(vm, r)
         }
     }
 }

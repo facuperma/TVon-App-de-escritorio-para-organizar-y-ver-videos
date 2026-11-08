@@ -40,7 +40,11 @@ data class Roku(
     val disponible: Boolean, val conectado: Boolean, val nombre: String, val estado: String, val titulo: String,
     val posicion: Long, val duracion: Long, val vinculados: Int, val pendientes: List<PedidoRoku>,
     val buscando: Boolean = false, val conectando: String = "", val encontrados: List<RokuEnRed> = emptyList(),
-)
+    val subs: List<String> = emptyList(), val sub: Int = -1,
+) {
+    /** Hay una película andando en la tele (o en pausa). */
+    val viendo get() = conectado && estado in setOf("reproduciendo", "pausa")
+}
 /** Un Roku que la PC encontró en la wifi («Conectar un Roku»). */
 data class RokuEnRed(val ip: String, val nombre: String, val vinculado: Boolean)
 
@@ -106,6 +110,8 @@ data class Estado(
                     vinculados = r.optJSONArray("vinculados")?.length() ?: 0,
                     pendientes = r.optJSONArray("pendientes").objetos { PedidoRoku(it.optString("id"), it.optString("nombre"), it.optString("codigo")) },
                     buscando = r.optBoolean("buscando"), conectando = r.optString("conectando"),
+                    subs = r.optJSONArray("subs")?.let { a -> (0 until a.length()).map { a.optString(it) } }.orEmpty(),
+                    sub = r.optInt("sub", -1),
                     encontrados = r.optJSONArray("encontrados").objetos { RokuEnRed(it.optString("ip"), it.optString("nombre"), it.optBoolean("vinculado")) },
                 )
             },

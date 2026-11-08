@@ -28,7 +28,7 @@ sub buscar()
             udp.SendStr("TVON?")
         end for
         evento = wait(1500, puerto)
-        while type(evento) = "roSocketEvent" and udp.GetCountRcvdBytes() > 0
+        while type(evento) = "roSocketEvent" and udp.IsReadable()
             texto = udp.ReceiveStr(512)
             datos = ParseJson(texto)
             origen = udp.GetReceivedFromAddress()

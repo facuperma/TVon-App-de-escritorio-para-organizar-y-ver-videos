@@ -11,6 +11,7 @@ import glob
 import os
 import shutil
 import sys
+import tempfile
 import threading
 import time
 from pathlib import Path
@@ -189,9 +190,29 @@ class Vigilante(QObject):
                     self._ubicar_subtitulos(bib)
             except OSError:
                 pass  # carpeta inaccesible o archivo que desapareció: se reintenta en la próxima vuelta
-            # Esperando un subtítulo, se mira más seguido
-            self._despertar.wait(2 if self._esperando else INTERVALO_S)
+            # Esperando un subtítulo, se mira más seguido; y apenas aparece algo en Descargas, enseguida
+            self._esperar(bib, 2 if self._esperando else INTERVALO_S)
             self._despertar.clear()
+
+    def _esperar(self, bib: Biblioteca, segundos: float):
+        """Espera hasta `segundos`, o menos si cambia la carpeta Descargas (llegó un archivo): así un subtítulo
+        recién bajado se ubica en unos segundos y no recién en la próxima vuelta."""
+        try:
+            carpeta = Path(bib.config("carpeta_descargas_sistema"))
+            antes = carpeta.stat().st_mtime_ns
+        except OSError:
+            self._despertar.wait(segundos)
+            return
+        fin = time.monotonic() + segundos
+        while time.monotonic() < fin:
+            if self._despertar.wait(1):
+                return
+            try:
+                if carpeta.stat().st_mtime_ns != antes:
+                    self._despertar.wait(3.5)  # que el navegador termine de guardarlo (y tenga más de 3 s)
+                    return
+            except OSError:
+                pass
 
     def _a_su_categoria(self, bib: Biblioteca, video: Path, carpeta_propia: Path | None) -> Path:
         """Mueve un video que llegó a Videos\\Peliculas\\<título> con sus subtítulos (también los
@@ -323,10 +344,15 @@ class Vigilante(QObject):
             if clave in self._sin_video or ahora - info.st_mtime > SUBTITULO_RECIENTE_S or ahora - info.st_mtime < 3:
                 continue
             if elemento.is_dir():
-                # Un .zip que ya se descomprimió: una carpeta con solo subtítulos
-                adentro = [p for p in elemento.iterdir()]
+                # Un .zip que ya se descomprimió: una carpeta con solo subtítulos (o un pack: uno por capítulo)
+                adentro = [p for p in elemento.rglob("*") if p.is_file()]
                 subs = [p for p in adentro if p.suffix.lower() in EXT_SUBTITULOS]
-                if not subs or len(adentro) > 10 or len(subs) != len(adentro):
+                if not subs or len(adentro) > 80 or len(subs) != len(adentro):
+                    continue
+                if self._es_pack([p.name for p in subs]):
+                    if videos is None:
+                        videos = self._videos(bib)
+                    self._ubicar_pack(elemento, clave, videos)
                     continue
                 nombres = [elemento.name] + [p.name for p in subs]
             elif elemento.suffix.lower() in EXT_SUBTITULOS:
@@ -337,6 +363,14 @@ class Vigilante(QObject):
                                                    for n in listar_comprimido(elemento))
                 if self._comprimidos[clave]:
                     continue  # trae videos: lo descomprime _extraer_videos
+                adentro = [n for n in listar_comprimido(elemento) if Path(n).suffix.lower() in EXT_SUBTITULOS]
+                if self._es_pack([Path(n).name for n in adentro]):
+                    if en_uso(elemento):
+                        continue
+                    if videos is None:
+                        videos = self._videos(bib)
+                    self._ubicar_pack(elemento, clave, videos)
+                    continue
                 nombres = nombres_de_comprimido(elemento)
                 if elemento.suffix.lower() == ".zip" and len(nombres) == 1:
                     self._sin_video.add(clave)  # un .zip sin subtítulos adentro: no es para TVon
@@ -346,11 +380,12 @@ class Vigilante(QObject):
             else:
                 continue
             if videos is None:
-                videos = [ruta for _id, ruta, _nombre, tipo in bib.listar_archivos("video") if Path(ruta).exists()]
+                videos = self._videos(bib)
             video = video_del_subtitulo(nombres, videos)
-            # Si el video ya tiene subtítulo en español, no se le agrega otro
-            if video is None or any(Path(s).stem.lower().endswith((".es", ".spa")) or Path(s).stem == Path(video).stem
-                                    for s in subtitulos_junto_a(video)):
+            # Aunque el video ya tenga subtítulo, el que se acaba de bajar va igual (si se bajó otro, seguramente
+            # es porque el primero no andaba bien): queda como «video.es2.srt» y se pone en el video abierto.
+            # Si es idéntico a uno que ya está, colocar_subtitulo no lo repite
+            if video is None:
                 self._sin_video.add(clave)
                 continue
             if elemento.is_dir():
@@ -365,6 +400,44 @@ class Vigilante(QObject):
                 self.subtitulo_listo.emit(video, sub)
             else:
                 self._sin_video.add(clave)
+
+    @staticmethod
+    def _videos(bib: Biblioteca) -> list[str]:
+        return [ruta for _id, ruta, _nombre, tipo in bib.listar_archivos("video") if Path(ruta).exists()]
+
+    @staticmethod
+    def _es_pack(nombres: list[str]) -> bool:
+        """Varios subtítulos de capítulos distintos (el pack de una temporada)."""
+        capitulos = {_anio_y_episodio(n)[1] for n in nombres} - {None}
+        return len(nombres) > 1 and len(capitulos) > 1
+
+    def _ubicar_pack(self, elemento: Path, clave: tuple, videos: list[str]):
+        """Un pack de subtítulos (uno por capítulo, en un .zip/.rar o una carpeta): cada uno va junto a su capítulo.
+        Los de capítulos que todavía no están (la serie se sigue bajando) se ubican cuando lleguen: el pack queda en
+        Descargas hasta que estén todos, y después va a la Papelera."""
+        with tempfile.TemporaryDirectory() as temporal:
+            if elemento.is_dir():
+                fuentes = [p for p in elemento.rglob("*") if p.suffix.lower() in EXT_SUBTITULOS]
+            else:
+                if not extraer_comprimido(elemento, Path(temporal), timeout=120):
+                    self._sin_video.add(clave)
+                    return
+                fuentes = [p for p in Path(temporal).rglob("*") if p.suffix.lower() in EXT_SUBTITULOS]
+            puestos = faltan = 0
+            for sub in fuentes:
+                video = video_del_subtitulo([sub.name], videos)
+                if video is None:
+                    faltan += 1
+                    continue
+                # El pack se borra entero al final (si ya están todos): acá no se toca nada de él
+                if colocado := colocar_subtitulo(sub, video, idioma_de(sub), borrar_origen=False):
+                    puestos += 1
+                    self.subtitulo_listo.emit(video, colocado)
+        if puestos and not faltan:
+            if not QFile.moveToTrash(str(elemento)) and elemento.is_dir():
+                shutil.rmtree(elemento, ignore_errors=True)
+        else:
+            self._sin_video.add(clave)  # se vuelve a mirar cuando lleguen videos nuevos
 
     def _videos_descargas(self, origen: Path):
         """(ruta, stat) de los videos de Descargas: los sueltos y los de las carpetas

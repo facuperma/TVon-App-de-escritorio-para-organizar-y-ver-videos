@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 from PySide6 import __version__ as VERSION_QT
-from PySide6.QtCore import QByteArray, QEvent, QItemSelectionModel, QPoint, Qt, QTimer, QUrl, QUrlQuery
+from PySide6.QtCore import QByteArray, QEvent, QItemSelectionModel, QObject, QPoint, Qt, QTimer, QUrl, QUrlQuery
 from PySide6.QtMultimedia import QMediaPlayer
 from PySide6.QtGui import QAction, QBrush, QColor, QDesktopServices, QFont, QKeySequence, QPixmap, QShortcut
 from PySide6.QtWidgets import (
@@ -74,6 +74,19 @@ FILTROS_FIJOS = {
 EXT_SUBTITULOS_TODOS = EXT_SUBTITULOS | {".ass", ".ssa", ".sub", ".idx"}
 REPOSITORIO = "https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos"
 AUTOR = "Faierwall"
+
+
+class _AlCambiarEstilo(QObject):
+    """Avisa cuando un widget cambia de estilo, de letra o de tamaño."""
+
+    def __init__(self, padre, avisar):
+        super().__init__(padre)
+        self._avisar = avisar
+
+    def eventFilter(self, objeto, evento):
+        if evento.type() in (QEvent.StyleChange, QEvent.FontChange, QEvent.Resize, QEvent.Show):
+            self._avisar()
+        return False
 
 
 class Ventana(QMainWindow):
@@ -348,7 +361,10 @@ class Ventana(QMainWindow):
         espacio = QWidget()
         espacio.setFixedWidth(20)
         barra.addWidget(espacio)
-        self.buscador = QLineEdit(placeholderText="Buscar por nombre…", clearButtonEnabled=True)
+        self.buscador = QLineEdit(placeholderText="Buscar por nombre… (Enter: buscarla para bajar)", clearButtonEnabled=True)
+        self.buscador.setToolTip("Filtra tu biblioteca mientras escribís.\nCon Enter busca películas con ese nombre "
+                                 "para bajar (con portada y de qué trata)")
+        self.buscador.returnPressed.connect(self._buscar_para_bajar)
         self.buscador.setMaximumWidth(320)
         self.buscador.textChanged.connect(lambda _: self._cargar_archivos())
         barra.addWidget(self.buscador)
@@ -406,13 +422,16 @@ class Ventana(QMainWindow):
 
         # Arriba a la derecha (siempre a la vista): tu muñequito con tu nombre y tus puntos.
         # Tocalo para editarlo, tu cuenta y tus amigos
-        # Del alto justo de la barra: si es más alto, la barra crece y Archivo, Vista… quedan pegados arriba
-        alto = max(22, barra.sizeHint().height())
+        # Opciones (Archivo, Vista…) más altas, con el texto centrado; la esquina toma el mismo alto que ellas
+        # (_ajustar_esquina): si fuera más alta, la barra crecería y las opciones quedarían pegadas arriba
+        barra.setStyleSheet("QMenuBar { padding: 0px 4px; } QMenuBar::item { padding: 8px 14px; margin: 0px; }")
+        alto = 34
         esquina = QWidget()
         esquina.setFixedHeight(alto)
         fila = QHBoxLayout(esquina)
         fila.setContentsMargins(0, 0, 8, 0)
-        fila.setSpacing(6)
+        fila.setSpacing(8)
+        self._fila_esquina = fila
         self.lbl_munequito = QLabel(objectName="pista")
         self.lbl_munequito.setCursor(Qt.PointingHandCursor)
         self.lbl_munequito.mousePressEvent = lambda _e: self._abrir_avatar()
@@ -423,6 +442,10 @@ class Ventana(QMainWindow):
         fila.addWidget(self.munequito)
         self._esquina = esquina  # PySide no se queda con el widget de la esquina: sin esto se borra
         barra.setCornerWidget(esquina, Qt.TopRightCorner)
+        # Al cambiar de tema (otra letra) o de tamaño, la esquina vuelve a tomar el alto de las opciones
+        self._filtro_barra = _AlCambiarEstilo(barra, lambda: QTimer.singleShot(0, self._ajustar_esquina))
+        barra.installEventFilter(self._filtro_barra)
+        QTimer.singleShot(0, self._ajustar_esquina)
         self.social.cambio.connect(self._munequito_cambio)
         self._munequito_cambio()
         barra.addAction("Reportar un bug", self._reportar_bug)
@@ -501,19 +524,15 @@ class Ventana(QMainWindow):
     def _ubicar_salir_fullscreen(self):
         boton = getattr(self, "btn_salir_fullscreen", None)
         if boton is None:
-            boton = self.btn_salir_fullscreen = QPushButton("✕ Salir de Fullscreen", self, objectName="salirFullscreen")
+            boton = self.btn_salir_fullscreen = QPushButton("✕ Salir de Fullscreen", objectName="salirFullscreen")
+            self._fila_esquina.insertWidget(0, boton)
             boton.setToolTip("Volver a la ventana normal (F11 o Esc)")
             boton.setCursor(Qt.PointingHandCursor)
             boton.setStyleSheet("QPushButton#salirFullscreen { background: rgba(0, 0, 0, 150); color: #ffffff; "
-                                "border: 1px solid rgba(255, 255, 255, 120); border-radius: 12px; padding: 3px 12px; "
+                                "border: 1px solid rgba(255, 255, 255, 120); border-radius: 11px; padding: 2px 12px; "
                                 "font-size: 9pt; } QPushButton#salirFullscreen:hover { background: rgba(200, 30, 30, 220); }")
             boton.clicked.connect(self.alternar_modo_fullscreen)
-        visible = self._modo_fullscreen and not self._video_completo
-        boton.setVisible(visible)
-        if visible:
-            boton.adjustSize()
-            boton.move(self.width() - boton.width() - 12, 8)
-            boton.raise_()
+        boton.setVisible(self._modo_fullscreen and not self._video_completo)
 
     def showEvent(self, e):
         super().showEvent(e)
@@ -970,6 +989,10 @@ class Ventana(QMainWindow):
         seleccion = [i.data(0, ROL) for i in self.lista.selectedItems()]
         menu.addAction(f"⧉ Abrir en ventana nueva ({n})", lambda: self.abrir_en_ventana(seleccion))
         videos = [ruta for _aid, ruta, tipo in seleccion if tipo == "video"]
+        # La tele (Roku) vinculada: se ve ahí, y la PC y el celular quedan libres para otra cosa
+        remoto = getattr(self, "remoto", None)
+        if remoto is not None and len(seleccion) == 1 and seleccion[0][2] == "video" and remoto.estado_roku()["vinculados"]:
+            menu.addAction("📺 Ver en la tele (Roku)", lambda: self._ver_en_roku(seleccion[0][0]))
         menu.addAction(f"☰ Agregar a la cola ({len(videos)})", lambda: self.encolar(videos)).setEnabled(bool(videos))
         if videos:
             progresos = self.bib.progresos()
@@ -1509,6 +1532,15 @@ class Ventana(QMainWindow):
         subtitulo = elegido[0] if elegido else next(iter(subtitulos_junto_a(ruta)), None)
         return ruta, self.bib.posicion_guardada(ruta), subtitulo
 
+    def _ajustar_esquina(self):
+        barra = self.menuBar()
+        acciones = [a for a in barra.actions() if a.isVisible()]
+        alto = barra.actionGeometry(acciones[0]).height() if acciones else 0
+        if alto < 20 or alto == self._esquina.height():
+            return
+        self._esquina.setFixedHeight(alto)
+        self.munequito.setFixedSize(alto + 6, alto)
+
     def _munequito_cambio(self):
         self.munequito.poner(self.social.avatar)
         self.munequito.setToolTip(self.social.resumen())
@@ -1523,6 +1555,20 @@ class Ventana(QMainWindow):
         self.ventana_avatar.show()
         self.ventana_avatar.raise_()
         self.ventana_avatar.activateWindow()
+
+    def _ver_en_roku(self, aid: int):
+        try:
+            self.remoto.control.accion_roku_reproducir(aid)
+            self.statusBar().showMessage("📺 Se está abriendo en la tele (Roku)", 6000)
+        except Exception as e:  # noqa: BLE001 - Roku apagado o fuera de la red
+            QMessageBox.information(self, "Roku", str(e))
+
+    def _buscar_para_bajar(self):
+        texto = self.buscador.text().strip()
+        if len(texto) < 2:
+            return
+        self._abrir_letterboxd()
+        self.ventana_letterboxd.buscar_texto(texto)
 
     def _abrir_letterboxd(self):
         if self.ventana_letterboxd is None:

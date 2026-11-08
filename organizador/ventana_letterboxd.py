@@ -1,5 +1,6 @@
-"""Ventana de Letterboxd: tu watchlist y las mejor puntuadas, marcando las que ya están en la biblioteca
-(también si la tenés con el título en otro idioma)."""
+"""Ventana de Letterboxd: tu watchlist, las mejor puntuadas y la búsqueda de cualquier película, marcando las
+que ya están en la biblioteca (también si la tenés con el título en otro idioma)."""
+import html
 import json
 import re
 import requests
@@ -22,6 +23,8 @@ from bs4 import BeautifulSoup
 ROL = Qt.UserRole
 # El buscador de ext.to, en la categoría Películas (cat=1)
 BUSCAR_TORRENT = "https://ext.to/browse/?cat=1&q={}"
+# Las series: sin categoría (la de películas las dejaba afuera)
+BUSCAR_TORRENT_TODO = "https://ext.to/browse/?q={}"
 # Los subtítulos: el buscador de OpenSubtitles en el idioma elegido (subdivx no deja armar su búsqueda con un link)
 BUSCAR_SUBTITULOS = "https://www.opensubtitles.org/es/search2/sublanguageid-{idioma}/moviename-{texto}"
 IDIOMAS_OS = {"es": "spa", "en": "eng", "pt": "por", "it": "ita", "fr": "fre", "de": "ger"}
@@ -55,15 +58,25 @@ class VentanaLetterboxd(QWidget):
         self.usuario.returnPressed.connect(lambda: self._cargar("watchlist", forzar=True))
         self.btn_watchlist = QPushButton("📋 Mi watchlist", checkable=True, checked=True)
         self.btn_mejores = QPushButton("🏆 Las 500 mejor puntuadas", checkable=True)
+        self.btn_busqueda = QPushButton("🔎 Buscar", checkable=True)
         grupo = QButtonGroup(self)
-        for b in (self.btn_watchlist, self.btn_mejores):
+        for b in (self.btn_watchlist, self.btn_mejores, self.btn_busqueda):
             grupo.addButton(b)
+        # Cualquier película por nombre (en castellano o en inglés), para bajarla
+        self.busqueda = QLineEdit(placeholderText="Buscar película o serie (El padrino, Twin Peaks temporada 2…) y Enter",
+                                  clearButtonEnabled=True)
+        self.busqueda.returnPressed.connect(lambda: self.buscar_texto(self.busqueda.text()))
+        self.btn_busqueda.clicked.connect(lambda: self.buscar_texto(self.busqueda.text()))
+        self._texto_buscado = ""
         self.btn_watchlist.clicked.connect(lambda: self._cargar("watchlist", forzar=True))
         self.btn_mejores.clicked.connect(lambda: self._cargar("mejores"))
         fila = QHBoxLayout()
         fila.addWidget(self.usuario, 1)
         fila.addWidget(self.btn_watchlist)
         fila.addWidget(self.btn_mejores)
+        fila_busqueda = QHBoxLayout()
+        fila_busqueda.addWidget(self.busqueda, 1)
+        fila_busqueda.addWidget(self.btn_busqueda)
 
         self.chk_ocultar = QCheckBox("Ocultar las que ya tengo")
         self.chk_ocultar.toggled.connect(self._mostrar)
@@ -98,6 +111,7 @@ class VentanaLetterboxd(QWidget):
 
         capa = QVBoxLayout(self)
         capa.addLayout(fila)
+        capa.addLayout(fila_busqueda)
         capa.addWidget(QLabel("Se lee tu watchlist pública. Doble clic en una película para bajarla.",
                               objectName="pista", wordWrap=True))
         division = QSplitter(Qt.Horizontal)
@@ -121,6 +135,12 @@ class VentanaLetterboxd(QWidget):
         self.prev_datos = QLabel(wordWrap=True, objectName="pista")
         self.prev_sinopsis = QLabel(wordWrap=True, alignment=Qt.AlignTop | Qt.AlignLeft)
         self.prev_sinopsis.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        # Lo que se va a buscar en la página de torrents: se puede corregir antes de bajar (doble clic o ⬇ Bajarla)
+        self.texto_torrent = QLineEdit(clearButtonEnabled=True,
+                                       placeholderText="Lo que se busca en la página de torrents")
+        self.texto_torrent.setToolTip("Se arma solo (título original, año; para series «season 2» o «S02E05»).\n"
+                                      "Cambialo si querés buscar otra cosa (otra calidad, otro idioma…)")
+        self.texto_torrent.returnPressed.connect(lambda: self._buscar())
         desplazable = QScrollArea(widgetResizable=True, frameShape=QScrollArea.NoFrame)
         desplazable.setWidget(self.prev_sinopsis)
         capa = QVBoxLayout(panel)
@@ -128,6 +148,8 @@ class VentanaLetterboxd(QWidget):
         capa.addWidget(self.prev_titulo)
         capa.addWidget(self.prev_datos)
         capa.addWidget(desplazable, 1)
+        capa.addWidget(QLabel("Buscar el torrent como:", objectName="pista"))
+        capa.addWidget(self.texto_torrent)
         self._vista_previa_vacia()
         return panel
 
@@ -143,7 +165,10 @@ class VentanaLetterboxd(QWidget):
         if not p:
             return self._vista_previa_vacia()
         self._previsto = p["url"]
-        self.prev_titulo.setText(f"<b style='font-size: 14pt'>{p['titulo']}</b> {p['anio']}")
+        pedido = letterboxd.interpretar_busqueda(self._texto_buscado) if self._vista == "busqueda" else None
+        self.texto_torrent.setText(letterboxd.texto_torrent(p, pedido))
+        titulo = p.get("titulo_es") or p["titulo"]
+        self.prev_titulo.setText(f"<b style='font-size: 14pt'>{html.escape(titulo)}</b> {p['anio']}")
         if p["url"] in self._detalles:
             return self._poner_detalle(p, *self._detalles[p["url"]])
         self.portada.clear()
@@ -151,7 +176,7 @@ class VentanaLetterboxd(QWidget):
         self.prev_sinopsis.setText("Cargando…")
 
         def traer():
-            datos = letterboxd.detalle(p["url"])
+            datos = letterboxd.detalle_wikipedia(p["url"]) if "wikipedia.org" in p["url"] else letterboxd.detalle(p["url"])
             imagen = None
             if datos["poster_url"]:
                 try:
@@ -188,9 +213,19 @@ class VentanaLetterboxd(QWidget):
         if not self._listas:
             self._cargar("watchlist" if self.usuario.text().strip() else "mejores")
 
+    def buscar_texto(self, texto: str):
+        """Busca películas que se llamen así y las muestra como una lista más (con vista previa y para bajar)."""
+        texto = texto.strip()
+        if len(texto) < 2:
+            self.busqueda.setFocus()
+            return self.estado.setText("Escribí el nombre de una película")
+        self.busqueda.setText(texto)
+        self._texto_buscado = texto
+        self._cargar("busqueda", forzar=True)
+
     def _cargar(self, vista: str, forzar: bool = False):
         self._vista = vista
-        (self.btn_watchlist if vista == "watchlist" else self.btn_mejores).setChecked(True)
+        {"watchlist": self.btn_watchlist, "mejores": self.btn_mejores}.get(vista, self.btn_busqueda).setChecked(True)
         if vista in self._listas and not forzar:
             return self._mostrar()
         if vista == "watchlist":
@@ -201,15 +236,21 @@ class VentanaLetterboxd(QWidget):
                 return self.estado.setText(str(e))
             self.bib.guardar_config("letterboxd_usuario", usuario)
             trabajo = lambda: letterboxd.watchlist(usuario)  # noqa: E731
+        elif vista == "busqueda":
+            texto = self._texto_buscado
+            trabajo = lambda: letterboxd.buscar_peliculas(texto)  # noqa: E731
         else:
             trabajo = letterboxd.mejor_puntuadas
         self.lista.clear()
-        self.estado.setText("Leyendo Letterboxd…")
+        self._vista_previa_vacia()
+        self.estado.setText(f"Buscando «{self._texto_buscado}»…" if vista == "busqueda" else "Leyendo Letterboxd…")
 
         def listo(pelis):
             self._listas[vista] = pelis
             if self._vista == vista:
                 self._mostrar()
+                if vista == "busqueda" and pelis:
+                    self.lista.setCurrentItem(self.lista.topLevelItem(0))  # su vista previa, ya
 
         def fallo(mensaje):
             if self._vista == vista:
@@ -226,11 +267,17 @@ class VentanaLetterboxd(QWidget):
         self.lista.clear()
         tengo = 0
         for p in pelis:
-            esta = letterboxd.en_biblioteca(p, claves, self._traducciones.get(self._clave(p), []))
+            otros = self._traducciones.get(self._clave(p), []) + ([p["titulo_es"]] if p.get("titulo_es") else [])
+            esta = letterboxd.en_biblioteca(p, claves, otros)
             tengo += esta
             if esta and self.chk_ocultar.isChecked():
                 continue
-            item = QTreeWidgetItem([p["titulo"], p["anio"], "✓ Ya la tenés" if esta else "", "💬 Buscar"])
+            nombre = p["titulo"]
+            if p.get("titulo_es") and p["titulo_es"].lower() != p["titulo"].lower():
+                nombre = f"{p['titulo_es']} ({p['titulo']})"
+            item = QTreeWidgetItem([nombre, p["anio"], "✓ Ya la tenés" if esta else "", "💬 Buscar"])
+            if p.get("descripcion"):
+                item.setToolTip(0, p["descripcion"])
             item.setToolTip(3, "Abrir la búsqueda de sus subtítulos")
             vinculo = item.font(3)
             vinculo.setUnderline(True)
@@ -241,6 +288,11 @@ class VentanaLetterboxd(QWidget):
                 for col in range(3):
                     item.setForeground(col, QBrush(QColor("#86efac")))
             self.lista.addTopLevelItem(item)
+        if self._vista == "busqueda":
+            return self.estado.setText(
+                f"{len(pelis)} resultados para «{self._texto_buscado}». Doble clic: abre la búsqueda del torrent y, al "
+                "copiar el link magnet, se pone a bajar sola." if pelis else
+                f"No encontré películas ni series que se llamen «{self._texto_buscado}». Probá con el título original.")
         nombre = "tu watchlist" if self._vista == "watchlist" else "las mejor puntuadas"
         self.estado.setText(f"{len(pelis)} películas en {nombre} · {tengo} ya en tu biblioteca · "
                             f"{len(pelis) - tengo} para bajar")
@@ -300,6 +352,8 @@ class VentanaLetterboxd(QWidget):
         self.estado.setText(f"Buscando «{p['titulo']}»…")
 
         def en_archive():
+            if p.get("tipo") == "serie":
+                return None
             _total, encontradas = archive.buscar(p["titulo"], filas=10)
             return next((e for e in encontradas if letterboxd.coincide_archive(e, p["titulo"], p["anio"])), None)
 
@@ -314,12 +368,17 @@ class VentanaLetterboxd(QWidget):
             if self.bib.agregar_descarga(libre["identificador"], libre["titulo"], libre["anio"]):
                 self.descargas.despertar()
             return self.estado.setText(f"Bajando «{p['titulo']}» del Internet Archive (🎞 Dominio público)")
-        texto = f"{p['titulo']} {p['anio']}".strip()
+        # El texto del cuadro «Buscar el torrent como» si es el de esta película (pudo corregirse); si no, se arma
+        texto = self.texto_torrent.text().strip() if self._previsto == p["url"] else ""
+        if not texto:
+            pedido = letterboxd.interpretar_busqueda(self._texto_buscado) if self._vista == "busqueda" else None
+            texto = letterboxd.texto_torrent(p, pedido)
+        pagina = BUSCAR_TORRENT_TODO if p.get("tipo") == "serie" else BUSCAR_TORRENT
         self.estado.setText(f"Buscando el torrent de «{texto}» en ext.to…")
 
         def buscar_ext_to() -> str | None:
             """El primer link magnet de la búsqueda (en segundo plano: acá no se toca la interfaz)."""
-            respuesta = requests.get(BUSCAR_TORRENT.format(quote_plus(texto)), timeout=15)
+            respuesta = requests.get(pagina.format(quote_plus(texto)), timeout=15)
             respuesta.raise_for_status()
             soup = BeautifulSoup(respuesta.text, "html.parser")
             return next((a["href"] for a in soup.find_all("a", href=True)
@@ -338,7 +397,8 @@ class VentanaLetterboxd(QWidget):
         """Si ext.to no se pudo leer (Cloudflare, sin internet, sin resultados): la búsqueda en el navegador."""
         # Copiado también, por si la página no muestra la búsqueda hecha: se pega con Ctrl+V en su buscador
         QGuiApplication.clipboard().setText(texto)
-        busqueda = self.bib.config("letterboxd_busqueda") or BUSCAR_TORRENT
+        busqueda = self.bib.config("letterboxd_busqueda") or (
+            BUSCAR_TORRENT_TODO if p.get("tipo") == "serie" else BUSCAR_TORRENT)
         QDesktopServices.openUrl(QUrl(busqueda.format(quote_plus(texto))))
         self._esperando = p
         self.estado.setText(f"Se abrió la búsqueda y se copió «{texto}» (si no aparece buscada, pegalo con Ctrl+V "
