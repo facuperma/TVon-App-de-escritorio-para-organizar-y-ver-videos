@@ -1,4 +1,5 @@
 """Ventana principal: filtros/categorías, lista de archivos, visor y detalles."""
+import json
 import platform
 import shutil
 from collections import Counter
@@ -30,8 +31,9 @@ from .dialogo_on import DialogoOn
 from .dominio_publico import VentanaDominioPublico, a_la_papelera, eliminar_video
 from . import fichas, paleta
 from .fichas import BuscadorFichas
-from .remoto import Remoto
-from .subtitulos import EXT_SUBTITULOS, subtitulos_junto_a
+from .intro import DetectorIntro
+from .remoto import Remoto, ffmpeg
+from .subtitulos import EXT_SUBTITULOS, _anio_y_episodio, subtitulos_junto_a
 from .inicio_windows import traer_al_frente
 from .titulos import nombre_lindo, titulo_de
 from .torrents import GestorTorrents
@@ -43,7 +45,7 @@ from .subtitulos_online import buscar_para_visor, subtitulos_automaticos
 from .chromecast import Transmisor
 from .ventana_cast import VentanaCast
 from .ventana_letterboxd import VentanaLetterboxd
-from .avatar3d import Munequito
+from . import vista3d
 from .ventana_avatar import EstadoSocial, VentanaAvatar
 from .ventana_torrents import VentanaTorrents
 from .ventana_video import VentanaVideo
@@ -225,6 +227,10 @@ class Ventana(QMainWindow):
         self.visor.subtitulos_cambiados.connect(self.bib.guardar_subtitulos)
         self.visor.progreso.connect(self._progreso)
         self.visor.buscar_siguiente = self.bib.siguiente_en_categoria
+        # «Saltar intro» en las series: se detecta comparando el audio con otros capítulos (intro.py)
+        self.detector_intro = DetectorIntro(ffmpeg)
+        self.detector_intro.listo.connect(self._intro_lista)
+        self.visor.al_abrir_video = self._pedir_intro
         self.visor.reproducir_siguiente.connect(self.reproducir)
         self.visor.buscar_subtitulos_online.connect(lambda _: buscar_para_visor(self.visor, self.bib, self))
         self.visor.buscar_subtitulos_subdivx.connect(self._buscar_en_subdivx)
@@ -302,6 +308,23 @@ class Ventana(QMainWindow):
         der = QWidget()
         self.capa_der = capa_der = QVBoxLayout(der)
         self._margenes_der = capa_der.contentsMargins()
+        # El buscador general, arriba del reproductor y tan ancho como él: filtra la biblioteca mientras se escribe;
+        # con Enter abre «Buscar» (lo que ya tenés, con su categoría, o si no, para bajar)
+        self.fila_buscar = QWidget()
+        capa_buscar = QHBoxLayout(self.fila_buscar)
+        capa_buscar.setContentsMargins(0, 0, 0, 0)
+        self.buscador = QLineEdit(placeholderText="🔎 Buscar película o serie… (Enter: buscar también para bajar)",
+                                  clearButtonEnabled=True)
+        self.buscador.setMinimumHeight(30)
+        self.buscador.setToolTip("Filtra tu biblioteca mientras escribís.\nCon Enter: si ya la tenés, te muestra "
+                                 "dónde está; si no, la busca para bajar (con portada y de qué trata)")
+        self.buscador.returnPressed.connect(self._buscar_para_bajar)
+        self.buscador.textChanged.connect(lambda _: self._cargar_archivos())
+        btn_buscar = QPushButton("Buscar", objectName="primario")
+        btn_buscar.clicked.connect(self._buscar_para_bajar)
+        capa_buscar.addWidget(self.buscador, 1)
+        capa_buscar.addWidget(btn_buscar)
+        capa_der.addWidget(self.fila_buscar)
         capa_der.addWidget(self.visor, 1)
         capa_der.addWidget(self.detalles)
 
@@ -358,16 +381,7 @@ class Ventana(QMainWindow):
             accion = barra.addAction(texto, lambda u=url: QDesktopServices.openUrl(QUrl(u)))
             accion.setToolTip(f"Abrir {url} en el navegador")
         barra.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
-        espacio = QWidget()
-        espacio.setFixedWidth(20)
-        barra.addWidget(espacio)
-        self.buscador = QLineEdit(placeholderText="Buscar por nombre… (Enter: buscarla para bajar)", clearButtonEnabled=True)
-        self.buscador.setToolTip("Filtra tu biblioteca mientras escribís.\nCon Enter busca películas con ese nombre "
-                                 "para bajar (con portada y de qué trata)")
-        self.buscador.returnPressed.connect(self._buscar_para_bajar)
-        self.buscador.setMaximumWidth(320)
-        self.buscador.textChanged.connect(lambda _: self._cargar_archivos())
-        barra.addWidget(self.buscador)
+
         # La banda de los temas retro: la pantallita con el título que corre y su animación
         self.addToolBarBreak()
         self.fila_banda = QToolBar("Banda del tema", movable=False)
@@ -435,7 +449,7 @@ class Ventana(QMainWindow):
         self.lbl_munequito = QLabel(objectName="pista")
         self.lbl_munequito.setCursor(Qt.PointingHandCursor)
         self.lbl_munequito.mousePressEvent = lambda _e: self._abrir_avatar()
-        self.munequito = Munequito(self.social.avatar, encuadre="busto")
+        self.munequito = vista3d.crear(self.social.avatar, "busto")
         self.munequito.setFixedSize(alto + 6, alto)
         self.munequito.tocado.connect(self._abrir_avatar)
         fila.addWidget(self.lbl_munequito)
@@ -572,7 +586,7 @@ class Ventana(QMainWindow):
         completa = not self._video_completo
         self._video_completo = completa
         for w in (self.izq, self.centro, self.detalles, self.barra_herramientas, self.statusBar(),
-                  self.menuBar()):
+                  self.menuBar(), self.fila_buscar):
             # Al salir, los paneles que se ocultaron desde el menú Vista siguen ocultos
             w.setVisible(not completa and (w not in self._paneles or self._paneles[w].isChecked()))
         # La banda del tema (título que corre) tampoco: en pantalla completa se ve solo la película
@@ -1556,6 +1570,63 @@ class Ventana(QMainWindow):
         self.ventana_avatar.raise_()
         self.ventana_avatar.activateWindow()
 
+    # --- Intros de las series ---------------------------------------------------------------------------
+
+    def _intros(self) -> dict:
+        try:
+            datos = json.loads(self.bib.config("intros") or "{}")
+        except ValueError:
+            datos = {}
+        return datos if isinstance(datos, dict) else {}
+
+    def _companeros(self, ruta: str) -> list[str]:
+        """Otros capítulos de la misma serie y temporada (los más cercanos), para comparar el audio."""
+        nombre = Path(ruta).name
+        episodio = _anio_y_episodio(nombre)[1]
+        if not episodio:
+            return []
+        titulo = titulo_de(nombre).lower()
+        otros = []
+        for _aid, otra, otro_nombre, _tipo in self.bib.listar_archivos("video"):
+            if otra == ruta or titulo_de(otro_nombre).lower() != titulo:
+                continue
+            ep = _anio_y_episodio(otro_nombre)[1]
+            if ep and ep[0] == episodio[0] and Path(otra).exists():
+                otros.append((abs(ep[1] - episodio[1]), otra))
+        return [r for _d, r in sorted(otros)][:2]
+
+    def intro_de(self, ruta: str) -> tuple[int, int] | None:
+        """La intro guardada de un capítulo; si no se buscó todavía, se pide (y queda para la próxima)."""
+        guardada = self._intros().get(ruta)
+        if guardada is not None:
+            return tuple(guardada) if guardada[1] > guardada[0] else None
+        if companeros := self._companeros(ruta):
+            self.detector_intro.pedir(ruta, companeros, primero=False)
+        return None
+
+    def _pedir_intro(self, ruta: str):
+        guardada = self._intros().get(ruta)
+        if guardada is not None:
+            self.visor.poner_intro(ruta, tuple(guardada))
+            self._preparar_intro_siguiente(ruta)
+        elif companeros := self._companeros(ruta):
+            self.detector_intro.pedir(ruta, companeros)
+
+    def _preparar_intro_siguiente(self, ruta: str):
+        """Mientras se ve un capítulo, se busca ya la intro del que sigue (así el botón aparece enseguida)."""
+        if (siguiente := self.bib.siguiente_en_categoria(ruta)) and siguiente not in self._intros():
+            if companeros := self._companeros(siguiente):
+                self.detector_intro.pedir(siguiente, companeros, primero=False)
+
+    def _intro_lista(self, ruta: str, inicio: int, fin: int):
+        intros = self._intros()
+        intros[ruta] = [inicio, fin]
+        self.bib.guardar_config("intros", json.dumps(intros))
+        for visor in [self.visor, *(v.visor for v in self.ventanas_video)]:
+            visor.poner_intro(ruta, (inicio, fin))
+        if ruta == self.visor.ruta_video:
+            self._preparar_intro_siguiente(ruta)
+
     def _ver_en_roku(self, aid: int):
         try:
             self.remoto.control.accion_roku_reproducir(aid)
@@ -1567,8 +1638,14 @@ class Ventana(QMainWindow):
         texto = self.buscador.text().strip()
         if len(texto) < 2:
             return
-        self._abrir_letterboxd()
-        self.ventana_letterboxd.buscar_texto(texto)
+        if getattr(self, "ventana_buscar", None) is None:
+            self.ventana_buscar = VentanaLetterboxd(self.bib, self.gestor, self.torrents, solo_busqueda=True,
+                                                    al_reproducir=self.reproducir)
+            self.ventana_buscar.resize(1040, 680)
+        self.ventana_buscar.show()
+        self.ventana_buscar.raise_()
+        self.ventana_buscar.activateWindow()
+        self.ventana_buscar.buscar_texto(texto)
 
     def _abrir_letterboxd(self):
         if self.ventana_letterboxd is None:

@@ -61,6 +61,7 @@ def atajos_reproductor(ventana: QWidget, visor: "Visor", alternar_completa):
         ("G", lambda: visor.ajustar_retraso(-100)),
         ("H", lambda: visor.ajustar_retraso(100)),
         ("N", visor.siguiente_capitulo),
+        ("I", visor.saltar_intro),
         ("Home", lambda: visor.ir_a(0)),
     ):
         QShortcut(QKeySequence(tecla), ventana).activated.connect(accion)
@@ -117,6 +118,7 @@ class PantallaVideo(QWidget):
         self._osd = ""
         self.escala_sub = 1.0
         self.panel: QWidget | None = None  # aviso flotante abajo a la derecha
+        self.boton_intro: QWidget | None = None  # «Saltar intro», abajo a la izquierda
         self._timer_osd = QTimer(self, singleShot=True, interval=1500)
         self._timer_osd.timeout.connect(lambda: self._set_osd(""))
         # El clic simple espera por si llega el segundo de un doble clic (pantalla completa),
@@ -157,6 +159,9 @@ class PantallaVideo(QWidget):
         if self.panel is not None:
             self.panel.adjustSize()
             self.panel.move(self.width() - self.panel.width() - 24, self.height() - self.panel.height() - 24)
+        if self.boton_intro is not None:
+            self.boton_intro.adjustSize()
+            self.boton_intro.move(32, self.height() - self.boton_intro.height() - 40)
 
     def resizeEvent(self, e):
         self.colocar_panel()
@@ -526,6 +531,20 @@ class Visor(QWidget):
         self.panel_sig.hide()
         self.pantalla.panel = self.panel_sig
 
+        # «⏭ Saltar intro»: abajo a la izquierda mientras pasa la intro de un capítulo (la detecta intro.py)
+        self.intro: tuple[int, int] | None = None    # (inicio, fin) en ms, del video abierto
+        self.al_abrir_video = None                    # función (ruta) que pide la intro; la asigna la ventana
+        self.btn_intro = QPushButton("⏭  Saltar intro", self.pantalla, objectName="saltarIntro")
+        self.btn_intro.setCursor(Qt.PointingHandCursor)
+        self.btn_intro.setToolTip("Ir al final de la introducción (tecla I)")
+        self.btn_intro.setStyleSheet(
+            "QPushButton#saltarIntro { background: rgba(10, 16, 28, 210); color: #ffffff; font-size: 12pt; "
+            "font-weight: 600; padding: 10px 22px; border: 2px solid rgba(255, 255, 255, 170); border-radius: 8px; } "
+            "QPushButton#saltarIntro:hover { background: rgba(255, 255, 255, 235); color: #0b1220; }")
+        self.btn_intro.clicked.connect(self.saltar_intro)
+        self.btn_intro.hide()
+        self.pantalla.boton_intro = self.btn_intro
+
         for b in (self.btn_play, self.btn_stop, self.btn_siguiente, self.btn_atras15,
                   self.btn_adelante15, self.btn_mute, self.btn_subs, self.btn_cola,
                   self.btn_completa, *botones_sinc, self.barra, self.volumen, btn_ahora, btn_cancelar):
@@ -607,6 +626,10 @@ class Visor(QWidget):
         else:
             self.ruta_video = ruta
             self._es_video = True
+            self.intro = None
+            self.btn_intro.hide()
+            if self.al_abrir_video and not self._vista_previa:
+                self.al_abrir_video(ruta)
             self.pila.setCurrentWidget(self.pantalla)
             if config_sub is None:
                 if auto := buscar_junto_a(ruta):
@@ -982,8 +1005,33 @@ class Visor(QWidget):
         self.lbl_tiempo.setText(f"{formato_tiempo(pos)} / {formato_tiempo(self.reproductor.duration())}")
         self._actualizar_subtitulo()
         self._revisar_siguiente(pos)
+        self._revisar_intro(pos)
         if abs(pos - self._ultimo_guardado) >= 10_000:
             self.guardar_progreso()
+
+    def poner_intro(self, ruta: str, intro: tuple[int, int] | None):
+        """La intro detectada para un video (si sigue siendo el que está abierto)."""
+        if ruta == self.ruta_video:
+            self.intro = intro if intro and intro[1] > intro[0] else None
+            self._revisar_intro(self.reproductor.position())
+
+    def en_intro(self, pos: int | None = None) -> bool:
+        pos = self.reproductor.position() if pos is None else pos
+        return bool(self.intro and self._es_video and self.intro[0] - 500 <= pos < self.intro[1] - 1500)
+
+    def _revisar_intro(self, pos: int):
+        mostrar = self.en_intro(pos) and not self._vista_previa
+        if mostrar != self.btn_intro.isVisible():
+            self.btn_intro.setVisible(mostrar)
+            if mostrar:
+                self.pantalla.colocar_panel()
+                self.btn_intro.raise_()
+
+    def saltar_intro(self):
+        if self.intro and self._es_video:
+            self.reproductor.setPosition(self.intro[1])
+            self.btn_intro.hide()
+            self.pantalla.mostrar_osd("⏭ Intro salteada")
 
     def _estado_medio(self, estado):
         if self._vista_previa:

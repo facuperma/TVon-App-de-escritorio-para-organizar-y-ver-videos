@@ -395,7 +395,9 @@ def _ficha(control, aid: int, modo: str) -> dict:
     return {"id": aid, "titulo": f["titulo"] if not f["serie"] else f"{f['titulo']} · {f['nombre_lindo']}"[:120],
             "url": base, "formato": formato, "pos": pos, "dur": f["duracion"],
             "subtitulos": [{"n": s["n"], "texto": s["texto"][:60], "elegido": s["elegido"]} for s in f["subtitulos"]],
-            "siguiente": f["siguiente"] or 0}
+            "siguiente": f["siguiente"] or 0,
+            # La intro de la serie (ms), si ya se detectó: el Roku ofrece saltarla
+            "intro": list(intro) if (intro := control.ventana.intro_de(ruta)) else []}
 
 
 def iniciar_servidor(remoto) -> _Servidor | None:

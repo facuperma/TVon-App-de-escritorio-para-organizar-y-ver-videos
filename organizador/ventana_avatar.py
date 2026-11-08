@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout, QWidget,
 )
 
-from . import avatar3d, social
+from . import avatar3d, social, vista3d
 from .tareas import en_segundo_plano
 
 PALETAS = {
@@ -290,8 +290,11 @@ class VentanaAvatar(QWidget):
         self.setWindowTitle("Tu Protagonista — TorrentVision")
         self.resize(900, 620)
 
-        self.vista = avatar3d.Munequito(self.spec, arrastrable=True)
+        self.vista = vista3d.crear(self.spec, arrastrable=True)
         self.vista.setMinimumSize(260, 430)
+        # Las caritas de los amigos (se arman de a una, en una vista escondida)
+        self._miniaturas = vista3d.Miniaturas(96)
+        self._miniaturas.lista.connect(self._miniatura_lista)
         izquierda = QVBoxLayout()
         izquierda.addWidget(self.vista, 1)
         izquierda.addWidget(QLabel("Arrastralo para girarlo", objectName="pista", alignment=Qt.AlignCenter))
@@ -597,6 +600,12 @@ class VentanaAvatar(QWidget):
             nombre, c = item.data(Qt.UserRole), self.estado.cliente
             self._hacer_amigos(lambda: c.quitar(nombre))
 
+    def _miniatura_lista(self, nombre: str, pix):
+        for i in range(self.lista_amigos.count()):
+            item = self.lista_amigos.item(i)
+            if item.data(Qt.UserRole) == nombre:
+                item.setIcon(QIcon(pix))
+
     def _mostrar_amigos(self, datos: dict):
         self.nombre_amigo.clear()
         while self.capa_pedidos.count():
@@ -612,9 +621,10 @@ class VentanaAvatar(QWidget):
         for a in datos.get("amigos", []):
             texto = (f"{a['nombre']}\n{a['rango']} · {a['puntos']} puntos · {a['peliculas']} películas"
                      + (f" · {a['capitulos']} capítulos" if a.get("capitulos") else ""))
-            item = QListWidgetItem(QIcon(avatar3d.imagen(a.get("avatar") or {}, 80)), texto)
+            item = QListWidgetItem(texto)
             item.setData(Qt.UserRole, a["nombre"])
             self.lista_amigos.addItem(item)
+            self._miniaturas.pedir(a["nombre"], a.get("avatar") or {})
         enviadas = datos.get("enviadas", [])
         partes = [f"{len(datos.get('amigos', []))} amigos"]
         if enviadas:

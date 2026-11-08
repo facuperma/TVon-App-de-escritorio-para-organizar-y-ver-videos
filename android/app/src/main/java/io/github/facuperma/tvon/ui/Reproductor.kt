@@ -90,6 +90,9 @@ fun PestanaReproductor(vm: Modelo) {
                 Pista(tiempo(posicion.toLong()), Modifier.weight(1f))
                 Pista(tiempo(rep?.duracion ?: 0L))
             }
+            if (rep?.enIntro == true) {
+                Boton("⏭ Saltar intro", Modifier.fillMaxWidth(), Estilo.PRIMARIO) { vm.hacer("saltar_intro") }
+            }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
                 Redondo("⏮") { vm.hacer("lista", "paso" to -1) }
                 Redondo("↺15", habilitado = hay) { vm.hacer("adelantar", "ms" to -15000) }

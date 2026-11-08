@@ -15,7 +15,7 @@ from organizador.inicio_windows import ARGUMENTO
 from organizador.tema import ESTILO
 from organizador.ventana import Ventana
 
-VERSION = "1.10.18"
+VERSION = "1.10.19"
 INSTANCIA = "TVon-una-sola-vez"
 
 # Empaquetado con PyInstaller, los recursos están en sys._MEIPASS
@@ -37,12 +37,40 @@ def carpeta_datos() -> Path:
     return carpeta
 
 
+def _probar_3d(app, salida: str) -> int:
+    import time
+    from PySide6.QtCore import Qt
+    from organizador import vista3d
+    vista = vista3d.crear({"peinado": "flequillo", "ropa": "boca"})
+    if not hasattr(vista, "listo"):
+        Path(salida).with_suffix(".txt").write_text(vista3d.ultimo_error or "sin Qt Quick 3D", encoding="utf-8")
+        return 2
+    listo = []
+    vista.listo.connect(lambda: listo.append(1))
+    vista.setAttribute(Qt.WA_DontShowOnScreen)
+    vista.resize(300, 460)
+    vista.show()
+    fin = time.time() + 60
+    while time.time() < fin and not listo:
+        app.processEvents()
+        time.sleep(0.02)
+    fin = time.time() + 1.5
+    while time.time() < fin:
+        app.processEvents()
+        time.sleep(0.02)
+    vista.grabFramebuffer().save(salida)
+    return 0 if listo else 1
+
+
 def main():
     if sys.platform == "win32":
         # Sin esto, Windows agrupa la app con Python y muestra el ícono de Python en la barra de tareas
         import ctypes
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("TVon")
     app = QApplication(sys.argv)
+    if "--probar-3d" in sys.argv:
+        # Prueba del instalador: dibuja el Protagonista (Qt Quick 3D) en un archivo y sale, sin abrir ventanas
+        sys.exit(_probar_3d(app, sys.argv[sys.argv.index("--probar-3d") + 1]))
     app.setApplicationName("TVon")
     app.setApplicationVersion(VERSION)
     # El .ico trae el logo sin el margen de la sombra: en la barra de título se ve más grande

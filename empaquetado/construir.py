@@ -23,10 +23,30 @@ APP = SALIDA / "dist" / "TVon"
 QT = APP / "_internal" / "PySide6"
 
 # Partes de Qt que TVon no usa (teclado virtual táctil, QML/Quick, PDF, OpenGL por software)
+# (Quick y Qml se quedan: el Protagonista se dibuja con Qt Quick 3D)
 SOBRANTES = [
-    "opengl32sw.dll", "Qt6Quick.dll", "Qt6Qml.dll", "Qt6QmlMeta.dll", "Qt6QmlModels.dll",
-    "Qt6QmlWorkerScript.dll", "Qt6VirtualKeyboard.dll", "Qt6OpenGL.dll", "Qt6Pdf.dll",
+    "opengl32sw.dll", "Qt6VirtualKeyboard.dll", "Qt6Pdf.dll",
     "plugins/platforminputcontexts/qtvirtualkeyboardplugin.dll", "plugins/imageformats/qpdf.dll",
+]
+# Lo que PyInstaller suma al juntar los módulos QML y TorrentVision no usa (el navegador Chromium solo pesa ~200 MB)
+SOBRANTES_PATRONES = [
+    "Qt6WebEngine*", "QtWebEngineProcess.exe", "resources/qtwebengine*", "translations/qtwebengine_locales",
+    "Qt6WebChannel*", "Qt6WebSockets*", "Qt6WebView*", "Qt63D*", "Qt6Charts*", "Qt6DataVisualization*", "Qt6Graphs*",
+    "Qt6Location*", "Qt6Positioning*", "Qt6Pdf*", "Qt6Quick3DPhysics*", "Qt6Quick3DParticle*", "Qt6Quick3DXr*",
+    "Qt6Quick3DSpatialAudio*", "Qt6SpatialAudio*", "Qt6QuickControls2*", "Qt6QuickDialogs2*", "Qt6QuickTemplates2*",
+    "Qt6LabsStyleKit*", "Qt6Sensors*", "Qt6Scxml*", "Qt6StateMachine*", "Qt6RemoteObjects*", "Qt6TextToSpeech*",
+    "Qt6Test*", "Qt6QuickTest*", "Qt6Bluetooth*", "Qt6Nfc*", "Qt6SerialPort*", "Qt6Designer*", "Qt6Help*",
+    "Qt6VirtualKeyboard*", "Qt6HttpServer*", "Qt6Protobuf*", "Qt6Grpc*",
+    "qml/Qt3D", "qml/Qt5Compat", "qml/QtCharts", "qml/QtDataVisualization", "qml/QtGraphs", "qml/QtLocation",
+    "qml/QtMultimedia", "qml/QtPositioning", "qml/QtRemoteObjects", "qml/QtScxml", "qml/QtSensors", "qml/QtTest",
+    "qml/QtTextToSpeech", "qml/QtWebChannel", "qml/QtWebEngine", "qml/QtWebSockets", "qml/QtWebView",
+    "qml/QtNetwork", "qml/QtBluetooth", "qml/QtNfc", "qml/QtHttpServer", "qml/QtGrpc", "qml/QtProtobuf",
+    "qml/QtQuick/Controls", "qml/QtQuick/Dialogs", "qml/QtQuick/VirtualKeyboard", "qml/QtQuick/Pdf",
+    "qml/QtQuick/NativeStyle", "qml/QtQuick/Scene2D", "qml/QtQuick/Scene3D", "qml/QtQuick/Particles",
+    "qml/QtQuick/Templates", "qml/QtQuick/Effects", "qml/QtQuick/tooling",
+    "qml/QtQuick3D/Effects", "qml/QtQuick3D/MaterialEditor", "qml/QtQuick3D/ParticleEffects",
+    "qml/QtQuick3D/Particles3D", "qml/QtQuick3D/Physics", "qml/QtQuick3D/SpatialAudio", "qml/QtQuick3D/designer",
+    "qml/QtQuick3D/Xr", "qml/QtQuick3D/LightmapperOutputWindow.qml",
 ]
 
 
@@ -34,6 +54,8 @@ SOBRANTES = [
 ARIA2_URL = "https://github.com/aria2/aria2/releases/download/release-1.37.0/aria2-1.37.0-win-64bit-build1.zip"
 ARIA2_SHA256 = "67d015301eef0b612191212d564c5bb0a14b5b9c4796b76454276a4d28d9b288"
 BIN = RAIZ / "organizador" / "bin"
+import PySide6  # noqa: E402
+PYSIDE = Path(PySide6.__file__).parent
 
 
 def bajar_aria2():
@@ -98,6 +120,11 @@ def main():
         "--collect-submodules", "zeroconf", "--collect-submodules", "pychromecast",
         # Cuentas guardadas en la PC (el servidor de cuentas corre adentro de la app)
         "--hidden-import", "servidor_social.servidor",
+        # El Protagonista: Qt Quick 3D (y sus módulos QML)
+        "--hidden-import", "PySide6.QtQuick3D", "--hidden-import", "PySide6.QtQuickWidgets",
+        "--hidden-import", "PySide6.QtQml", "--hidden-import", "PySide6.QtQuick",
+        # El lector de .glb de Qt Quick 3D (PyInstaller no lo junta solo)
+        "--add-binary", f"{PYSIDE / 'plugins' / 'assetimporters' / 'assimp.dll'};PySide6/plugins/assetimporters",
         "--distpath", str(SALIDA / "dist"), "--workpath", str(SALIDA / "build"),
         "--specpath", str(SALIDA), str(RAIZ / "main.py"),
     ], check=True)
@@ -105,11 +132,27 @@ def main():
     print("== Recortando partes de Qt que no se usan")
     for nombre in SOBRANTES:
         (QT / nombre).unlink(missing_ok=True)
+    for patron in SOBRANTES_PATRONES:
+        for ruta in list(QT.glob(patron)):
+            if ruta.is_dir():
+                shutil.rmtree(ruta, ignore_errors=True)
+            else:
+                ruta.unlink(missing_ok=True)
     for qm in (QT / "translations").glob("*.qm"):
         if not qm.stem.endswith("_es"):
             qm.unlink()
     tamano = sum(f.stat().st_size for f in APP.rglob("*") if f.is_file())
     print(f"   {tamano / 1024**2:.0f} MB")
+
+    print("== Prueba del Protagonista 3D con lo que quedó")
+    prueba = SALIDA / "prueba_3d.png"
+    prueba.unlink(missing_ok=True)
+    r = subprocess.run([str(APP / "TVon.exe"), "--probar-3d", str(prueba)], timeout=180)
+    if r.returncode != 0 or not prueba.exists():
+        motivo = prueba.with_suffix(".txt")
+        print("   motivo:", motivo.read_text(encoding="utf-8") if motivo.exists() else "(sin datos)")
+        sys.exit(f"El Protagonista 3D no anda en el ejecutable (código {r.returncode}): falta algo de Qt Quick 3D")
+    print("   OK:", prueba)
 
     print("== Instalador")
     subprocess.run([str(iscc()), f"/DVersion={v}", f"/DOrigen={APP}", f"/O{SALIDA}",

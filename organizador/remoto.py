@@ -1336,6 +1336,7 @@ class _Control:
                 "estado": "vista_previa" if v.en_vista_previa else estado_rep,
                 "posicion": v.posicion_actual(), "duracion": max(0, r.duration()),
                 "volumen": v.volumen.value(), "silencio": v.audio.isMuted(),
+                "intro": {"inicio": v.intro[0], "fin": v.intro[1]} if v.intro else None,
             } if v.es_video else None,
             "subtitulos": {
                 "archivos": [{"ruta": ruta, "texto": texto, "activo": ruta == v.ruta_sub}
@@ -1658,6 +1659,10 @@ class _Control:
     def accion_adelantar(self, ms):
         self._requiere_video()
         self.visor.adelantar(int(ms))
+
+    def accion_saltar_intro(self):
+        self._requiere_video()
+        self.visor.saltar_intro()
 
     def accion_ir_a(self, ms):
         self._requiere_video()

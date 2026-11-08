@@ -22,6 +22,8 @@ sub init()
     m.menuVideo = m.top.findNode("menuVideo")
     m.menuVideo.observeField("itemSelected", "alMenuVideo")
     m.pistas = []          ' los subtítulos del video: [{ TrackName, Description }]
+    m.avisoIntro = m.top.findNode("avisoIntro")
+    m.intro = []           ' [inicio, fin] en ms de la intro (series), si la PC ya la detectó
     m.modoMenu = "principal"
     m.accionesMenu = []
     ' Si la PC no contesta (apagada, TorrentVision cerrado), se reintenta sola cada unos segundos
@@ -355,7 +357,19 @@ sub alDesvinculado()
     desvincular("La PC desvinculó este Roku.")
 end sub
 
+function enIntro() as Boolean
+    if m.pantalla <> "video" or m.intro.Count() <> 2 then return false
+    ms = m.video.position * 1000
+    return ms >= m.intro[0] - 500 and ms < m.intro[1] - 1500
+end function
+
+sub saltarIntro()
+    if m.intro.Count() = 2 then irA(m.intro[1] / 1000)
+    m.avisoIntro.visible = false
+end sub
+
 sub alReloj()
+    m.avisoIntro.visible = enIntro() and not m.panel.visible
     if m.latido = invalid then return
     e = { estado: "inactivo", pos: 0, dur: 0, id: 0, titulo: "" }
     if m.pantalla = "video" then
@@ -559,6 +573,8 @@ sub alFicha(r as Object)
     if pistas.Count() > 0 then c.update({ SubtitleTracks: pistas }, true)
     m.pistas = pistas
     m.actual = { id: f.id, titulo: f.titulo, siguiente: f.siguiente }
+    m.intro = []
+    if f.intro <> invalid and f.intro.Count() = 2 then m.intro = f.intro
     m.video.content = c
     m.video.globalCaptionMode = "Off"
     if pistas.Count() > 0 then
@@ -648,6 +664,7 @@ sub armarMenu()
         pausa = "Pausar"
         if m.video.state = "paused" then pausa = "Seguir viendo"
         opciones = [[pausa, "pausa"], ["Volver 30 segundos", "atras30"], ["Adelantar 1 minuto", "adelante60"]]
+        if enIntro() then opciones.Unshift(["Saltar intro", "intro"])
         if m.pistas.Count() > 0 then opciones.Push(["Subtítulos: " + nombre, "subs"])
         if m.actual.siguiente > 0 then opciones.Push(["Siguiente capítulo", "siguiente"])
         opciones.Push(["Parar y volver a la lista", "parar"])
@@ -688,6 +705,9 @@ sub alMenuVideo()
             m.video.control = "pause"
         end if
         cerrarPanel()
+    else if accion = "intro" then
+        saltarIntro()
+        cerrarPanel()
     else if accion = "atras30" then
         irA(m.video.position - 30)
         cerrarPanel()
@@ -723,6 +743,8 @@ sub cerrarVideo()
         pedir("POST", con_token("/roku/latido"), FormatJson(fin), "fin")
     end if
     m.panel.visible = false
+    m.avisoIntro.visible = false
+    m.intro = []
     m.video.control = "stop"
     if m.episodiosAbiertos = true then
         cambiarPantalla("episodios")
@@ -826,6 +848,10 @@ function onKeyEvent(tecla as String, presionada as Boolean) as Boolean
         end if
         if tecla = "back" then
             cerrarVideo()
+            return true
+        end if
+        if tecla = "up" and enIntro() then
+            saltarIntro()
             return true
         end if
         if tecla = "options" or tecla = "up" or tecla = "down" then

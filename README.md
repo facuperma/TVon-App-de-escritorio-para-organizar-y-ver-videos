@@ -10,13 +10,13 @@ Aplicación de escritorio para bajar, organizar y ver películas, series y video
 
 ## Descargar
 
-**[⬇ TorrentVision-Setup-1.10.18.exe](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-Setup-1.10.18.exe)** (79 MB) — para la PC (Windows 10/11, 64 bits)
+**[⬇ TorrentVision-Setup-1.10.19.exe](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-Setup-1.10.19.exe)** (90 MB) — para la PC (Windows 10/11, 64 bits)
 
-**[⬇ TorrentVision-Android-1.1.26.apk](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-Android-1.1.26.apk)** (3 MB) — app para el celular (Android 8 o más nuevo): ver más abajo, en [📱 ON](#-on-manejar-torrentvision-desde-el-celular)
+**[⬇ TorrentVision-Android-1.1.27.apk](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-Android-1.1.27.apk)** (3 MB) — app para el celular (Android 8 o más nuevo): ver más abajo, en [📱 ON](#-on-manejar-torrentvision-desde-el-celular)
 
 También desde la **[página de TorrentVision](https://facuperma.github.io/TVon-App-de-escritorio-para-organizar-y-ver-videos/#bajar)**: en la compu muestra un QR para bajar la app en el celular.
 
-**¿Es el original?** En la [página de descargas](https://facuperma.github.io/TVon-App-de-escritorio-para-organizar-y-ver-videos/#bajar), el botón **🔒 Bajar verificado** lo comprueba solo: baja el archivo, calcula su huella SHA-256 y la compara con la publicada en [`instalador/SHA256.txt`](instalador/SHA256.txt); solo si coincide te deja guardarlo, y si no, te avisa que no lo instales. A mano: `certutil -hashfile TorrentVision-Setup-1.10.18.exe SHA256` (en PowerShell: `Get-FileHash`) y compará con `SHA256.txt`.
+**¿Es el original?** En la [página de descargas](https://facuperma.github.io/TVon-App-de-escritorio-para-organizar-y-ver-videos/#bajar), el botón **🔒 Bajar verificado** lo comprueba solo: baja el archivo, calcula su huella SHA-256 y la compara con la publicada en [`instalador/SHA256.txt`](instalador/SHA256.txt); solo si coincide te deja guardarlo, y si no, te avisa que no lo instales. A mano: `certutil -hashfile TorrentVision-Setup-1.10.19.exe SHA256` (en PowerShell: `Get-FileHash`) y compará con `SHA256.txt`.
 
 El instalador de la PC: ejecutalo y seguí los pasos: no hace falta instalar Python ni nada más, ni permisos de administrador. Crea accesos directos en el menú Inicio (y en el Escritorio, si lo elegís) y se desinstala desde *Configuración → Aplicaciones*.
 
@@ -58,7 +58,7 @@ Botón **📱 ON** en la barra superior (o *Configuración → ON*; se pone verd
 
 #### App para Android (recomendada)
 
-**[⬇ TorrentVision-Android-1.1.26.apk](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-Android-1.1.26.apk)** (3 MB, Android 8 o más nuevo). **O escaneá el QR de la ventana ON con la cámara del celular:** la página que abre ofrece *⬇ Descargar la app* (lleva a la [página de descargas](https://facuperma.github.io/TVon-App-de-escritorio-para-organizar-y-ver-videos/#bajar); sin internet, se baja desde tu PC), *📲 Abrir la app y conectar* (ya vinculada, sin escanear de nuevo) o **🌐 usarlo en el navegador, sin instalar nada**: la página tiene Control (con touchpad y el teclado que se abre solo al hacer clic en un campo de texto), Biblioteca, Cola, subtítulos, Tele (Chromecast), Mouse y Pantalla. También podés bajarla de acá, en el celular, y abrirla; Android pide permiso para *instalar apps de origen desconocido* (al navegador o a Archivos): permitilo solo para esto. Después tocá **📷 Escanear el código QR** con la ventana de ON abierta en la PC.
+**[⬇ TorrentVision-Android-1.1.27.apk](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-Android-1.1.27.apk)** (3 MB, Android 8 o más nuevo). **O escaneá el QR de la ventana ON con la cámara del celular:** la página que abre ofrece *⬇ Descargar la app* (lleva a la [página de descargas](https://facuperma.github.io/TVon-App-de-escritorio-para-organizar-y-ver-videos/#bajar); sin internet, se baja desde tu PC), *📲 Abrir la app y conectar* (ya vinculada, sin escanear de nuevo) o **🌐 usarlo en el navegador, sin instalar nada**: la página tiene Control (con touchpad y el teclado que se abre solo al hacer clic en un campo de texto), Biblioteca, Cola, subtítulos, Tele (Chromecast), Mouse y Pantalla. También podés bajarla de acá, en el celular, y abrirla; Android pide permiso para *instalar apps de origen desconocido* (al navegador o a Archivos): permitilo solo para esto. Después tocá **📷 Escanear el código QR** con la ventana de ON abierta en la PC.
 
 Si tenías la app 1.1.0, desinstalala antes de instalar la 1.1.3 (cambió la firma) y volvé a escanear el código QR. Desde la 1.1.1 se actualiza encima, sin volver a vincular.
 
@@ -166,11 +166,11 @@ Letterboxd no da su API ni deja iniciar sesión desde otras apps: se lee la watc
 
 Al elegir una película de la lista aparece su **vista previa**: póster, director, duración, géneros, puntaje y sinopsis.
 
-**🔎 Buscar cualquier película o serie:** escribí el nombre en *Buscar por nombre…* (arriba) y apretá **Enter**, o usá el buscador de la ventana de Letterboxd. Aparecen las que se llaman así, en castellano o en inglés (los datos salen de Wikidata; la vista previa, de Letterboxd o, para las series, de Wikipedia). Entiende *temporada 2*, *season 2*, *capítulo 5*, *S03E07*, *2x05* y *completa*: «Twin peaks temporada 2» busca el torrent como **Twin Peaks season 2**, y «los soprano completa» como **The Sopranos complete**. El cuadro **Buscar el torrent como** muestra el texto que se va a buscar y se puede cambiar (otra calidad, otro idioma…). Doble clic: abre la búsqueda y, al copiar el link magnet, se pone a bajar sola.
+**🔎 Buscar cualquier película o serie:** escribí el nombre en el buscador que está arriba del reproductor (filtra la biblioteca mientras escribís, por palabras) y apretá **Enter**: si ya la tenés, la ventana **Buscar** te la muestra con su categoría (doble clic para verla); si no, la busca para bajar. Aparecen las que se llaman así, en castellano o en inglés (los datos salen de Wikidata; la vista previa, de Letterboxd o, para las series, de Wikipedia). Entiende *temporada 2*, *season 2*, *capítulo 5*, *S03E07*, *2x05* y *completa*: «Twin peaks temporada 2» busca el torrent como **Twin Peaks season 2**, y «los soprano completa» como **The Sopranos complete**. El cuadro **Buscar el torrent como** muestra el texto que se va a buscar y se puede cambiar (otra calidad, otro idioma…). Doble clic: abre la búsqueda y, al copiar el link magnet, se pone a bajar sola.
 
 ### 🎬 Tu Protagonista, cuenta y amigos
 
-Arriba a la derecha está **tu Protagonista**: un muñequito 3D que se arma a tu gusto (cara, peinado, ropa, sombreros, lentes, pochoclos, claqueta…) y al que le podés poner **tu foto en la cara**. Con una cuenta (usuario y contraseña, **sin correo**: al crearla te da un código de recuperación) cada película que terminás suma 10 puntos y cada capítulo 2, y agregás amigos para ver su Protagonista y sus puntos. Por ahora las cuentas se guardan en la PC («local»); el servidor de cuentas para usarlo entre casas está en [`servidor_social/`](servidor_social/LEEME.md). No se manda qué viste: solo una huella de cada título, para no contarlo dos veces.
+Arriba a la derecha está **tu Protagonista**: un muñequito 3D (formas suaves dibujadas con Qt Quick 3D, en la placa de video, con luz, sombras y una animación de reposo) que se arma a tu gusto (cara, peinado, ropa, sombreros, lentes, pochoclos, claqueta…) y al que le podés poner **tu foto en la cara**. Con una cuenta (usuario y contraseña, **sin correo**: al crearla te da un código de recuperación) cada película que terminás suma 10 puntos y cada capítulo 2, y agregás amigos para ver su Protagonista y sus puntos. Por ahora las cuentas se guardan en la PC («local»); el servidor de cuentas para usarlo entre casas está en [`servidor_social/`](servidor_social/LEEME.md). No se manda qué viste: solo una huella de cada título, para no contarlo dos veces.
 
 ### Películas de dominio público
 
@@ -182,6 +182,10 @@ Botón **🎞 Dominio público** en la barra superior: busca en la colección de
 - Al terminar se agregan a la biblioteca en la categoría **Dominio público**, con subtítulos en español e inglés: de OpenSubtitles si hay clave configurada; en inglés, si no, los del propio Internet Archive (a veces son transcripción automática).
 - **Descarga automática**: baja sola las más populares hasta el límite de películas o de GB que elijas. La colección completa ocupa más de 10 TB; siempre se dejan al menos 5 GB libres en el disco.
 - Si cerrás TorrentVision a mitad de una descarga, se retoma desde donde quedó al volver a abrirlo.
+
+### ⏭ Saltar intro
+
+En las series aparece **⏭ Saltar intro** (y la tecla **I**) mientras pasa la introducción. TorrentVision la detecta sola comparando el audio del comienzo con otros dos capítulos de la misma temporada (lo que se repite es la intro; con ffmpeg instalado, en segundo plano, una vez por capítulo). También en el celular (Control) y en el Roku (flecha arriba).
 
 ### Series: siguiente capítulo automático
 

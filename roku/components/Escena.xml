@@ -22,6 +22,13 @@
     <LabelList id="episodios" translation="[160,110]" itemSize="[960,48]" numRows="10" visible="false" />
     <Label id="pie" text="" translation="[60,676]" width="1160" font="font:SmallestSystemFont" color="0x6F86A6FF" />
     <Video id="video" translation="[0,0]" width="1280" height="720" visible="false" />
+    <!-- «Saltar intro»: mientras pasa la intro de una serie -->
+    <Group id="avisoIntro" visible="false" translation="[60,580]">
+      <Rectangle width="330" height="64" color="0x0B1220DD" />
+      <Rectangle width="330" height="3" color="0x3DAEEBFF" />
+      <Label translation="[22,14]" width="300" text="Saltar intro: flecha arriba" font="font:MediumBoldSystemFont"
+             color="0xFFFFFFFF" />
+    </Group>
     <!-- El menú que se abre durante la película (flechas arriba/abajo o la tecla de asterisco) -->
     <Group id="panel" visible="false">
       <Rectangle translation="[800,0]" width="480" height="720" color="0x0B1220E8" />

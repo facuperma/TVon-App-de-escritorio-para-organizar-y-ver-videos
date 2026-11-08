@@ -12,7 +12,11 @@ data class Archivo(val id: Int, val nombre: String, val tipo: String)
 
 data class Reproduccion(
     val estado: String, val posicion: Long, val duracion: Long, val volumen: Int, val silencio: Boolean,
-)
+    val introInicio: Long = 0, val introFin: Long = 0,
+) {
+    /** Está pasando la intro de una serie (detectada en la PC): se ofrece saltarla. */
+    val enIntro get() = introFin > introInicio && posicion >= introInicio - 500 && posicion < introFin - 1500
+}
 
 data class SubArchivo(val ruta: String, val texto: String, val activo: Boolean)
 data class Pista(val texto: String, val activa: Boolean)
@@ -70,7 +74,8 @@ data class Estado(
             archivo = o.optJSONObject("archivo")?.let { Archivo(it.optInt("id"), it.optString("nombre"), it.optString("tipo")) },
             reproduccion = o.optJSONObject("reproduccion")?.let {
                 Reproduccion(it.optString("estado"), it.optLong("posicion"), it.optLong("duracion"),
-                    it.optInt("volumen"), it.optBoolean("silencio"))
+                    it.optInt("volumen"), it.optBoolean("silencio"),
+                    it.optJSONObject("intro")?.optLong("inicio") ?: 0, it.optJSONObject("intro")?.optLong("fin") ?: 0)
             },
             subtitulos = o.optJSONObject("subtitulos")?.let { s ->
                 Subtitulos(

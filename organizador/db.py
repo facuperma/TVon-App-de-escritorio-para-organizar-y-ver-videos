@@ -302,9 +302,10 @@ class Biblioteca:
         elif filtro in ("video", "imagen"):
             condiciones.append("a.tipo = ?")
             params.append(filtro)
-        if texto:
+        # Por palabras: «twin peaks» encuentra «Twin.Peaks.S02E04…» (puntos, guiones y orden no importan)
+        for palabra in re.findall(r"[^\s._\-]+", texto or ""):
             condiciones.append("a.nombre LIKE ?")
-            params.append(f"%{texto}%")
+            params.append(f"%{palabra}%")
         if condiciones:
             sql += " WHERE " + " AND ".join(condiciones)
         filas = self.con.execute(sql, params).fetchall()

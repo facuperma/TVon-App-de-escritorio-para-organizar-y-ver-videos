@@ -32,9 +32,13 @@ MAX_TRADUCCIONES = 120  # por vez: Wikidata es gratis, no hay que abusar
 
 
 class VentanaLetterboxd(QWidget):
-    def __init__(self, bib: Biblioteca, descargas=None, torrents=None):
-        """descargas / torrents: los gestores de TorrentVision, para bajar sin salir de acá."""
+    def __init__(self, bib: Biblioteca, descargas=None, torrents=None, solo_busqueda: bool = False, al_reproducir=None):
+        """descargas / torrents: los gestores de TorrentVision, para bajar sin salir de acá.
+        solo_busqueda: la ventana «Buscar» (sin la watchlist): arriba lo que ya tenés, abajo lo que se puede bajar.
+        al_reproducir(ruta): para reproducir lo que ya está en la biblioteca."""
         super().__init__(None, Qt.Window)
+        self.solo_busqueda = solo_busqueda
+        self.al_reproducir = al_reproducir
         self.bib = bib
         self.descargas = descargas
         self.torrents = torrents
@@ -112,9 +116,34 @@ class VentanaLetterboxd(QWidget):
         capa = QVBoxLayout(self)
         capa.addLayout(fila)
         capa.addLayout(fila_busqueda)
-        capa.addWidget(QLabel("Se lee tu watchlist pública. Doble clic en una película para bajarla.",
-                              objectName="pista", wordWrap=True))
-        division = QSplitter(Qt.Horizontal)
+        pista = QLabel("Se lee tu watchlist pública. Doble clic en una película para bajarla.",
+                       objectName="pista", wordWrap=True)
+        capa.addWidget(pista)
+        # La ventana «Buscar»: primero lo que ya está en la biblioteca (con su categoría)
+        self.caja_local = QWidget()
+        capa_local = QVBoxLayout(self.caja_local)
+        capa_local.setContentsMargins(0, 0, 0, 0)
+        self.lbl_local = QLabel(objectName="titulo")
+        self.lista_local = QTreeWidget()
+        self.lista_local.setHeaderLabels(["En tu biblioteca", "Categoría"])
+        self.lista_local.setRootIsDecorated(False)
+        self.lista_local.header().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.lista_local.setMaximumHeight(170)
+        self.lista_local.itemDoubleClicked.connect(self._reproducir_local)
+        fila_local = QHBoxLayout()
+        fila_local.addWidget(self.lbl_local, 1)
+        self.btn_bajar_igual = QPushButton("🔎 Buscar para bajar")
+        self.btn_bajar_igual.clicked.connect(lambda: self.buscar_texto(self.busqueda.text(), online=True))
+        fila_local.addWidget(self.btn_bajar_igual)
+        capa_local.addLayout(fila_local)
+        capa_local.addWidget(self.lista_local)
+        capa.addWidget(self.caja_local)
+        self.caja_local.hide()
+        if solo_busqueda:
+            self.setWindowTitle("Buscar — TorrentVision")
+            for w in (self.usuario, self.btn_watchlist, self.btn_mejores, pista, self.chk_ocultar):
+                w.hide()
+        self.division = division = QSplitter(Qt.Horizontal)
         division.addWidget(self.lista)
         division.addWidget(self.panel)
         division.setStretchFactor(0, 3)
@@ -210,18 +239,54 @@ class VentanaLetterboxd(QWidget):
 
     def showEvent(self, evento):
         super().showEvent(evento)
-        if not self._listas:
+        if not self._listas and not self.solo_busqueda:
             self._cargar("watchlist" if self.usuario.text().strip() else "mejores")
 
-    def buscar_texto(self, texto: str):
-        """Busca películas que se llamen así y las muestra como una lista más (con vista previa y para bajar)."""
+    def buscar_texto(self, texto: str, online: bool | None = None):
+        """Busca películas y series que se llamen así. En la ventana «Buscar», primero en la biblioteca: si ya la
+        tenés, se muestra con su categoría (y se busca para bajar solo si se pide); si no, directo para bajar."""
         texto = texto.strip()
         if len(texto) < 2:
             self.busqueda.setFocus()
-            return self.estado.setText("Escribí el nombre de una película")
+            return self.estado.setText("Escribí el nombre de una película o serie")
         self.busqueda.setText(texto)
         self._texto_buscado = texto
+        tenes = self._mostrar_locales(texto) if self.solo_busqueda else 0
+        solo_locales = online is False or (online is None and tenes)
+        # Si solo se muestra lo que ya tenés, esa lista ocupa todo; si también se busca para bajar, va arriba y chica
+        self.division.setVisible(not solo_locales)
+        self.lista_local.setMaximumHeight(16777215 if solo_locales else 190)
+        if solo_locales:
+            self.lista.clear()
+            self._vista_previa_vacia("Ya la tenés: doble clic arriba para verla. Si querés otra copia, "
+                                     "tocá «🔎 Buscar para bajar».")
+            return self.estado.setText(f"{tenes} en tu biblioteca para «{texto}»")
         self._cargar("busqueda", forzar=True)
+
+    def _mostrar_locales(self, texto: str) -> int:
+        """Lo que ya está en la biblioteca con ese nombre (también buscando solo el título, sin «temporada 2»)."""
+        titulo = letterboxd.interpretar_busqueda(texto)["titulo"] or texto
+        filas = {}
+        for t in {texto, titulo}:
+            for aid, ruta, nombre, tipo in self.bib.listar_archivos("todos", None, t):
+                if tipo == "video":
+                    filas[aid] = (ruta, nombre)
+        nombres_cat = {cid: nombre for cid, nombre, _n in self.bib.listar_categorias()}
+        self.lista_local.clear()
+        for aid, (ruta, nombre) in sorted(filas.items(), key=lambda f: f[1][1].lower())[:200]:
+            categorias = ", ".join(sorted(nombres_cat[c] for c in self.bib.categorias_de(aid) if c in nombres_cat))
+            item = QTreeWidgetItem([nombre, categorias or "—"])
+            item.setToolTip(0, ruta)
+            item.setData(0, ROL, ruta)
+            self.lista_local.addTopLevelItem(item)
+        self.lbl_local.setText(f"✓ Ya tenés {len(filas)}" if filas else "")
+        self.caja_local.setVisible(bool(filas))
+        return len(filas)
+
+    def _reproducir_local(self, item):
+        ruta = item.data(0, ROL)
+        if ruta and self.al_reproducir:
+            self.al_reproducir(ruta)
 
     def _cargar(self, vista: str, forzar: bool = False):
         self._vista = vista
