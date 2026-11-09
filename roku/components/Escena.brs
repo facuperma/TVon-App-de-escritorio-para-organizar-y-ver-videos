@@ -60,6 +60,8 @@ sub init()
     m.subEtiquetas = [m.top.findNode("subTexto"), m.top.findNode("subSombra1"), m.top.findNode("subSombra2")]
     m.cues = []
     m.idxCue = 0
+    m.subsIntentos = 0
+    m.rutaSubs = ""
     m.subActivo = -1
     m.retraso = 0
     m.escalaSubs = 1.0
@@ -213,6 +215,11 @@ sub alRespuesta(evento as Object)
         if r.codigo = 200 and r.datos <> invalid and r.datos.cues <> invalid then
             m.cues = r.datos.cues
             m.idxCue = 0
+        else if m.subsIntentos < 2 and m.subActivo >= 0 then
+            m.subsIntentos = m.subsIntentos + 1       ' la red a veces falla: se vuelve a pedir
+            pedir("GET", m.rutaSubs, "", "subs")
+        else if m.subActivo >= 0 then
+            avisar2("No se pudieron cargar los subtítulos")
         end if
     end if
 end sub
@@ -789,6 +796,7 @@ end sub
 
 sub pedirFicha(id as Integer, modo as String, desde as Integer)
     m.pendiente = id
+    avisar2("Preparando el video…")
     m.modoActual = modo
     extra = ""
     if desde >= 0 then extra = "&desde=" + desde.ToStr()
@@ -803,6 +811,8 @@ sub alFicha(r as Object)
         return
     end if
     f = r.datos
+    m.toastTimer.control = "stop"
+    m.toast.visible = false
     ' Si es el mismo video pedido de nuevo (adelantar en uno convertido), se mantiene el subtítulo elegido
     mismo = (m.pantalla = "video" and m.actual.id = f.id)
     m.desde = 0
@@ -859,9 +869,17 @@ end sub
 
 sub reintentarOAvisar()
     ' Algo que el Roku no pudo abrir: la PC lo convierte entero (imagen y sonido) desde donde iba
-    if m.modoFicha <> "video" and m.reintento < 2 then
+    ' Escalera: tal cual → la PC lo empaqueta/convierte → conversión por programa (sin placa de video)
+    siguiente = ""
+    if m.modoFicha = "" or m.modoFicha = "audio" then
+        siguiente = "video"
+    else if m.modoFicha = "video" then
+        siguiente = "soft"
+    end if
+    if siguiente <> "" and m.reintento < 3 then
         m.reintento = m.reintento + 1
-        pedirFicha(Int(m.actual.id), "video", Int(posActual() * 1000))
+        avisar2("Probando otra forma de reproducirlo…")
+        pedirFicha(Int(m.actual.id), siguiente, Int(posActual() * 1000))
     else
         cerrarVideo()
         avisar("El Roku no puede reproducir este video (ni convertido por la PC).")
@@ -1102,9 +1120,13 @@ sub alPosicion()
         i = i + 1
     end while
     m.idxCue = i
-    c = m.cues[i]
     texto = ""
-    if c[0] <= t and t < c[1] then texto = c[2]
+    j = i
+    while j >= 0 and j > i - 4 and texto = ""
+        c = m.cues[j]
+        if c[0] <= t and t < c[1] then texto = c[2]
+        j = j - 1
+    end while
     for each l in m.subEtiquetas
         l.text = texto
     end for
@@ -1158,7 +1180,9 @@ sub elegirSubtitulo(n as Integer)
         return
     end if
     m.subActivo = n
-    pedir("GET", con_token("/roku/subs?id=" + m.actual.id.ToStr() + "&n=" + m.pistas[n].n.ToStr()), "", "subs")
+    m.subsIntentos = 0
+    m.rutaSubs = con_token("/roku/subs?id=" + m.actual.id.ToStr() + "&n=" + m.pistas[n].n.ToStr())
+    pedir("GET", m.rutaSubs, "", "subs")
 end sub
 
 sub cerrarVideo()

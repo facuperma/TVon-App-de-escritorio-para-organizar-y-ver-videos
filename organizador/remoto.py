@@ -122,6 +122,12 @@ def subtitulos_del_video(bib, ruta: str) -> list[str]:
     return lista
 
 
+def _subtitulos_roku(bib, ruta: str) -> list[str]:
+    """Los subtítulos que ve el Roku (con los que el video lleva adentro)."""
+    from .roku import subtitulos_del_roku
+    return subtitulos_del_roku(bib, ruta)
+
+
 def _creado(ruta: str) -> float:
     """Cuándo llegó el archivo a la PC (en Windows, la fecha de creación; moverlo no la cambia)."""
     try:
@@ -1118,41 +1124,42 @@ class _Manejador(BaseHTTPRequestHandler):
         if not exe:
             raise ErrorRemoto("Para ver este video en el celular hace falta ffmpeg en la PC "
                               "(winget install Gyan.FFmpeg y volver a abrir TorrentVision)", 501)
-        if modo not in ("audio", "video"):
+        if modo not in ("audio", "video", "soft"):
             raise ErrorRemoto("Modo de conversión desconocido")
         segundos = float(desde)
         if not 0 <= segundos < 10 * 3600:
             raise ErrorRemoto("Posición inválida")
-        if modo == "audio":
-            video = ["-c:v", "copy"]
-            from .roku import analizar
-            if analizar(str(ruta)).get("video") == "h264":
-                # Algunos .mp4 (p. ej. Lo Dejamos Acá) tienen los parámetros del video en un lugar que se pierde al
-                # pasar a mpegts y la imagen no arranca: se repiten en cada cuadro clave
-                video += ["-bsf:v", "h264_mp4toannexb,dump_extra=freq=keyframe"]
-        else:
-            # Con placa NVIDIA, la conversión la hace la placa (rápido y sin cargar el procesador)
-            from .roku import nvenc_disponible
-            escala = ["-vf", "scale='min(1920,iw)':-2,format=yuv420p"]
-            video = escala + (["-c:v", "h264_nvenc", "-preset", "p4", "-rc", "vbr", "-cq", "23", "-b:v", "0",
-                               "-profile:v", "high", "-g", "48"] if nvenc_disponible() else
-                              ["-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-g", "48"])
-        orden = [exe, "-hide_banner", "-loglevel", "error", "-ss", f"{segundos:.3f}", "-i", str(ruta),
-                 "-map", "0:v:0", "-map", "0:a:0?", "-sn", "-dn", *video,
-                 "-c:a", "aac", "-b:a", "192k", "-ac", "2", "-f", "mpegts", "pipe:1"]
-        proceso = subprocess.Popen(orden, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                                   stderr=subprocess.DEVNULL,
-                                   creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0)
+        from .roku import MODOS, orden_conversion
+        marca = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+
+        def lanzar(m_: str):
+            return subprocess.Popen(orden_conversion(exe, str(ruta), m_, segundos), stdin=subprocess.DEVNULL,
+                                    stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, creationflags=marca)
+
+        # Si un modo no entrega nada (la placa de video falla, el archivo no se puede copiar), se pasa al siguiente
+        proceso, primero = None, b""
+        for intento in MODOS[MODOS.index(modo):]:
+            proceso = lanzar(intento)
+            primero = proceso.stdout.read(128 * 1024)
+            if primero:
+                break
+            proceso.kill()
+            proceso.wait()
+        if not primero:
+            raise ErrorRemoto("No se pudo convertir este video", 500)
         try:
             self.send_response(200)
             self.send_header("Content-Type", "video/mp2t")
             self.send_header("Cache-Control", "no-store")
             self.send_header("Connection", "close")
             self.end_headers()
+            self.wfile.write(primero)
             while bloque := proceso.stdout.read(128 * 1024):
                 self.wfile.write(bloque)
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, TimeoutError):
+            pass   # el Roku cortó o adelantó
         finally:
-            proceso.kill()  # el celular cortó o adelantó: ffmpeg no queda trabajando de más
+            proceso.kill()  # ffmpeg no queda trabajando de más
             proceso.wait()
             self.close_connection = True
 
@@ -2054,7 +2061,7 @@ class _Control:
         if not activo or activo.get("sub", -1) < 0 or not activo.get("id"):
             raise ErrorRemoto("En la tele no hay subtítulos puestos")
         (_aid, ruta, _t), = self._archivos([activo["id"]])
-        subs = subtitulos_del_video(self.bib, ruta)
+        subs = _subtitulos_roku(self.bib, ruta)
         if not 0 <= activo["sub"] < len(subs):
             raise ErrorRemoto("Ese subtítulo ya no está")
         cues = Subtitulos(subs[activo["sub"]]).cues
@@ -2068,7 +2075,7 @@ class _Control:
     def guardar_subs_roku(self, aid: int, n: int, retraso: int):
         """Lo que se eligió en el Roku queda guardado para ese video (lo usan también la PC y el celular)."""
         (aid, ruta, _t), = self._archivos([aid])
-        subs = subtitulos_del_video(self.bib, ruta)
+        subs = _subtitulos_roku(self.bib, ruta)
         self.bib.guardar_subtitulos(ruta, subs[n] if 0 <= n < len(subs) else None, retraso)
 
     def accion_roku_sincronizar(self):
@@ -2085,7 +2092,7 @@ class _Control:
         if not exe:
             raise ErrorRemoto("Para sincronizar hace falta ffmpeg en la PC", 501)
         (_aid, ruta, _t), = self._archivos([activo["id"]])
-        subs = subtitulos_del_video(self.bib, ruta)
+        subs = _subtitulos_roku(self.bib, ruta)
         if not 0 <= activo["sub"] < len(subs):
             raise ErrorRemoto("Ese subtítulo ya no está")
         cues = Subtitulos(subs[activo["sub"]]).cues

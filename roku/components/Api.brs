@@ -18,7 +18,9 @@ sub ejecutar()
     end if
     codigo = 0
     texto = ""
-    evento = wait(8000, puerto)
+    espera = 8000
+    if m.top.etiqueta = "ficha" then espera = 45000     ' la PC prueba el video antes de mandarlo
+    evento = wait(espera, puerto)
     if type(evento) = "roUrlEvent" then
         codigo = evento.GetResponseCode()
         texto = evento.GetString()

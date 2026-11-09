@@ -10,7 +10,9 @@ con estas protecciones:
 """
 from __future__ import annotations
 
+import hashlib
 import html
+import os
 import json
 import re
 import select
@@ -284,7 +286,9 @@ class _ManejadorRoku(_Manejador):
             return self._json(llamar(lambda: _episodios(control, consulta.get("c", ""))))
         if ruta == "/roku/ficha":
             desde = _entero(consulta["desde"]) if "desde" in consulta else None
-            return self._json(llamar(lambda: _ficha(control, _entero(consulta.get("id")), consulta.get("modo", ""), desde)))
+            aid = _entero(consulta.get("id"))
+            modo = decidir_modo(str(self._video_de({"id": aid})), consulta.get("modo", ""), (desde or 0) / 1000)
+            return self._json(llamar(lambda: _ficha(control, aid, modo, desde)))
         if ruta == "/roku/video":
             return self._video(consulta)
         if ruta == "/roku/subtitulo":
@@ -334,12 +338,17 @@ class _ManejadorRoku(_Manejador):
         sombra) y así se puede correr el retraso y sincronizar. Sin las etiquetas de formato del .srt."""
         from .subtitulos import Subtitulos
         ruta = self._video_de(consulta)
-        lista = self.remoto.puente.llamar(lambda: subtitulos_del_video(self.remoto.bib, str(ruta)))
+        lista = self.remoto.puente.llamar(lambda: subtitulos_del_roku(self.remoto.bib, str(ruta)))
         try:
             sub = Subtitulos(lista[int(consulta.get("n", 0))])
         except (ValueError, IndexError, OSError):
             raise ErrorRemoto("Ese subtítulo no existe", 404) from None
-        self._json({"cues": [[a, b, re.sub(r"\{\\[^}]*\}", "", t)] for a, b, t in sub.cues]})
+        limpio = []
+        for a, b, t in sorted(sub.cues):
+            t = re.sub(r"\{\\[^}]*\}|<[^>]+>", "", t).replace("&nbsp;", " ").replace("&amp;", "&").strip()
+            if t and b > a:
+                limpio.append([a, b, t])
+        self._json({"cues": limpio})
 
     def _subtitulo_roku(self, consulta: dict):
         """Como el de ON, pero si el video convertido empieza más adelante («desde», en ms), los tiempos se corren
@@ -349,7 +358,7 @@ class _ManejadorRoku(_Manejador):
             return self._subtitulo(consulta)
         from .subtitulos import Subtitulos
         ruta = self._video_de(consulta)
-        lista = self.remoto.puente.llamar(lambda: subtitulos_del_video(self.remoto.bib, str(ruta)))
+        lista = self.remoto.puente.llamar(lambda: subtitulos_del_roku(self.remoto.bib, str(ruta)))
         try:
             sub = Subtitulos(lista[int(consulta.get("n", 0))])
         except (ValueError, IndexError, OSError):
@@ -449,8 +458,46 @@ _analisis: dict[tuple[str, float], dict] = {}
 _nvenc: bool | None = None
 
 
+def _entero_seguro(valor, defecto=0) -> int:
+    try:
+        return int(float(valor))
+    except (TypeError, ValueError):
+        return defecto
+
+
+def _moov_al_final(ruta: str) -> bool:
+    """¿Es un .mp4/.mov con el índice (moov) después de los datos? Así no se puede empezar a verlo por la red ni
+    saltar rápido: el Roku espera (o falla). Se mira solo el principio de la lista de bloques del archivo."""
+    if Path(ruta).suffix.lower() not in (".mp4", ".m4v", ".mov"):
+        return False
+    try:
+        with open(ruta, "rb") as f:
+            posicion, total = 0, os.fstat(f.fileno()).st_size
+            for _ in range(64):
+                f.seek(posicion)
+                cabecera = f.read(16)
+                if len(cabecera) < 8:
+                    return False
+                tamano, tipo = int.from_bytes(cabecera[:4], "big"), cabecera[4:8]
+                if tipo == b"moov":
+                    return False
+                if tipo == b"mdat":
+                    return True
+                if tamano == 1 and len(cabecera) >= 16:
+                    tamano = int.from_bytes(cabecera[8:16], "big")
+                if tamano < 8 or posicion + tamano >= total:
+                    return False
+                posicion += tamano
+    except OSError:
+        return False
+    return False
+
+
+_CODECS_TEXTO = {"subrip", "srt", "ass", "ssa", "mov_text", "webvtt", "text"}
+
+
 def analizar(ruta: str) -> dict:
-    """Códecs del primer video y del primer audio, y la duración (ms). {} si no hay ffprobe."""
+    """Lo que hace falta saber de un video para decidir cómo mandarlo al Roku (ffprobe). {} si no hay ffprobe."""
     exe = ffmpeg()
     if not exe:
         return {}
@@ -468,38 +515,237 @@ def analizar(ruta: str) -> dict:
         datos = json.loads(r.stdout or b"{}")
     except (OSError, subprocess.TimeoutExpired, ValueError):
         return {}
-    video = next((s for s in datos.get("streams", []) if s.get("codec_type") == "video"
+    flujos = datos.get("streams", [])
+    formato = datos.get("format") or {}
+    video = next((s for s in flujos if s.get("codec_type") == "video"
                   and not (s.get("disposition") or {}).get("attached_pic")), {})
-    audio = next((s for s in datos.get("streams", []) if s.get("codec_type") == "audio"), {})
-    try:
-        duracion = int(float((datos.get("format") or {}).get("duration") or 0) * 1000)
-    except ValueError:
-        duracion = 0
+    audios = [s for s in flujos if s.get("codec_type") == "audio"]
+    # La pista de sonido: la marcada como principal; si no, la primera
+    elegido = next((i for i, a in enumerate(audios) if (a.get("disposition") or {}).get("default")), 0)
+    audio = audios[elegido] if audios else {}
+    subs = []
+    for i, st in enumerate(s for s in flujos if s.get("codec_type") == "subtitle"):
+        if st.get("codec_name") in _CODECS_TEXTO:
+            tags = st.get("tags") or {}
+            subs.append({"i": i, "idioma": (tags.get("language") or "").lower(), "titulo": tags.get("title") or ""})
+
     def _inicio(flujo):
         try:
             return float(flujo.get("start_time") or 0)
         except ValueError:
             return 0.0
 
+    def _fps(texto):
+        try:
+            a, b = str(texto).split("/")
+            return float(a) / float(b) if float(b) else 0.0
+        except (ValueError, ZeroDivisionError):
+            return 0.0
+
     info = {"video": video.get("codec_name", ""), "pixeles": video.get("pix_fmt", ""),
+            "perfil": video.get("profile", ""), "nivel": _entero_seguro(video.get("level")),
+            "ancho": _entero_seguro(video.get("width")), "alto": _entero_seguro(video.get("height")),
+            "fps": _fps(video.get("avg_frame_rate") or video.get("r_frame_rate")),
+            "bitrate": _entero_seguro(formato.get("bit_rate")),
             "desfase": abs(_inicio(video) - _inicio(audio)) if audio else 0.0,
-            "audio": audio.get("codec_name", ""), "canales": int(audio.get("channels") or 0), "duracion": duracion}
+            "audio": audio.get("codec_name", ""), "canales": _entero_seguro(audio.get("channels")),
+            "audio_idx": elegido, "subs": subs, "moov_al_final": _moov_al_final(ruta),
+            "duracion": _entero_seguro(float(formato.get("duration") or 0) * 1000 if str(formato.get("duration") or "0").replace(".", "", 1).isdigit() else 0)}
     _analisis[clave] = info
     return info
 
 
-def modo_para_roku(ruta: str) -> str:
-    """«» si el Roku lo reproduce tal cual; «audio» si hay que pasar el sonido a estéreo; «video» si también la imagen."""
+def evaluar(ruta: str) -> tuple[str, list[str]]:
+    """(modo, motivos). «» si el Roku lo reproduce tal cual; «audio» si la PC solo lo vuelve a empaquetar (con el sonido
+    en estéreo si hace falta); «video» si además hay que convertir la imagen. Es estricto a propósito: es más seguro
+    pasar por la PC que dejar que el Roku se trabe."""
     info = analizar(ruta)
     if not info:
-        return ""
-    video_bien = info["video"] == "h264" and info["pixeles"] in ("yuv420p", "yuvj420p", "")
-    audio_bien = not info["audio"] or (info["audio"] in ("aac", "mp3") and info["canales"] <= 2)
-    if video_bien:
-        # Imagen y sonido que no empiezan juntos: el Roku se confunde al saltar (imagen congelada con sonido).
-        # Pasando por la PC, ffmpeg los alinea
-        return "" if audio_bien and info.get("desfase", 0) < 0.04 else "audio"
-    return "video"
+        return "", []
+    motivos_video, motivos_audio = [], []
+    if info["video"] != "h264":
+        motivos_video.append(f"imagen {info['video'] or 'desconocida'}")
+    if info["pixeles"] not in ("yuv420p", "yuvj420p", ""):
+        motivos_video.append(f"color {info['pixeles']}")
+    if info["perfil"] and info["perfil"].split(" ")[0] not in ("Baseline", "Constrained", "Main", "High") \
+            or info["perfil"] in ("High 10", "High 4:2:2", "High 4:4:4 Predictive", "High 10 Intra"):
+        motivos_video.append(f"perfil {info['perfil']}")
+    if info["nivel"] > 42:
+        motivos_video.append(f"nivel {info['nivel'] / 10:g}")
+    if info["ancho"] > 1920 or info["alto"] > 1088:
+        motivos_video.append(f"{info['ancho']}x{info['alto']}")
+    if info["fps"] > 61:
+        motivos_video.append(f"{info['fps']:g} cuadros por segundo")
+    if info["bitrate"] > 20_000_000:
+        motivos_video.append(f"{info['bitrate'] / 1e6:.0f} Mbps")
+    if info["audio"] and not (info["audio"] in ("aac", "mp3") and 0 < info["canales"] <= 2):
+        motivos_audio.append(f"sonido {info['audio']} {info['canales']} canales")
+    if info["desfase"] >= 0.04:
+        motivos_audio.append("imagen y sonido desfasados")
+    if info["moov_al_final"]:
+        motivos_audio.append("índice al final del archivo")
+    if motivos_video:
+        return "video", motivos_video + motivos_audio
+    if motivos_audio:
+        return "audio", motivos_audio
+    return "", []
+
+
+def modo_para_roku(ruta: str) -> str:
+    return evaluar(ruta)[0]
+
+
+MODOS = ("", "audio", "video", "soft")   # de menos a más conversión; «soft» = por programa (sin placa de video)
+
+
+def orden_conversion(exe: str, ruta: str, modo: str, segundos: float, limite: float | None = None,
+                     salida: str = "pipe:1") -> list[str]:
+    """El comando de ffmpeg que arma el video para el Roku (mpegts) desde «segundos». Lo usa la conversión y la
+    prueba previa, así que se prueba exactamente lo que se va a mandar."""
+    info = analizar(ruta)
+    if modo == "audio":
+        video = ["-c:v", "copy"]
+        if info.get("video") in ("h264", ""):
+            # Algunos .mp4 tienen los parámetros del video donde se pierden al pasar a mpegts y la imagen no arranca:
+            # se repiten en cada cuadro clave
+            video += ["-bsf:v", "h264_mp4toannexb,dump_extra=freq=keyframe"]
+    elif modo == "soft":
+        video = ["-vf", "scale='min(1280,iw)':-2,format=yuv420p", "-c:v", "libx264", "-preset", "veryfast",
+                 "-crf", "24", "-profile:v", "main", "-level", "4.0", "-g", "48"]
+    else:
+        escala = ["-vf", "scale='min(1920,iw)':-2,format=yuv420p"]
+        video = escala + (["-c:v", "h264_nvenc", "-preset", "p4", "-rc", "vbr", "-cq", "23", "-b:v", "0",
+                           "-profile:v", "high", "-g", "48"] if nvenc_disponible() else
+                          ["-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-profile:v", "high", "-g", "48"])
+    orden = [exe, "-hide_banner", "-loglevel", "error", "-fflags", "+genpts", "-ss", f"{segundos:.3f}", "-i", ruta,
+             "-map", "0:v:0", "-map", f"0:a:{info.get('audio_idx', 0)}?", "-sn", "-dn", "-map_metadata", "-1",
+             *video, "-c:a", "aac", "-b:a", "192k", "-ac", "2", "-af", "aresample=async=1"]
+    if limite:
+        orden += ["-t", f"{limite:g}"]
+    return orden + ["-f", "mpegts", salida]
+
+
+_pruebas: dict[tuple, str | None] = {}
+
+
+def verificar(ruta: str, modo: str, desde: float = 0.0) -> str | None:
+    """Prueba previa: arma 6 s del video como lo mandaría y comprueba que se pueda decodificar, que tenga imagen
+    (perfil y tamaño) y sonido. None si está bien; si no, qué falló (la PC entonces usa un modo más seguro)."""
+    exe = ffmpeg()
+    if not exe:
+        return None
+    try:
+        clave = (ruta, Path(ruta).stat().st_mtime, modo, int(desde // 60))
+    except OSError:
+        return None
+    if clave in _pruebas:
+        return _pruebas[clave]
+    marca = dict(creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0)
+    sonda = str(Path(exe).with_name("ffprobe.exe" if exe.lower().endswith(".exe") else "ffprobe"))
+    motivo = None
+    try:
+        r = subprocess.run(orden_conversion(exe, ruta, modo, desde, limite=4), capture_output=True, timeout=90, **marca)
+        datos = r.stdout
+        if r.returncode != 0 or len(datos) < 20_000:
+            motivo = "ffmpeg no pudo armar el video: " + r.stderr.decode(errors="replace")[:120]
+        else:
+            q = subprocess.run([sonda, "-v", "error", "-print_format", "json", "-show_streams", "-"],
+                               input=datos, capture_output=True, timeout=30, **marca)
+            flujos = json.loads(q.stdout or b"{}").get("streams", [])
+            vid = next((f for f in flujos if f.get("codec_type") == "video"), None)
+            if not vid or not vid.get("width") or not vid.get("height") or not vid.get("profile"):
+                motivo = "la imagen no se reconoce"
+            else:
+                d = subprocess.run([exe, "-v", "error", "-i", "pipe:0", "-f", "null", "-"], input=datos,
+                                   capture_output=True, timeout=60, **marca)
+                errores = d.stderr.decode(errors="replace").strip()
+                if d.returncode != 0 or errores:
+                    motivo = "errores al decodificar: " + errores[:120]
+    except (OSError, subprocess.TimeoutExpired, ValueError) as e:
+        motivo = f"la prueba falló: {e}"
+    _pruebas[clave] = motivo
+    return motivo
+
+
+def decidir_modo(ruta: str, pedido: str = "", desde: float = 0.0) -> str:
+    """Cómo mandar este video al Roku: lo que dice el análisis, lo que ya falló antes en la tele («pedido») y una
+    prueba previa de lo que se va a mandar. Siempre se queda con el modo más seguro de los tres."""
+    modo = max((pedido if pedido in MODOS else "", evaluar(ruta)[0]), key=MODOS.index)
+    if Path(ruta).suffix.lower() not in (".mkv", ".mp4", ".m4v", ".mov") and not modo:
+        modo = "audio"          # AVI, WMV, TS…: el Roku no los abre directo
+    if modo == "audio" and verificar(ruta, "audio", desde):   # donde va a empezar a verse
+        return "video"
+    return modo
+
+
+# --- Subtítulos que vienen dentro del video (mkv) ---------------------------------------------------------
+
+_extrayendo: set[str] = set()
+
+
+def _carpeta_incluidos() -> Path:
+    base = Path(os.environ.get("LOCALAPPDATA") or Path.home()) / "TVon" / "subs_incluidos"
+    base.mkdir(parents=True, exist_ok=True)
+    return base
+
+
+def subtitulos_incluidos(ruta: str) -> list[str]:
+    """Los subtítulos de texto que lleva el video adentro, ya pasados a .srt. La primera vez se extraen en segundo
+    plano (en un mkv grande lleva un rato): hasta que estén listos no aparecen en la lista."""
+    info = analizar(ruta)
+    pistas = info.get("subs") or []
+    if not pistas:
+        return []
+    try:
+        st = Path(ruta).stat()
+    except OSError:
+        return []
+    clave = hashlib.sha1(f"{ruta}|{st.st_mtime_ns}|{st.st_size}".encode()).hexdigest()[:16]
+    carpeta = _carpeta_incluidos()
+    # Español primero, después inglés, después el resto (máximo 4)
+    orden = sorted(pistas, key=lambda p: (p["idioma"][:2] not in ("es", "sp"), p["idioma"][:2] != "en", p["i"]))[:4]
+    destinos = [carpeta / f"{clave}_{p['i']}_{p['idioma'] or 'und'}.srt" for p in orden]
+    if all(d.is_file() for d in destinos):
+        return [str(d) for d in destinos]
+    if clave not in _extrayendo and ffmpeg():
+        _extrayendo.add(clave)
+
+        def trabajo():
+            try:
+                for p, d in zip(orden, destinos):
+                    if d.is_file():
+                        continue
+                    tmp = d.with_suffix(".tmp.srt")
+                    subprocess.run([ffmpeg(), "-v", "error", "-y", "-i", ruta, "-map", f"0:s:{p['i']}", "-c:s", "srt",
+                                    str(tmp)], capture_output=True, timeout=1800,
+                                   creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0)
+                    if tmp.is_file() and tmp.stat().st_size > 20:
+                        tmp.replace(d)
+                    else:
+                        tmp.unlink(missing_ok=True)
+            except (OSError, subprocess.TimeoutExpired):
+                pass
+            finally:
+                _extrayendo.discard(clave)
+        threading.Thread(target=trabajo, daemon=True).start()
+    return [str(d) for d in destinos if d.is_file()]
+
+
+def texto_subtitulo(ruta_sub: str, ruta_video: str) -> str:
+    """Cómo se llama un subtítulo en el Roku: «Español (nombre.srt)» o «Incluido: Español»."""
+    from .subtitulos import IDIOMAS, descripcion
+    p = Path(ruta_sub)
+    if p.parent == _carpeta_incluidos():
+        m = re.fullmatch(r"[0-9a-f]+_(\d+)_(.+)", p.stem)
+        idioma = m.group(2) if m else ""
+        return "Incluido: " + IDIOMAS.get(idioma[:3], IDIOMAS.get(idioma[:2], idioma if idioma != "und" else "sin idioma"))
+    return descripcion(ruta_sub, ruta_video)
+
+
+def subtitulos_del_roku(bib, ruta: str) -> list[str]:
+    """Los subtítulos que ve el Roku: los de junto al video, el elegido a mano en la PC y los que lleva adentro."""
+    lista = subtitulos_del_video(bib, ruta)
+    return lista + [s for s in subtitulos_incluidos(ruta) if s not in lista]
 
 
 def nvenc_disponible() -> bool:
@@ -527,8 +773,8 @@ def _ficha(control, aid: int, modo: str, desde_ms: int | None = None) -> dict:
     base = f"/roku/video?id={aid}"
     pos = f["posicion"] if desde_ms is None else max(0, int(desde_ms))
     duracion = f["duracion"]
-    if modo not in ("audio", "video"):
-        modo = modo_para_roku(ruta) or ("video" if formato is None else "")
+    if modo not in MODOS:
+        modo = decidir_modo(ruta, "")
     if modo and not ffmpeg():
         raise ErrorRemoto("Este video necesita ffmpeg en la PC para verse en el Roku "
                           "(winget install Gyan.FFmpeg y reabrir TorrentVision)", 501)
@@ -538,10 +784,12 @@ def _ficha(control, aid: int, modo: str, desde_ms: int | None = None) -> dict:
         formato, desde, pos = "ts", pos, 0
         duracion = duracion or analizar(ruta).get("duracion", 0)
     guardado = control.bib.subtitulos_de(ruta)
+    subs = subtitulos_del_roku(control.bib, ruta)
     return {"id": aid, "titulo": f["titulo"] if not f["serie"] else f"{f['titulo']} · {f['nombre_lindo']}"[:120],
             "url": base, "formato": formato, "pos": pos, "dur": duracion, "desde": desde, "modo": modo,
             "retraso": guardado[1] if guardado else 0,
-            "subtitulos": [{"n": s["n"], "texto": s["texto"][:60], "elegido": s["elegido"]} for s in f["subtitulos"]],
+            "subtitulos": [{"n": i, "texto": texto_subtitulo(sub, ruta)[:60],
+                            "elegido": (sub == guardado[0]) if guardado else i == 0} for i, sub in enumerate(subs)],
             # El siguiente capítulo, solo en las series (una película con números en el nombre no tiene «siguiente»)
             "siguiente": (f["siguiente"] or 0) if f["serie"] else 0,
             # La intro de la serie (ms), si ya se detectó: el Roku ofrece saltarla
