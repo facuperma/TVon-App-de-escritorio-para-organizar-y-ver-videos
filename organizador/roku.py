@@ -563,6 +563,11 @@ def evaluar(ruta: str) -> tuple[str, list[str]]:
     if not info:
         return "", []
     motivos_video, motivos_audio = [], []
+    if not info["video"]:
+        # Solo sonido (una grabación en .mp4): se reproduce con pantalla negra
+        if info["audio"] and not (info["audio"] in ("aac", "mp3") and 0 < info["canales"] <= 2):
+            return "audio", ["solo sonido, no estéreo"]
+        return "", []
     if info["video"] != "h264":
         motivos_video.append(f"imagen {info['video'] or 'desconocida'}")
     if info["pixeles"] not in ("yuv420p", "yuvj420p", ""):
@@ -603,7 +608,10 @@ def orden_conversion(exe: str, ruta: str, modo: str, segundos: float, limite: fl
     """El comando de ffmpeg que arma el video para el Roku (mpegts) desde «segundos». Lo usa la conversión y la
     prueba previa, así que se prueba exactamente lo que se va a mandar."""
     info = analizar(ruta)
-    if modo == "audio":
+    sin_imagen = not info.get("video")
+    if sin_imagen:
+        video = ["-vn"]
+    elif modo == "audio":
         video = ["-c:v", "copy"]
         if info.get("video") in ("h264", ""):
             # Algunos .mp4 tienen los parámetros del video donde se pierden al pasar a mpegts y la imagen no arranca:
@@ -618,7 +626,8 @@ def orden_conversion(exe: str, ruta: str, modo: str, segundos: float, limite: fl
                            "-profile:v", "high", "-g", "48"] if nvenc_disponible() else
                           ["-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-profile:v", "high", "-g", "48"])
     orden = [exe, "-hide_banner", "-loglevel", "error", "-fflags", "+genpts", "-ss", f"{segundos:.3f}", "-i", ruta,
-             "-map", "0:v:0", "-map", f"0:a:{info.get('audio_idx', 0)}?", "-sn", "-dn", "-map_metadata", "-1",
+             *([] if sin_imagen else ["-map", "0:v:0"]), "-map", f"0:a:{info.get('audio_idx', 0)}?", "-sn", "-dn",
+             "-map_metadata", "-1",
              *video, "-c:a", "aac", "-b:a", "192k", "-ac", "2", "-af", "aresample=async=1"]
     if limite:
         orden += ["-t", f"{limite:g}"]
@@ -653,7 +662,8 @@ def verificar(ruta: str, modo: str, desde: float = 0.0) -> str | None:
                                input=datos, capture_output=True, timeout=30, **marca)
             flujos = json.loads(q.stdout or b"{}").get("streams", [])
             vid = next((f for f in flujos if f.get("codec_type") == "video"), None)
-            if not vid or not vid.get("width") or not vid.get("height") or not vid.get("profile"):
+            if analizar(ruta).get("video") and (not vid or not vid.get("width") or not vid.get("height")
+                                                or not vid.get("profile")):
                 motivo = "la imagen no se reconoce"
             else:
                 d = subprocess.run([exe, "-v", "error", "-i", "pipe:0", "-f", "null", "-"], input=datos,
