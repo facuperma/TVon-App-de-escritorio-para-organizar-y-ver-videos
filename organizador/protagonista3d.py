@@ -14,7 +14,7 @@ import numpy as np
 from . import avatar3d
 from .modelado import cortar, curva, elipsoide, esfera, capsula, caja_redonda, guardar_glb, malla, restar, unir
 
-VERSION = 10 # subir si cambia la forma: así se rearman los que están en caché
+VERSION = 11 # subir si cambia la forma: así se rearman los que están en caché
 PASO = 0.0045
 
 # Puntos de articulación (para animar): hombros, cuello, cadera
@@ -96,11 +96,11 @@ def _cabeza_sdf(p, con_foto=False):
     return d
 
 
-RADIO_FOTO, HONDO_FOTO = 0.118, 0.032
+RADIO_FOTO, RADIO_FOTO_X, HONDO_FOTO = 0.118, 0.146, 0.041   # alto, ancho (se abre hacia los lados) y hondura
 
 
 def _hondo_foto(p):
-    r2 = ((p[..., 0] ** 2 + (p[..., 1] - 0.8) ** 2) / RADIO_FOTO ** 2)
+    r2 = (p[..., 0] ** 2 / RADIO_FOTO_X ** 2 + (p[..., 1] - 0.8) ** 2 / RADIO_FOTO ** 2)
     return HONDO_FOTO * np.clip(1 - r2, 0, None) * (p[..., 2] > 0.04)
 
 
@@ -393,10 +393,33 @@ def _armar(s: dict, foto_jpg: bytes | None) -> dict[str, list]:
     return partes
 
 
+def _limite_pelo(p, sombrero):
+    """Hasta dónde puede llegar el pelo con ese sombrero: por encima del borde queda adentro del gorro (no lo atraviesa);
+    por debajo (patillas, nuca, melena) queda libre. Negativo = permitido."""
+    y = p[..., 1]
+    if sombrero in ("gorra", "gorro"):
+        base = 0.90
+        forma = (elipsoide(p, (0, 0.88, -0.01), (0.215, 0.2, 0.2)) if sombrero == "gorra"
+                 else elipsoide(p, (0, 0.89, -0.01), (0.22, 0.215, 0.205)))
+        return np.minimum(forma - 0.006, base - y)
+    radio = {"sombrero": 0.17, "galera": 0.155, "corona": 0.152}.get(sombrero)
+    if radio is None:
+        return None
+    cilindro_h = np.linalg.norm(p[..., [0, 2]], axis=-1) - radio
+    return np.minimum(cilindro_h - 0.006, 0.936 - y)
+
+
 def _pelo_funcion(s):
     if s["peinado"] == "pelado":
         return None
-    return lambda p: _pelo(p, s)
+    if s["cabeza"] == "ninguno":
+        return lambda p: _pelo(p, s)
+
+    def con_sombrero(p):
+        d = _pelo(p, s)
+        limite = _limite_pelo(p, s["cabeza"])
+        return d if limite is None else np.maximum(d, limite)
+    return con_sombrero
 
 
 def _sombreros(lista, s, ca, detalle):
@@ -538,11 +561,11 @@ def _reflejo_vidrio() -> bytes:
         from PySide6.QtGui import QImage
         n = 128
         y, x = np.mgrid[0:n, 0:n].astype(np.float32) / (n - 1) * 2 - 1
-        alfa = np.full((n, n), 0.07, np.float32)
+        alfa = np.full((n, n), 0.02, np.float32)
         banda = np.exp(-(((x + y + 0.75) / 0.16) ** 2)) * np.clip(1.2 - np.hypot(x + 0.35, y + 0.35), 0, 1)
         fina = np.exp(-(((x + y + 0.38) / 0.05) ** 2)) * np.clip(1.0 - np.hypot(x + 0.2, y + 0.2), 0, 1)
         punto = np.exp(-((np.hypot(x - 0.42, y - 0.5) / 0.09) ** 2))
-        alfa = np.clip(alfa + 0.62 * banda + 0.5 * fina + 0.5 * punto, 0, 1)
+        alfa = np.clip(alfa + 0.3 * banda + 0.24 * fina + 0.28 * punto, 0, 1)
         rgba = np.zeros((n, n, 4), np.uint8)
         rgba[..., :3] = 255
         rgba[..., 3] = (alfa * 255).astype(np.uint8)
@@ -559,15 +582,17 @@ def _disco_foto(vidrio=False):
     """La foto, pegada a la curva hacia adentro de la cara (vidrio=False), o el vidrio que la tapa al ras de la
     cara (vidrio=True). Cada punto se ubica sobre la superficie buscándola de adelante hacia atrás."""
     anillos, lados = 16, 72
-    radio = RADIO_FOTO - (0.004 if not vidrio else 0.0)
+    margen = 0.004 if not vidrio else 0.0
+    rx, ry = RADIO_FOTO_X - margen, RADIO_FOTO - margen
+    achicar = RADIO_FOTO / RADIO_FOTO_X     # la foto no se estira: a lo ancho se ve solo el centro
     xy, uv = [(0.0, 0.8)], [(0.5, 0.5)]
     for a in range(1, anillos + 1):
         r = a / anillos
         for j in range(lados):
             ang = 2 * math.pi * j / lados
             u, v = r * math.cos(ang), r * math.sin(ang)
-            xy.append((u * radio, 0.8 + v * radio))
-            uv.append(((u + 1) / 2, 1 - (v + 1) / 2))
+            xy.append((u * rx, 0.8 + v * ry))
+            uv.append((0.5 + u * achicar / 2, 1 - (v + 1) / 2))
     xy = np.array(xy, np.float32)
     superficie = (lambda q: _cabeza_sdf(q)) if vidrio else (lambda q: _cabeza_sdf(q, True))
 

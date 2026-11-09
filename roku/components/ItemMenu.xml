@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<component name="ItemMenu" extends="Group">
+  <script type="text/brightscript" uri="pkg:/components/ItemMenu.brs" />
+  <interface>
+    <field id="itemContent" type="node" onChange="alContenido" />
+    <field id="itemHasFocus" type="boolean" onChange="alFoco" />
+    <field id="width" type="float" />
+    <field id="height" type="float" />
+  </interface>
+  <children>
+    <Rectangle id="pastilla" width="190" height="58" color="0xFFFFFFFF" visible="false" />
+    <Rectangle id="marca" translation="[0,10]" width="5" height="38" color="0x3DAEEBFF" visible="false" />
+    <Label id="texto" translation="[24,0]" width="160" height="58" vertAlign="center" font="font:MediumBoldSystemFont"
+           color="0x9FB3CCFF" />
+  </children>
+</component>

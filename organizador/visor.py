@@ -1,5 +1,6 @@
 """Panel que muestra una imagen o reproduce un video con sus controles y subtítulos."""
 import math
+import time
 import re
 from pathlib import Path
 
@@ -278,8 +279,8 @@ class LogoAnimado(QWidget):
 
     LADO = 150
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, parent=None):
+        super().__init__(parent)
         self.setFixedSize(self.LADO + 40, self.LADO + 40)
         escala = QApplication.instance().devicePixelRatio()
         self._logo = QPixmap(str(LOGO)).scaled(round(self.LADO * escala), round(self.LADO * escala),
@@ -330,24 +331,154 @@ class LogoAnimado(QWidget):
         p.end()
 
 
+def _suave(x: float) -> float:
+    x = max(0.0, min(1.0, x))
+    return x * x * (3 - 2 * x)
+
+
 class Bienvenida(QWidget):
-    """Pantalla sin archivo: el logo de TorrentVision (animado, tenue) sobre el aviso."""
+    """Pantalla sin archivo: el logo de TorrentVision (animado, tenue) sobre el aviso. Si se quiere, el Protagonista
+    está apoyado en el logo; de vez en cuando lo empuja, el logo lo empuja de vuelta y lo saca del recuadro, y después
+    vuelve caminando (poner_protagonista)."""
+
+    PERIODO = 18.0          # segundos que dura una vuelta de la escena
+    ALTO_PROTA, ANCHO_PROTA = 190, 230
 
     def __init__(self, texto: str):
         super().__init__(objectName="vacio")
         self.setAttribute(Qt.WA_StyledBackground)
         self.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
-        self.logo = LogoAnimado()
-        self.texto = QLabel(texto, alignment=Qt.AlignCenter, wordWrap=True)
-        capa = QVBoxLayout(self)
-        capa.addStretch()
-        capa.addWidget(self.logo, 0, Qt.AlignHCenter)
-        capa.addSpacing(12)
-        capa.addWidget(self.texto)
-        capa.addStretch()
+        self.logo = LogoAnimado(self)
+        self.texto = QLabel(texto, self, alignment=Qt.AlignCenter, wordWrap=True)
+        self._prota = None
+        self._spec: dict | None = None
+        self._t = 0.0
+        self._ultimo = 0.0
+        self._base_logo = (0.0, 0.0)
+        self._base_prota = (0.0, 0.0)
+        # Se mueve con el tiempo real (no con la cuenta de cuadros) y a lo sumo 30 veces por segundo
+        self._reloj = QTimer(self, interval=15, timeout=self._tic)
+        self._reloj.setTimerType(Qt.PreciseTimer)
+        self._acomodar()
 
     def setText(self, texto: str):
         self.texto.setText(texto)
+        self._acomodar()
+
+    # --- El Protagonista ----------------------------------------------------------------------------------
+
+    def poner_protagonista(self, spec: dict | None):
+        """spec = cómo es; None = que no aparezca."""
+        self._spec = spec
+        if spec is None:
+            if self._prota is not None:
+                self._prota.hide()
+            self._reloj.stop()
+            self._acomodar()
+            return
+        if self._prota is None:
+            from . import vista3d
+            self._prota = vista3d.crear(spec, "cuerpo", parent=self)
+            self._prota.setAttribute(Qt.WA_TransparentForMouseEvents)
+            self._prota.setFixedSize(self.ANCHO_PROTA, self.ALTO_PROTA)
+        else:
+            self._prota.poner(spec)
+        self._pose(inclinacion=-8, empuje=0, giroMano=34, mira=14, vaiven=0, liviano=True)
+        if self.isVisible():
+            self._arrancar()
+        self._acomodar()
+
+    def _arrancar(self):
+        self._ultimo = time.perf_counter()
+        self._reloj.start()
+
+    def showEvent(self, e):
+        super().showEvent(e)
+        if self._spec is not None:
+            self._arrancar()
+
+    def hideEvent(self, e):
+        super().hideEvent(e)
+        self._reloj.stop()
+
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        self._acomodar()
+
+    def _pose(self, **valores):
+        pose = getattr(self._prota, "pose", None)
+        if pose:
+            pose(**valores)
+
+    # --- Posiciones ---------------------------------------------------------------------------------------
+
+    def _acomodar(self):
+        """El logo y el texto en el centro (como antes); el Protagonista a su izquierda, apoyado en el logo."""
+        ancho_texto = max(120, min(self.width() - 40, 560))
+        self.texto.setFixedWidth(ancho_texto)
+        alto_texto = self.texto.heightForWidth(ancho_texto) if self.texto.hasHeightForWidth() else self.texto.sizeHint().height()
+        bloque = self.logo.height() + 12 + alto_texto
+        arriba = max(0, (self.height() - bloque) / 2)
+        centro_x = self.width() / 2
+        self._base_logo = (centro_x - self.logo.width() / 2, arriba)
+        self.texto.setGeometry(round(centro_x - ancho_texto / 2), round(arriba + self.logo.height() + 12), ancho_texto, alto_texto)
+        if self._prota is not None:
+            cabe = self._spec is not None and self.height() >= 300 and self.width() >= 360
+            self._prota.setVisible(cabe)
+            # Apoyado en el borde izquierdo del anillo, con los pies a la altura de la base del logo
+            self._base_prota = (centro_x - 80 - self.ANCHO_PROTA / 2,
+                                arriba + self.logo.height() / 2 + 82 - self.ALTO_PROTA * 0.96)
+        self._mover(0.0, (0.0, 0.0))
+
+    def _mover(self, desplazamiento_logo: float, protagonista: tuple[float, float]):
+        self.logo.move(round(self._base_logo[0] + desplazamiento_logo), round(self._base_logo[1]))
+        if self._prota is not None and self._prota.isVisible():
+            self._prota.move(round(self._base_prota[0] + protagonista[0]), round(self._base_prota[1] + protagonista[1]))
+
+    def _tic(self):
+        if self.window().isMinimized() or self._prota is None or self._spec is None:
+            return
+        ahora = time.perf_counter()
+        paso = ahora - self._ultimo
+        if paso < 0.0285:           # como mucho 30 cuadros por segundo
+            return
+        self._ultimo = ahora
+        self._t += min(paso, 0.2)
+        u = self._t % self.PERIODO
+        # Hasta dónde hay que ir para salir del recuadro por la izquierda
+        salida = -(self.width() / 2 + self.ANCHO_PROTA)
+        d_logo, d_x, d_y, inc, emp, giro = 0.0, 0.0, 0.0, -8.0 + 1.2 * math.sin(self._t * 1.3), 0.0, 34.0
+        if u < 5:                                   # apoyado, mirando al logo
+            pass
+        elif u < 7.5:                               # lo empuja
+            k = _suave((u - 5) / 2.5)
+            emp, inc = k, -8 - 9 * k
+            d_logo, d_x = 28 * k, 14 * k
+            giro = 34 + 14 * k
+        elif u < 10.6:                              # el logo se la devuelve y lo saca del recuadro
+            k = (u - 7.5) / 3.1
+            golpe = _suave(k * 6)                   # el sacudón es rápido al principio
+            d_logo = 28 - 44 * golpe + 16 * _suave((k - 0.2) / 0.8)
+            recorrido = _suave(k) ** 0.8
+            d_x = 14 + (salida - 14) * recorrido
+            d_y = -26 * math.sin(math.pi * min(1.0, k * 1.4)) * (1 - k)    # sale despedido y rebota
+            inc = -17 + 62 * golpe
+            emp = max(0.0, 1 - golpe * 3)
+            giro = 48 - 20 * golpe
+        elif u < 13.2:                              # el logo, solo y contento (se acomoda)
+            k = (u - 10.6) / 2.6
+            d_logo = 0.0 + (-12 + 12 * _suave(k)) + 5 * math.sin(k * 14) * (1 - k)
+            d_x, inc, giro = salida, 20.0, 34.0
+        elif u < 16.4:                              # vuelve caminando y se apoya de nuevo
+            k = _suave((u - 13.2) / 3.2)
+            d_x = salida * (1 - k)
+            d_y = -8 * abs(math.sin((u - 13.2) * 5.0)) * (1 - k)
+            inc = 20 - 28 * k
+            giro = 34
+        else:
+            pass
+        self._pose(inclinacion=inc, empuje=emp, giroMano=giro, mira=14, vaiven=0)
+        self._mover(d_logo, (d_x, d_y))
 
 
 class Visor(QWidget):

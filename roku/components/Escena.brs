@@ -19,14 +19,24 @@ sub init()
     m.panel = m.top.findNode("panel")
     m.menuVideo = m.top.findNode("menuVideo")
     m.menuVideo.observeField("itemSelected", "alMenuVideo")
+    m.menuVideo.focusable = false
     m.pistas = []          ' los subtítulos del video: [{ TrackName, Description }]
     m.avisoIntro = m.top.findNode("avisoIntro")
     m.intro = []           ' [inicio, fin] en ms de la intro (series), si la PC ya la detectó
     m.accionesMenu = []
     ' Menú de arriba y grilla de Películas / Series
     m.menuSup = m.top.findNode("menuSup")
-    m.menuMarca = m.top.findNode("menuMarca")
-    m.menuFoco = m.top.findNode("menuFoco")
+    m.menuLista = m.top.findNode("menuLista")
+    m.menuLista.observeField("itemFocused", "alMenuFoco")
+    m.menuLista.observeField("itemSelected", "alMenuElegido")
+    nombres = ["Inicio", "Películas", "Series"]
+    raizMenu = CreateObject("roSGNode", "ContentNode")
+    for i = 0 to 2
+        n = raizMenu.createChild("ContentNode")
+        n.title = nombres[i]
+        n.addFields({ activo: (i = 0) })
+    end for
+    m.menuLista.content = raizMenu
     m.logoTop = m.top.findNode("logoTop")
     m.introFondo = m.top.findNode("introFondo")
     m.introTexto = m.top.findNode("introTexto")
@@ -37,7 +47,6 @@ sub init()
     m.firmaBotones = ""
     m.objetivoAplicado = false
     m.edadObjetivo = 0
-    m.menuEtiquetas = [m.top.findNode("menuInicio"), m.top.findNode("menuPeliculas"), m.top.findNode("menuSeries")]
     m.secciones = ["inicio", "pelicula", "serie"]
     m.menuSel = 0
     m.enMenu = false
@@ -232,7 +241,8 @@ sub cambiarPantalla(nombre as String)
     m.grilla.visible = (nombre = "grilla")
     m.episodios.visible = (nombre = "episodios")
     m.video.visible = (nombre = "video")
-    m.menuSup.visible = (nombre = "inicio" or nombre = "grilla")
+    enLista = (nombre = "inicio" or nombre = "grilla")
+    m.menuSup.visible = enLista
     m.logoTop.visible = (nombre <> "inicio" and nombre <> "grilla" and nombre <> "video")
     if nombre <> "video" then
         m.controles.visible = false
@@ -244,26 +254,43 @@ sub cambiarPantalla(nombre as String)
     m.codigo.visible = hayTexto
     m.ayuda.visible = hayTexto
     m.fondo.visible = (nombre <> "video")
+    ' Lo que no se ve no puede quedarse con el foco: así el control no navega «de fondo» detrás del video
+    m.filas.focusable = (nombre = "inicio")
+    m.grilla.focusable = (nombre = "grilla")
+    m.episodios.focusable = (nombre = "episodios")
+    m.menuLista.focusable = enLista
     if nombre = "inicio" then
         m.seccion.text = ""
-        m.pie.text = "◀ Menú     OK Elegir     ✱ Opciones"
-        m.enMenu = false
-        marcarMenu()
-        m.filas.setFocus(true)
+        m.pie.text = ""
     else if nombre = "grilla" then
         m.seccion.text = ""
-        m.pie.text = "◀ Menú     OK Elegir     Atrás: Menú"
-        m.enMenu = false
-        marcarMenu()
-        m.grilla.setFocus(true)
+        m.pie.text = ""
     else if nombre = "episodios" then
         m.pie.text = "Atrás: volver"
-        m.episodios.setFocus(true)
     else if nombre = "video" then
         m.pie.text = ""
-        m.top.setFocus(true)
     else
         m.pie.text = "* Opciones"
+    end if
+    marcarMenu()
+    ponerFoco(nombre)
+end sub
+
+' El foco va a un nodo de verdad de esa pantalla (no al fondo): el video, la lista o el menú
+sub ponerFoco(nombre as String)
+    if nombre = "inicio" or nombre = "grilla" then
+        if m.enMenu then
+            m.menuLista.setFocus(true)
+        else if nombre = "inicio" then
+            m.filas.setFocus(true)
+        else
+            m.grilla.setFocus(true)
+        end if
+    else if nombre = "episodios" then
+        m.episodios.setFocus(true)
+    else if nombre = "video" then
+        m.video.setFocus(true)
+    else
         m.top.setFocus(true)
     end if
 end sub
@@ -271,21 +298,15 @@ end sub
 ' --- Menú de arriba: Inicio · Películas · Series ---------------------------------------------------------
 
 sub marcarMenu()
+    c = m.menuLista.content
+    if c = invalid then return
     for i = 0 to 2
-        if i = m.menuSel and m.enMenu then
-            m.menuEtiquetas[i].color = "0x000000FF"       ' sobre la píldora blanca
-        else if i = m.menuSel then
-            m.menuEtiquetas[i].color = "0xFFFFFFFF"
-        else
-            m.menuEtiquetas[i].color = "0x9FB3CCFF"
-        end if
+        n = c.getChild(i)
+        if n <> invalid then n.activo = (i = m.menuSel)
     end for
-    y = 146 + m.menuSel * 68
-    m.menuFoco.translation = [14, y]
-    m.menuFoco.visible = m.enMenu
-    m.menuMarca.translation = [8, y + 10]
 end sub
 
+' Cambia de sección (Inicio · Películas · Series) sin mover el foco
 sub irSeccion(i as Integer)
     m.menuSel = i
     if m.secciones[i] = "inicio" then
@@ -301,7 +322,26 @@ sub irSeccion(i as Integer)
         m.mensaje.text = "Cargando…"
         pedir("GET", con_token("/roku/catalogo?tipo=" + m.secciones[i]), "", "catalogo")
     end if
-    if m.enMenu then m.top.setFocus(true)
+end sub
+
+sub entrarMenu()
+    m.enMenu = true
+    m.menuLista.jumpToItem = m.menuSel
+    m.menuLista.setFocus(true)
+end sub
+
+sub entrarContenido()
+    m.enMenu = false
+    if m.pantalla = "grilla" then m.grilla.setFocus(true) else m.filas.setFocus(true)
+end sub
+
+sub alMenuFoco()
+    i = m.menuLista.itemFocused
+    if m.enMenu and i >= 0 and i <> m.menuSel then irSeccion(i)
+end sub
+
+sub alMenuElegido()
+    entrarContenido()
 end sub
 
 sub alCatalogo(r as Object)
@@ -1052,12 +1092,14 @@ sub abrirSubs()
     m.menuVideo.jumpToItem = elegido
     ocultarControles()
     m.panel.visible = true
+    m.menuVideo.focusable = true
     m.menuVideo.setFocus(true)
 end sub
 
 sub cerrarSubs()
     m.panel.visible = false
-    m.top.setFocus(true)
+    m.menuVideo.focusable = false
+    m.video.setFocus(true)
     mostrarControles()
 end sub
 
@@ -1203,13 +1245,10 @@ sub cerrarVideo()
     m.cues = []
     m.capaSubs.visible = false
     m.video.control = "stop"
-    if m.episodiosAbiertos = true then
-        cambiarPantalla("episodios")
-    else if m.volver = "grilla" then
-        cambiarPantalla("grilla")
-    else
-        cambiarPantalla("inicio")
-    end if
+    ' Atrás (o terminar): siempre al Inicio
+    m.enMenu = false
+    m.menuSel = 0
+    cambiarPantalla("inicio")
 end sub
 
 sub avisar(texto as String)
@@ -1295,24 +1334,17 @@ function onKeyEvent(tecla as String, presionada as Boolean) as Boolean
     end if
     if m.pantalla = "inicio" or m.pantalla = "grilla" then
         if m.enMenu then
-            if tecla = "up" and m.menuSel > 0 then
-                irSeccion(m.menuSel - 1)
-            else if tecla = "down" and m.menuSel < 2 then
-                irSeccion(m.menuSel + 1)
-            else if tecla = "right" or tecla = "OK" then
-                m.enMenu = false
-                marcarMenu()
-                if m.pantalla = "inicio" then m.filas.setFocus(true) else m.grilla.setFocus(true)
+            if tecla = "right" then
+                entrarContenido()
+                return true
             else if tecla = "back" then
                 return false     ' desde el menú, Atrás sale del canal
             end if
-            return true
+            return false
         end if
         if tecla = "left" or tecla = "back" then
             ' ◀ (en la primera columna) o Atrás: al menú lateral
-            m.enMenu = true
-            marcarMenu()
-            m.top.setFocus(true)
+            entrarMenu()
             return true
         end if
         return false
@@ -1342,11 +1374,7 @@ function teclaVideo(tecla as String) as Boolean
         return false   ' arriba, abajo y OK los maneja la lista de subtítulos
     end if
     if tecla = "back" then
-        if m.controles.visible and m.video.state <> "paused" then
-            ocultarControles()
-        else
-            cerrarVideo()
-        end if
+        cerrarVideo()
         return true
     end if
     if tecla = "rewind" then

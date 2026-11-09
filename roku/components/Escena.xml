@@ -8,20 +8,18 @@
   <children>
     <Rectangle id="fondo" color="0x0B1220FF" width="1280" height="720" />
     <Label id="logoTop" text="TorrentVision" translation="[60,28]" font="font:MediumBoldSystemFont" color="0x3DAEEBFF" />
-    <!-- Menú lateral: siempre a la vista (◀ o Atrás desde las películas) -->
+    <!-- Menú lateral: el logo, el nombre y el lema arriba; abajo las secciones (◀ o Atrás desde el contenido) -->
     <Group id="menuSup" visible="false">
       <Rectangle width="214" height="720" color="0x0F1A2EFF" />
       <Rectangle translation="[214,0]" width="2" height="720" color="0x1E2E4A" />
-      <Label id="logo" text="TorrentVision" translation="[22,34]" width="180" font="font:SmallBoldSystemFont" color="0x3DAEEBFF" />
-      <Rectangle id="menuFoco" translation="[14,146]" width="188" height="58" color="0xFFFFFFFF" visible="false" />
-      <Rectangle id="menuMarca" translation="[8,156]" width="5" height="38" color="0x3DAEEBFF" />
-      <Label id="menuInicio" text="Inicio" translation="[34,146]" width="160" height="58" vertAlign="center"
-             font="font:MediumBoldSystemFont" color="0xFFFFFFFF" />
-      <Label id="menuPeliculas" text="Películas" translation="[34,214]" width="160" height="58" vertAlign="center"
-             font="font:MediumBoldSystemFont" color="0x9FB3CCFF" />
-      <Label id="menuSeries" text="Series" translation="[34,282]" width="160" height="58" vertAlign="center"
-             font="font:MediumBoldSystemFont" color="0x9FB3CCFF" />
-      <Label text="◀  Menú&#10;✱  Opciones" translation="[22,600]" width="180" height="80" wrap="true"
+      <Poster id="logoMenu" uri="pkg:/images/logo_menu.png" translation="[57,18]" width="100" height="100" />
+      <Label id="logoNombre" text="TorrentVision" translation="[0,122]" width="214" horizAlign="center"
+             font="font:SmallBoldSystemFont" color="0x3DAEEBFF" />
+      <Label id="logoLema" text="Torrent para todos" translation="[0,152]" width="214" horizAlign="center"
+             font="font:SmallestSystemFont" color="0x9FB3CCFF" />
+      <MarkupList id="menuLista" translation="[12,214]" itemComponentName="ItemMenu" itemSize="[190,58]" itemSpacing="[0,10]"
+                  numRows="3" drawFocusFeedback="false" vertFocusAnimationStyle="floatingFocus" />
+      <Label text="Izquierda: Menú&#10;Asterisco: Opciones" translation="[22,600]" width="180" height="80" wrap="true"
              font="font:SmallestSystemFont" color="0x6F86A6FF" />
     </Group>
     <Label id="seccion" text="" translation="[640,34]" width="600" horizAlign="right" font="font:SmallSystemFont" color="0x9FB3CCFF" />
@@ -71,7 +69,7 @@
     <Group id="avisoIntro" visible="false" translation="[940,430]">
       <Rectangle id="introFondo" width="290" height="68" color="0xFFFFFFFF" />
       <Label id="introTexto" translation="[0,0]" width="290" height="68" horizAlign="center" vertAlign="center"
-             text="▶▶  Saltar intro" font="font:MediumBoldSystemFont" color="0x000000FF" />
+             text="Saltar intro  >>" font="font:MediumBoldSystemFont" color="0x000000FF" />
     </Group>
     <!-- Subtítulos: a la derecha, como «Audio y subtítulos» de Netflix -->
     <Group id="panel" visible="false">

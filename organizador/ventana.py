@@ -46,6 +46,7 @@ from .chromecast import Transmisor
 from .ventana_cast import VentanaCast
 from .ventana_letterboxd import VentanaLetterboxd
 from . import vista3d
+from .tarjeta_protagonista import PasoDelMouse, TarjetaProtagonista
 from .ventana_avatar import EstadoSocial, VentanaAvatar
 from .ventana_torrents import VentanaTorrents
 from .ventana_video import VentanaVideo
@@ -452,6 +453,11 @@ class Ventana(QMainWindow):
         self.munequito = vista3d.crear(self.social.avatar, "busto")
         self.munequito.setFixedSize(alto + 6, alto)
         self.munequito.tocado.connect(self._abrir_avatar)
+        # Al pasar el mouse por el botón: el nombre, los puntos y el muñequito sobre el reproductor
+        self._tarjeta_prota = TarjetaProtagonista(self.visor)
+        self._paso_prota = PasoDelMouse(self)
+        self._paso_prota.instalar(self.munequito, self.lbl_munequito)
+        self._paso_prota.cambio.connect(self._mostrar_tarjeta_protagonista)
         fila.addWidget(self.lbl_munequito)
         fila.addWidget(self.munequito)
         self._esquina = esquina  # PySide no se queda con el widget de la esquina: sin esto se borra
@@ -1556,12 +1562,35 @@ class Ventana(QMainWindow):
         self.munequito.setFixedSize(alto + 6, alto)
 
     def _munequito_cambio(self):
-        self.munequito.poner(self.social.avatar)
-        self.munequito.setToolTip(self.social.resumen())
-        self.lbl_munequito.setToolTip(self.social.resumen())
-        p = self.social.perfil
-        self.lbl_munequito.setText(f"{p['nombre']} · {p['puntos']} pts" if p else
-                                   (self.social.usuario if self.social.conectado else "🎬 Armá tu Protagonista"))
+        social = self.social
+        self.munequito.poner(social.avatar)
+        # La tarjeta que aparece al pasar el mouse reemplaza al globito de texto
+        self.munequito.setToolTip("")
+        self.lbl_munequito.setToolTip("")
+        p = social.perfil
+        if social.nombre:                       # el nombre que le puso reemplaza a «Armá tu Protagonista»
+            texto = f"{social.nombre} · {p['puntos']} pts" if p else social.nombre
+        elif p:
+            texto = f"{p['nombre']} · {p['puntos']} pts"
+        else:
+            texto = social.usuario if social.conectado else "🎬 Armá tu Protagonista"
+        self.lbl_munequito.setText(texto)
+        # En la pantalla sin video, apoyado en el logo (si lo quiere así)
+        visor = getattr(self, "visor", None)
+        if visor is not None:
+            visor.vacio.poner_protagonista(social.avatar if social.en_logo else None)
+        tarjeta = getattr(self, "_tarjeta_prota", None)
+        if tarjeta is not None and tarjeta.isVisible():
+            self._mostrar_tarjeta_protagonista(True)
+
+    def _mostrar_tarjeta_protagonista(self, encima: bool):
+        if not encima:
+            self._tarjeta_prota.ocultar()
+            return
+        social = self.social
+        rango = social.perfil["rango"] if social.perfil else ""
+        self._tarjeta_prota.mostrar(social.avatar, social.nombre_visible() if (social.nombre or social.conectado)
+                                    else "Tu Protagonista", rango, social.puntos_texto())
 
     def _abrir_avatar(self):
         if self.ventana_avatar is None:

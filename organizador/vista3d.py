@@ -28,6 +28,14 @@ Item {
     property bool busto: false
     property bool quieto: false
     property real giroMano: 0
+    // Poses (la escena del logo): inclinación del cuerpo, brazo derecho extendido para empujar (0 a 1), hacia dónde mira
+    // la cabeza y cuánto se balancea solo (0 = quieto en su lugar)
+    property real inclinacion: 0
+    property real empuje: 0
+    property real mira: 0
+    property real vaiven: 1
+    // Escena liviana (la del logo, que se anima todo el tiempo): sin sombras ni oclusión, para llegar a 30 cuadros/s
+    property bool liviano: false
     property vector3d escala: Qt.vector3d(1, 1, 1)
     property real tiempo: 0
     property int cargadas: 0
@@ -40,16 +48,18 @@ Item {
         anchors.fill: parent
         environment: SceneEnvironment {
             backgroundMode: SceneEnvironment.Transparent
-            antialiasingMode: SceneEnvironment.MSAA; antialiasingQuality: SceneEnvironment.VeryHigh
-            aoEnabled: !raiz.busto; aoStrength: 40; aoDistance: 0.05; aoSoftness: 50
+            antialiasingMode: SceneEnvironment.MSAA
+            antialiasingQuality: raiz.liviano ? SceneEnvironment.Medium : SceneEnvironment.VeryHigh
+            aoEnabled: !raiz.busto && !raiz.liviano; aoStrength: 40; aoDistance: 0.05; aoSoftness: 50
             tonemapMode: SceneEnvironment.TonemapModeFilmic
         }
         PerspectiveCamera {
-            position: raiz.busto ? Qt.vector3d(0, 0.79, 4.2) : Qt.vector3d(0, 0.56, 6.6)
-            fieldOfView: raiz.busto ? 7.2 : 10.0
+            // Con margen para que entren los gorros, la galera y los rulos del afro
+            position: raiz.busto ? Qt.vector3d(0, 0.88, 4.2) : Qt.vector3d(0, 0.62, 6.6)
+            fieldOfView: raiz.busto ? 13.6 : 11.6
             clipNear: 0.1
         }
-        DirectionalLight { eulerRotation.x: -30; eulerRotation.y: -30; brightness: 2.2; castsShadow: !raiz.busto
+        DirectionalLight { eulerRotation.x: -30; eulerRotation.y: -30; brightness: 2.2; castsShadow: !raiz.busto && !raiz.liviano
                            shadowFactor: 25; shadowMapQuality: Light.ShadowMapQualityHigh; shadowBias: 0.4 }
         DirectionalLight { eulerRotation.x: -10; eulerRotation.y: 150; brightness: 0.9; color: "#bcd6ff" }
         DirectionalLight { eulerRotation.x: 20; eulerRotation.y: 20; brightness: 0.35 }
@@ -65,7 +75,8 @@ Item {
         Node {
             id: cuerpo
             scale: raiz.escala
-            eulerRotation.y: (raiz.quieto ? -16 : 15 * Math.sin(raiz.tiempo * 0.35)) + raiz.giroMano
+            eulerRotation.y: (raiz.quieto ? -16 : 15 * Math.sin(raiz.tiempo * 0.35) * raiz.vaiven) + raiz.giroMano
+            eulerRotation.z: raiz.inclinacion
             y: raiz.quieto ? 0 : 0.006 * Math.abs(Math.sin(raiz.tiempo * 1.1))
             RuntimeLoader { source: raiz.url("piernas"); onStatusChanged: if (status === RuntimeLoader.Success) raiz.cuenta() }
             Node {
@@ -81,14 +92,15 @@ Item {
             }
             Node {
                 position: Qt.vector3d(0.155, 0.585, 0)
-                eulerRotation.z: 4 + 2 * Math.sin(raiz.tiempo * 1.1 + 1); eulerRotation.x: -4 * Math.sin(raiz.tiempo * 0.8)
+                eulerRotation.z: 4 + 2 * Math.sin(raiz.tiempo * 1.1 + 1) + raiz.empuje * 80
+                eulerRotation.x: -4 * Math.sin(raiz.tiempo * 0.8) - raiz.empuje * 35
                 RuntimeLoader { source: raiz.url("brazo_d"); position: Qt.vector3d(-0.155, -0.585, 0)
                                 onStatusChanged: if (status === RuntimeLoader.Success) raiz.cuenta() }
             }
             Node {
                 // La cabeza mira para los costados y se inclina un poco
                 position: Qt.vector3d(0, 0.64, 0)
-                eulerRotation.y: raiz.quieto ? 0 : 11 * Math.sin(raiz.tiempo * 0.55)
+                eulerRotation.y: (raiz.quieto ? 0 : 11 * Math.sin(raiz.tiempo * 0.55) * raiz.vaiven) + raiz.mira
                 eulerRotation.z: raiz.quieto ? 3 : 3 * Math.sin(raiz.tiempo * 0.9)
                 eulerRotation.x: raiz.quieto ? 0 : -3 + 3 * Math.sin(raiz.tiempo * 0.7)
                 RuntimeLoader { source: raiz.url("cabeza"); position: Qt.vector3d(0, -0.64, 0)
@@ -240,6 +252,16 @@ def _clase():
                     QTimer.singleShot(0, self.listo.emit)   # ya estaba: no se vuelve a cargar
                 else:
                     raiz.setProperty("carpeta", url)
+
+        def pose(self, **valores):
+            """Cambia la pose: inclinacion (grados), empuje (0 a 1), mira (grados), vaiven (0 a 1), giroMano (grados)."""
+            try:
+                raiz = self.rootObject()
+            except RuntimeError:
+                return
+            if raiz is not None:
+                for clave, valor in valores.items():
+                    raiz.setProperty(clave, valor if isinstance(valor, bool) else float(valor))
 
         def imagen(self) -> QPixmap:
             return QPixmap.fromImage(self.grabFramebuffer())

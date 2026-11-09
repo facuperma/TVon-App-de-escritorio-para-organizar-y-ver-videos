@@ -8,7 +8,7 @@ import random
 from PySide6.QtCore import QBuffer, QByteArray, QObject, QPointF, QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QGuiApplication, QIcon, QImage, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (
-    QColorDialog, QComboBox, QDialog, QDialogButtonBox, QFileDialog, QFormLayout, QFrame, QGridLayout, QHBoxLayout,
+    QCheckBox, QColorDialog, QComboBox, QDialog, QDialogButtonBox, QFileDialog, QFormLayout, QFrame, QGridLayout, QHBoxLayout,
     QLabel, QLineEdit, QListWidget, QListWidgetItem, QMessageBox, QPushButton, QSlider, QStackedWidget, QTabWidget,
     QVBoxLayout, QWidget,
 )
@@ -64,12 +64,41 @@ class EstadoSocial(QObject):
     def conectado(self) -> bool:
         return self.cliente is not None
 
+    @property
+    def nombre(self) -> str:
+        """El nombre que le puso a su Protagonista (vacío si todavía no le puso)."""
+        return (self.bib.config("protagonista_nombre") or "").strip()
+
+    def guardar_nombre(self, nombre: str):
+        nombre = " ".join(nombre.split())[:24]
+        if nombre != self.nombre:
+            self.bib.guardar_config("protagonista_nombre", nombre)
+            self.cambio.emit()
+
+    @property
+    def en_logo(self) -> bool:
+        """¿El Protagonista aparece apoyado en el logo cuando no hay nada seleccionado? (por defecto sí)"""
+        return self.bib.config("protagonista_en_logo") != "0"
+
+    def guardar_en_logo(self, activo: bool):
+        self.bib.guardar_config("protagonista_en_logo", "1" if activo else "0")
+        self.cambio.emit()
+
+    def nombre_visible(self) -> str:
+        return self.nombre or (self.perfil["nombre"] if self.perfil else "") or self.usuario or "Tu Protagonista"
+
+    def puntos_texto(self) -> str:
+        if self.perfil:
+            return f"⭐ {self.perfil['puntos']} puntos"
+        return "Sin cuenta: creá una para sumar puntos" if not self.conectado else "Contando tus puntos…"
+
     def resumen(self) -> str:
         if not self.conectado:
-            return "🎬 Armá tu Protagonista: la estrella de tu videoteca. Tocalo para empezar"
+            return (f"{self.nombre} · sin cuenta, sin puntos" if self.nombre else
+                    "🎬 Armá tu Protagonista: la estrella de tu videoteca. Tocalo para empezar")
         if self.perfil:
-            return f"{self.perfil['nombre']} · {self.perfil['rango']} · {self.perfil['puntos']} puntos"
-        return f"{self.usuario} · conectando…"
+            return f"{self.nombre_visible()} · {self.perfil['rango']} · {self.perfil['puntos']} puntos"
+        return f"{self.nombre_visible()} · conectando…"
 
     def guardar_avatar(self, avatar: dict):
         self.avatar = avatar3d.normalizar(avatar)
@@ -318,6 +347,14 @@ class VentanaAvatar(QWidget):
         capa = QVBoxLayout(hoja)
         self._muestras = {}
         self._combos = {}
+        fila_nombre = QHBoxLayout()
+        self.nombre = QLineEdit(self.estado.nombre, maxLength=24, placeholderText="Ponele un nombre a tu Protagonista")
+        self.nombre.setToolTip("Este nombre reemplaza a «Armá tu Protagonista» arriba a la derecha")
+        self.nombre.textEdited.connect(lambda _t: self.lbl_guardado.setText("Sin guardar"))
+        self.nombre.returnPressed.connect(lambda: self._guardar())
+        fila_nombre.addWidget(QLabel("<b>Nombre</b>"))
+        fila_nombre.addWidget(self.nombre, 1)
+        capa.addLayout(fila_nombre)
         secciones = QTabWidget()
         secciones.setDocumentMode(True)
 
@@ -361,6 +398,10 @@ class VentanaAvatar(QWidget):
         secciones.addTab(extras, "🎩 Accesorios")
 
         capa.addWidget(secciones, 1)
+        self.en_logo = QCheckBox("Que aparezca apoyado en el logo cuando no hay ningún video elegido")
+        self.en_logo.setChecked(self.estado.en_logo)
+        self.en_logo.toggled.connect(self.estado.guardar_en_logo)   # esto se aplica en el momento
+        capa.addWidget(self.en_logo)
         botones = QHBoxLayout()
         azar = QPushButton("🎲 Sorprendeme")
         azar.clicked.connect(self._al_azar)
@@ -433,6 +474,7 @@ class VentanaAvatar(QWidget):
         self.lbl_guardado.setText("Sin guardar")
 
     def _guardar(self):
+        self.estado.guardar_nombre(self.nombre.text())
         self.estado.guardar_avatar(self.spec)
         self.lbl_guardado.setText("✓ Guardado" + (" en tu cuenta" if self.estado.conectado else ""))
 
