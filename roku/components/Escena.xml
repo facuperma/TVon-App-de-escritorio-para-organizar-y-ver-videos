@@ -76,7 +76,7 @@
       <Rectangle translation="[820,0]" width="460" height="720" color="0x141414F0" />
       <Label id="panelTitulo" translation="[860,60]" width="380" text="Subtítulos" font="font:MediumBoldSystemFont"
              color="0xFFFFFFFF" />
-      <LabelList id="menuVideo" translation="[860,120]" itemSize="[380,54]" numRows="10" />
+      <LabelList id="menuVideo" translation="[860,110]" itemSize="[380,48]" numRows="11" vertFocusAnimationStyle="floatingFocus" />
       <Label translation="[860,660]" width="380" text="OK: elegir   Atrás: volver" font="font:SmallestSystemFont"
              color="0x9FB3CCFF" />
     </Group>

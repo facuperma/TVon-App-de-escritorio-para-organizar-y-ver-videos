@@ -1079,8 +1079,9 @@ sub abrirSubs()
         tam = "Normal"
         if m.escalaSubs < 0.9 then tam = "Chico"
         if m.escalaSubs > 1.15 then tam = "Grande"
-        extras = [["—  Ahora: " + textoRetraso(), "nada"], ["Que salgan antes (−0,5 s)", "ret:-500"],
-                  ["Que salgan después (+0,5 s)", "ret:500"], ["Sincronizar solos con el audio", "sync"],
+        extras = [["—  Ahora: " + textoRetraso(), "nada"], ["Un poco antes (−0,1 s)", "ret:-100"],
+                  ["Un poco después (+0,1 s)", "ret:100"], ["Mucho antes (−0,5 s)", "ret:-500"],
+                  ["Mucho después (+0,5 s)", "ret:500"], ["Sincronizar solos con el audio", "sync"],
                   ["Tamaño: " + tam, "tam"]]
         for each o in extras
             n = raiz.createChild("ContentNode")
@@ -1113,8 +1114,7 @@ sub alMenuVideo()
     else if Left(a, 4) = "ret:" then
         m.retraso = m.retraso + Int(Val(a.Mid(4)))
         avisar2("Subtítulos: " + textoRetraso())
-        abrirSubs()
-        m.menuVideo.jumpToItem = i
+        actualizarLinea("nada", "—  Ahora: " + textoRetraso())
     else if a = "sync" then
         pedir("POST", con_token("/roku/sincronizar"), "{}", "sync")
         avisar2("Sincronizando los subtítulos con el audio… (puede tardar un rato)")
@@ -1128,9 +1128,21 @@ sub alMenuVideo()
             m.escalaSubs = 0.8
         end if
         aplicarTamano()
-        abrirSubs()
-        m.menuVideo.jumpToItem = i
+        tam = "Normal"
+        if m.escalaSubs < 0.9 then tam = "Chico"
+        if m.escalaSubs > 1.15 then tam = "Grande"
+        actualizarLinea("tam", "Tamaño: " + tam)
     end if
+end sub
+
+' Cambia el texto de una línea del panel sin rearmarlo (así no se mueve la lista ni se pierde el lugar)
+sub actualizarLinea(accion as String, texto as String)
+    for i = 0 to m.accionesMenu.Count() - 1
+        if m.accionesMenu[i] = accion then
+            n = m.menuVideo.content.getChild(i)
+            if n <> invalid then n.title = texto
+        end if
+    end for
 end sub
 
 function subtituloActual() as Integer
