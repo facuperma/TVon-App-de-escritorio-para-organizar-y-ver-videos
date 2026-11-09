@@ -45,6 +45,9 @@ import io.github.facuperma.tvon.Cast
 import io.github.facuperma.tvon.Roku
 import io.github.facuperma.tvon.Modelo
 import io.github.facuperma.tvon.Subtitulos
+import io.github.facuperma.tvon.Reproduccion
+import io.github.facuperma.tvon.SubArchivo
+import io.github.facuperma.tvon.Tamano
 import io.github.facuperma.tvon.textoSincronia
 import io.github.facuperma.tvon.tiempo
 import kotlinx.coroutines.delay
@@ -60,18 +63,41 @@ fun deslizador() = SliderDefaults.colors(thumbColor = Color.White, activeTrackCo
 @Composable
 fun PestanaReproductor(vm: Modelo) {
     val e = vm.estado
-    val rep = e?.reproduccion
+    // Con el Roku conectado, este mismo control maneja la película de la tele (hasta «Desconectarme del Roku»)
+    val roku = e?.roku?.takeIf { it.disponible && it.conectado }
+    val tele = roku != null && !vm.controlarPc
+    val rep = if (tele) roku!!.let {
+        Reproduccion(if (it.estado == "pausa") "pausa" else if (it.viendo) "reproduciendo" else "detenido",
+            it.posicion, it.duracion, 50, false, 0L, 0L)
+    }.takeIf { roku!!.viendo } else e?.reproduccion
     val hay = rep != null
+    // Las acciones van a la PC o, con la tele, a la película del Roku
+    fun orden(pc: String, deTele: String, vararg datos: Pair<String, Any?>) = vm.hacer(if (tele) deTele else pc, *datos)
     Column(
         Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp, vertical = 6.dp)
     ) {
-        e?.roku?.takeIf { it.disponible && it.viendo }?.let { TarjetaRoku(vm, it) }
+        if (roku != null) {
+            Tarjeta {
+                if (tele) {
+                    Pista("📺 Controlando la tele (${roku.nombre.ifBlank { "Roku" }})")
+                    Boton("💻 Desconectarme del Roku y controlar la PC", Modifier.fillMaxWidth(), chico = true) { vm.controlarPc = true }
+                } else {
+                    Pista("📺 Hay un Roku conectado (${roku.nombre}). Ahora estás controlando la PC.")
+                    Boton("📺 Volver a controlar el Roku", Modifier.fillMaxWidth(), chico = true) { vm.controlarPc = false }
+                }
+            }
+        }
         Tarjeta {
-            Text(e?.archivo?.nombre ?: "Nada en reproducción", color = C.titulo, fontWeight = FontWeight.SemiBold)
-            Pista(rep?.let { ESTADOS[it.estado].orEmpty() } ?: if (e?.archivo != null) "🖼 Imagen" else "Elegí algo en la Biblioteca")
+            if (tele) {
+                Text(roku!!.titulo.ifBlank { "Nada en la tele" }, color = C.titulo, fontWeight = FontWeight.SemiBold)
+                Pista(if (hay) ESTADOS[rep!!.estado].orEmpty() else "Elegí una película o un capítulo y tocá «📺 En la tele»")
+            } else {
+                Text(e?.archivo?.nombre ?: "Nada en reproducción", color = C.titulo, fontWeight = FontWeight.SemiBold)
+                Pista(rep?.let { ESTADOS[it.estado].orEmpty() } ?: if (e?.archivo != null) "🖼 Imagen" else "Elegí algo en la Biblioteca")
+            }
         }
 
         Tarjeta {
@@ -83,7 +109,9 @@ fun PestanaReproductor(vm: Modelo) {
                 value = posicion.coerceIn(0f, duracion), valueRange = 0f..duracion, enabled = hay, colors = deslizador(),
                 onValueChange = { arrastre = it },
                 onValueChangeFinished = {
-                    arrastre?.let { ms -> vm.correr { try { vm.accion("ir_a", "ms" to ms.toLong()) } finally { arrastre = null } } }
+                    arrastre?.let { ms ->
+                        vm.correr { try { vm.accion(if (tele) "roku_ir_a" else "ir_a", "ms" to ms.toLong()) } finally { arrastre = null } }
+                    }
                 },
             )
             Row(Modifier.fillMaxWidth()) {
@@ -94,25 +122,50 @@ fun PestanaReproductor(vm: Modelo) {
                 Boton("⏭ Saltar intro", Modifier.fillMaxWidth(), Estilo.PRIMARIO) { vm.hacer("saltar_intro") }
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-                Redondo("⏮") { vm.hacer("lista", "paso" to -1) }
-                Redondo("↺15", habilitado = hay) { vm.hacer("adelantar", "ms" to -15000) }
-                Redondo(if (rep?.estado == "reproduciendo") "⏸" else "▶", grande = true, habilitado = hay) { vm.hacer("play_pausa") }
-                Redondo("15↻", habilitado = hay) { vm.hacer("adelantar", "ms" to 15000) }
-                Redondo("⏭", habilitado = hay) { vm.hacer("siguiente") }
+                Redondo("⏮", habilitado = !tele) { vm.hacer("lista", "paso" to -1) }
+                Redondo("↺15", habilitado = hay) { orden("adelantar", "roku_adelantar", "ms" to -15000) }
+                Redondo(if (rep?.estado == "reproduciendo") "⏸" else "▶", grande = true, habilitado = hay) {
+                    orden("play_pausa", "roku_play_pausa")
+                }
+                Redondo("15↻", habilitado = hay) { orden("adelantar", "roku_adelantar", "ms" to 15000) }
+                Redondo("⏭", habilitado = hay) { orden("siguiente", "roku_siguiente") }
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Boton("−5 s", Modifier.weight(1f), habilitado = hay, chico = true) { vm.hacer("adelantar", "ms" to -5000) }
-                Boton("⏹", Modifier.weight(1f), habilitado = hay, chico = true) { vm.hacer("detener") }
-                Boton("+5 s", Modifier.weight(1f), habilitado = hay, chico = true) { vm.hacer("adelantar", "ms" to 5000) }
-                Boton("Lista ▶", Modifier.weight(1f), chico = true) { vm.hacer("lista", "paso" to 1) }
+                Boton("−5 s", Modifier.weight(1f), habilitado = hay, chico = true) { orden("adelantar", "roku_adelantar", "ms" to -5000) }
+                Boton("⏹", Modifier.weight(1f), habilitado = hay, chico = true) { orden("detener", "roku_detener") }
+                Boton("+5 s", Modifier.weight(1f), habilitado = hay, chico = true) { orden("adelantar", "roku_adelantar", "ms" to 5000) }
+                Boton("Lista ▶", Modifier.weight(1f), habilitado = !tele, chico = true) { vm.hacer("lista", "paso" to 1) }
             }
-            Volumen(vm, rep?.volumen ?: 50, rep?.silencio ?: false, hay)
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Boton("⛶ Pantalla completa", chico = true) { vm.hacer("pantalla_completa") }
-                Box(Modifier.weight(1f).padding(start = 12.dp)) {
-                    Interruptor("🔌 Apagar la PC al terminar", e?.apagarAlTerminar ?: false) { vm.hacer("apagar_al_terminar", "activo" to it) }
+            if (tele) {
+                // El volumen de la tele va por el control externo del Roku (como las teclas del control)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Boton("🔇", Modifier.weight(1f), chico = true) { vm.hacer("roku_volumen", "tecla" to "silencio") }
+                    Boton("🔉 −", Modifier.weight(1f), chico = true) { vm.hacer("roku_volumen", "tecla" to "menos") }
+                    Boton("🔊 +", Modifier.weight(1f), chico = true) { vm.hacer("roku_volumen", "tecla" to "mas") }
+                }
+            } else {
+                Volumen(vm, rep?.volumen ?: 50, rep?.silencio ?: false, hay)
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Boton("⛶ Pantalla completa", chico = true) { vm.hacer("pantalla_completa") }
+                    Box(Modifier.weight(1f).padding(start = 12.dp)) {
+                        Interruptor("🔌 Apagar la PC al terminar", e?.apagarAlTerminar ?: false) { vm.hacer("apagar_al_terminar", "activo" to it) }
+                    }
                 }
             }
+        }
+
+        if (tele) {
+            // Los subtítulos de la tele, con las mismas opciones que los de la PC
+            val r = roku!!
+            if (hay && r.subs.isNotEmpty()) {
+                TarjetaSubtitulos(vm, Subtitulos(
+                    archivos = r.subs.mapIndexed { i, t -> SubArchivo(i.toString(), t, i == r.sub) }, pistas = emptyList(),
+                    activos = r.sub >= 0, retraso = r.retraso, escala = r.escala,
+                    tamanos = e.subtitulos?.tamanos ?: TAMANOS_TELE, sincronizando = r.sincronizando,
+                ), conClave = false, tele = true)
+            }
+            vm.errorControl?.let { Text(it, color = C.error) }
+            return@Column
         }
 
         e?.subtitulos?.let { TarjetaSubtitulos(vm, it, e.opensubtitles) }
@@ -138,7 +191,7 @@ fun PestanaReproductor(vm: Modelo) {
         }
 
         e?.cast?.let { TarjetaTele(vm, it, hay) }
-        e?.roku?.takeIf { it.disponible && !it.viendo }?.let { TarjetaRoku(vm, it) }
+        e?.roku?.takeIf { it.disponible && !it.conectado }?.let { TarjetaRoku(vm, it) }
 
         Tarjeta {
             val cola = e?.cola.orEmpty()
@@ -202,7 +255,7 @@ private fun TarjetaTele(vm: Modelo, c: Cast, hayVideo: Boolean) {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ControlesRoku(vm: Modelo, r: Roku) {
-    Text("📺 Ahora en la tele: ${r.titulo}", color = C.titulo, fontWeight = FontWeight.SemiBold)
+    Text(r.titulo, color = C.titulo, fontWeight = FontWeight.SemiBold)
     var arrastre by remember { mutableStateOf<Float?>(null) }
     val duracion = r.duracion.coerceAtLeast(1L).toFloat()
     val posicion = arrastre ?: r.posicion.toFloat()
@@ -236,8 +289,10 @@ private fun ControlesRoku(vm: Modelo, r: Roku) {
         }
     }
     Boton("⏹ Parar en la tele", Modifier.fillMaxWidth(), chico = true) { vm.hacer("roku_detener") }
-    Pista("En la tele también: flechas arriba/abajo o ✱ abren el menú; Atrás vuelve a la lista.")
+    Pista("Con el control del Roku: OK pausa, ◀ ▶ saltan 10 s, abajo muestra los botones y Atrás vuelve a la lista.")
 }
+
+private val TAMANOS_TELE = listOf(Tamano("Chico", 0.75), Tamano("Normal", 1.0), Tamano("Grande", 1.3), Tamano("Muy grande", 1.6))
 
 /** El Roku: aprobar su código la primera vez y manejar lo que está viendo. */
 @Composable
@@ -311,7 +366,7 @@ private fun Volumen(vm: Modelo, volumen: Int, silencio: Boolean, hay: Boolean) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun TarjetaSubtitulos(vm: Modelo, s: Subtitulos, conClave: Boolean) {
+private fun TarjetaSubtitulos(vm: Modelo, s: Subtitulos, conClave: Boolean, tele: Boolean = false) {
     var abierta by rememberSaveable { mutableStateOf(false) }
     val activo = s.archivos.firstOrNull { it.activo }?.texto ?: s.pistas.firstOrNull { it.activa }?.texto
     Tarjeta {
@@ -331,21 +386,29 @@ private fun TarjetaSubtitulos(vm: Modelo, s: Subtitulos, conClave: Boolean) {
             Text(if (abierta) "▾" else "▸", color = C.tenue)
         }
         if (!abierta) return@Tarjeta
-        OpcionSub("Desactivados", !s.activos) { vm.hacer("subtitulos") }
-        for (a in s.archivos) OpcionSub(a.texto, a.activo) { vm.hacer("subtitulos", "archivo" to a.ruta) }
+        OpcionSub("Desactivados", !s.activos) { if (tele) vm.hacer("roku_subtitulo", "n" to -1) else vm.hacer("subtitulos") }
+        for (a in s.archivos) OpcionSub(a.texto, a.activo) {
+            if (tele) vm.hacer("roku_subtitulo", "n" to a.ruta.toInt()) else vm.hacer("subtitulos", "archivo" to a.ruta)
+        }
         s.pistas.forEachIndexed { i, p -> OpcionSub("${p.texto} (incluida en el video)", p.activa) { vm.hacer("subtitulos", "pista" to i) } }
 
         val conArchivo = s.archivos.any { it.activo }
         Pista("Sincronía: ${textoSincronia(s.retraso)}")
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             for ((texto, ms) in listOf("◀◀" to -500, "◀ Antes" to -100, "Después ▶" to 100, "▶▶" to 500)) {
-                Boton(texto, Modifier.weight(1f), habilitado = conArchivo, chico = true) { vm.hacer("retraso", "ms" to ms) }
+                Boton(texto, Modifier.weight(1f), habilitado = conArchivo, chico = true) {
+                    if (tele) vm.hacer("roku_retraso", "ms" to s.retraso + ms) else vm.hacer("retraso", "ms" to ms)
+                }
             }
         }
         // El número exacto, escrito a mano (también con signo: -2500 = salen 2,5 s antes)
         var ms by rememberSaveable { mutableStateOf("") }
         val aplicar = {
-            ms.trim().toIntOrNull()?.let { vm.hacer("retraso", "valor" to it.coerceIn(-600_000, 600_000)); ms = "" }
+            ms.trim().toIntOrNull()?.let {
+                val v = it.coerceIn(-600_000, 600_000)
+                if (tele) vm.hacer("roku_retraso", "ms" to v) else vm.hacer("retraso", "valor" to v)
+                ms = ""
+            }
                 ?: vm.mostrarAviso("Escribí un número de milisegundos, por ejemplo -2500 o 1200", true)
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -359,14 +422,20 @@ private fun TarjetaSubtitulos(vm: Modelo, s: Subtitulos, conClave: Boolean) {
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Boton(if (s.sincronizando >= 0) "⏳ Sincronizando… ${s.sincronizando} %" else "🪄 Automática", Modifier.weight(1f),
-                habilitado = conArchivo && s.sincronizando < 0, chico = true) { vm.hacer("sincronizar_auto") }
-            Boton("🎯 Ahora habla", Modifier.weight(1f), habilitado = conArchivo, chico = true) { vm.hacer("sincronizar_ahora") }
+                habilitado = conArchivo && s.sincronizando < 0, chico = true) { vm.hacer(if (tele) "roku_sincronizar" else "sincronizar_auto") }
+            Boton("🎯 Ahora habla", Modifier.weight(1f), habilitado = conArchivo, chico = true) {
+                vm.hacer(if (tele) "roku_sincronizar_ahora" else "sincronizar_ahora")
+            }
         }
-        Boton("↺ Sin ajuste", Modifier.fillMaxWidth(), habilitado = conArchivo, chico = true) { vm.hacer("retraso", "valor" to 0) }
+        Boton("↺ Sin ajuste", Modifier.fillMaxWidth(), habilitado = conArchivo, chico = true) {
+            if (tele) vm.hacer("roku_retraso", "ms" to 0) else vm.hacer("retraso", "valor" to 0)
+        }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            for (t in s.tamanos) Chip(t.texto, t.escala == s.escala) { vm.hacer("tamano_subtitulos", "escala" to t.escala) }
+            for (t in s.tamanos) Chip(t.texto, t.escala == s.escala) {
+                vm.hacer(if (tele) "roku_tamano" else "tamano_subtitulos", "escala" to t.escala)
+            }
         }
-        Boton("🌐 Buscar en internet (OpenSubtitles)", Modifier.fillMaxWidth()) {
+        if (!tele) Boton("🌐 Buscar en internet (OpenSubtitles)", Modifier.fillMaxWidth()) {
             if (conClave) vm.hacer("buscar_subtitulos")
             else vm.mostrarAviso("Falta la clave de OpenSubtitles: cargala en Configuración → Preferencias, en la PC", true)
         }

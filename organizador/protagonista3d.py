@@ -14,7 +14,7 @@ import numpy as np
 from . import avatar3d
 from .modelado import cortar, curva, elipsoide, esfera, capsula, caja_redonda, guardar_glb, malla, restar, unir
 
-VERSION = 9  # subir si cambia la forma: así se rearman los que están en caché
+VERSION = 10 # subir si cambia la forma: así se rearman los que están en caché
 PASO = 0.0045
 
 # Puntos de articulación (para animar): hombros, cuello, cadera
@@ -90,13 +90,18 @@ def _cabeza_sdf(p, con_foto=False):
     cachetes = elipsoide(p, (0, 0.77, 0.03), (0.155, 0.11, 0.14))
     d = unir(cabeza, cachetes, 0.06)
     if con_foto:
-        # El hueco de la cara: un cilindro hacia adentro, con fondo en z = FONDO_FOTO y el borde apenas redondeado
-        tubo = np.linalg.norm(p[..., :2] - np.array([0.0, 0.8], np.float32), axis=-1) - RADIO_FOTO
-        d = restar(d, cortar(tubo, FONDO_FOTO - p[..., 2]), 0.008)
+        # La cara se curva hacia adentro como un cuenco (más hondo en el medio, nada en el borde): la foto va
+        # pegada a esa curva y encima queda un vidrio al ras de la cara
+        d = d + _hondo_foto(p)
     return d
 
 
-RADIO_FOTO, FONDO_FOTO = 0.122, 0.118
+RADIO_FOTO, HONDO_FOTO = 0.118, 0.032
+
+
+def _hondo_foto(p):
+    r2 = ((p[..., 0] ** 2 + (p[..., 1] - 0.8) ** 2) / RADIO_FOTO ** 2)
+    return HONDO_FOTO * np.clip(1 - r2, 0, None) * (p[..., 2] > 0.04)
 
 
 def _linea_pelo(p):
@@ -320,6 +325,9 @@ def _armar(s: dict, foto_jpg: bytes | None) -> dict[str, list]:
     _lentes(partes["cabeza"], s, ca)
     if con_foto:
         partes["cabeza"].append(("foto", "foto", None, {"color": (1, 1, 1), "rugosidad": 0.6, "textura": foto_jpg, "dos_caras": True}))
+        partes["cabeza"].append(("vidrio", "vidrio", None, {"color": (1, 1, 1), "rugosidad": 0.05, "transparente": True,
+                                                             "textura": _reflejo_vidrio(), "tipo": "image/png",
+                                                             "dos_caras": True}))
 
     # Torso: cuello, ropa, estampa
     partes["torso"].append(("cuello", lambda p: capsula(p, (0, 0.58, 0), (0, 0.7, 0), 0.046),
@@ -519,27 +527,74 @@ def _auriculares(lista, s, ca):
 
 # --- La foto en la cara ------------------------------------------------------------------------------------
 
-def _disco_foto():
-    """La foto: un disco plano en el fondo del hueco de la cara (como una ventana en la cabeza)."""
-    anillos, lados = 14, 72
-    radio = RADIO_FOTO - 0.003
-    vert, uv = [(0.0, 0.8, FONDO_FOTO + 0.002)], [(0.5, 0.5)]
+_REFLEJO = None
+
+
+def _reflejo_vidrio() -> bytes:
+    """Textura del vidrio: casi transparente, con un brillo diagonal arriba a la izquierda y otro chiquito abajo."""
+    global _REFLEJO
+    if _REFLEJO is None:
+        from PySide6.QtCore import QBuffer, QByteArray
+        from PySide6.QtGui import QImage
+        n = 128
+        y, x = np.mgrid[0:n, 0:n].astype(np.float32) / (n - 1) * 2 - 1
+        alfa = np.full((n, n), 0.07, np.float32)
+        banda = np.exp(-(((x + y + 0.75) / 0.16) ** 2)) * np.clip(1.2 - np.hypot(x + 0.35, y + 0.35), 0, 1)
+        fina = np.exp(-(((x + y + 0.38) / 0.05) ** 2)) * np.clip(1.0 - np.hypot(x + 0.2, y + 0.2), 0, 1)
+        punto = np.exp(-((np.hypot(x - 0.42, y - 0.5) / 0.09) ** 2))
+        alfa = np.clip(alfa + 0.62 * banda + 0.5 * fina + 0.5 * punto, 0, 1)
+        rgba = np.zeros((n, n, 4), np.uint8)
+        rgba[..., :3] = 255
+        rgba[..., 3] = (alfa * 255).astype(np.uint8)
+        imagen = QImage(rgba.tobytes(), n, n, 4 * n, QImage.Format.Format_RGBA8888).copy()
+        datos = QByteArray()
+        buffer = QBuffer(datos)
+        buffer.open(QBuffer.OpenModeFlag.WriteOnly)
+        imagen.save(buffer, "PNG")
+        _REFLEJO = bytes(datos)
+    return _REFLEJO
+
+
+def _disco_foto(vidrio=False):
+    """La foto, pegada a la curva hacia adentro de la cara (vidrio=False), o el vidrio que la tapa al ras de la
+    cara (vidrio=True). Cada punto se ubica sobre la superficie buscándola de adelante hacia atrás."""
+    anillos, lados = 16, 72
+    radio = RADIO_FOTO - (0.004 if not vidrio else 0.0)
+    xy, uv = [(0.0, 0.8)], [(0.5, 0.5)]
     for a in range(1, anillos + 1):
         r = a / anillos
         for j in range(lados):
             ang = 2 * math.pi * j / lados
             u, v = r * math.cos(ang), r * math.sin(ang)
-            vert.append((u * radio, 0.8 + v * radio, FONDO_FOTO + 0.002))
+            xy.append((u * radio, 0.8 + v * radio))
             uv.append(((u + 1) / 2, 1 - (v + 1) / 2))
+    xy = np.array(xy, np.float32)
+    superficie = (lambda q: _cabeza_sdf(q)) if vidrio else (lambda q: _cabeza_sdf(q, True))
+
+    def en(z):
+        return np.concatenate([xy, z[:, None]], axis=1).astype(np.float32)
+
+    # Bisección en z: adelante (0.3) está afuera, atrás (0.0) adentro
+    lejos, cerca = np.full(len(xy), 0.3, np.float32), np.zeros(len(xy), np.float32)
+    for _ in range(32):
+        medio = (lejos + cerca) / 2
+        afuera = superficie(en(medio)) > 0
+        lejos = np.where(afuera, medio, lejos)
+        cerca = np.where(afuera, cerca, medio)
+    vert = en((lejos + cerca) / 2)
+    # Normal = gradiente de la superficie (así la luz muestra la curva)
+    h = 0.002
+    normal = np.stack([superficie(vert + np.array(e, np.float32) * h) - superficie(vert - np.array(e, np.float32) * h)
+                       for e in ((1, 0, 0), (0, 1, 0), (0, 0, 1))], axis=1)
+    normal /= np.maximum(np.linalg.norm(normal, axis=1, keepdims=True), 1e-6)
+    vert = vert + normal * (0.0025 if not vidrio else 0.0015)
     tris = [(0, 1 + j, 1 + (j + 1) % lados) for j in range(lados)]
     for a in range(anillos - 1):
         b0, b1 = 1 + a * lados, 1 + (a + 1) * lados
         for j in range(lados):
             j2 = (j + 1) % lados
             tris += [(b0 + j, b1 + j, b1 + j2), (b0 + j, b1 + j2, b0 + j2)]
-    vert = np.array(vert, np.float32)
-    normal = np.tile(np.array([0, 0, 1], np.float32), (len(vert), 1))
-    return vert, normal, np.array(tris, np.uint32), np.array(uv, np.float32)
+    return vert.astype(np.float32), normal.astype(np.float32), np.array(tris, np.uint32), np.array(uv, np.float32)
 
 
 # --- Armar y guardar ------------------------------------------------------------------------------------------
@@ -594,8 +649,8 @@ def construir(spec: dict, carpeta: Path, paso: float = PASO) -> Path:
         nuevas = {}
         mallas = []
         for nombre, funcion, caja, material in piezas:
-            if funcion == "foto":
-                mallas.append((nombre, _disco_foto(), material))
+            if funcion in ("foto", "vidrio"):
+                mallas.append((nombre, _disco_foto(funcion == "vidrio"), material))
                 continue
             if f"{nombre}__v" in guardadas:
                 geo = (guardadas[f"{nombre}__v"], guardadas[f"{nombre}__n"], guardadas[f"{nombre}__t"])

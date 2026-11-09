@@ -17,15 +17,68 @@ sub init()
     m.episodios.observeField("itemSelected", "alElegirEpisodio")
     m.video.observeField("state", "alEstadoVideo")
     m.panel = m.top.findNode("panel")
-    m.panelTitulo = m.top.findNode("panelTitulo")
-    m.panelInfo = m.top.findNode("panelInfo")
     m.menuVideo = m.top.findNode("menuVideo")
     m.menuVideo.observeField("itemSelected", "alMenuVideo")
     m.pistas = []          ' los subtítulos del video: [{ TrackName, Description }]
     m.avisoIntro = m.top.findNode("avisoIntro")
     m.intro = []           ' [inicio, fin] en ms de la intro (series), si la PC ya la detectó
-    m.modoMenu = "principal"
     m.accionesMenu = []
+    ' Menú de arriba y grilla de Películas / Series
+    m.menuSup = m.top.findNode("menuSup")
+    m.menuMarca = m.top.findNode("menuMarca")
+    m.menuFoco = m.top.findNode("menuFoco")
+    m.logoTop = m.top.findNode("logoTop")
+    m.introFondo = m.top.findNode("introFondo")
+    m.introTexto = m.top.findNode("introTexto")
+    m.navego = false       ' true si se está moviendo por los botones del reproductor (OK ya no salta la intro)
+    m.espera = 0           ' segundos seguidos cargando sin que arranque
+    m.quieto = 0           ' segundos seguidos «reproduciendo» sin avanzar
+    m.posAnt = -1
+    m.firmaBotones = ""
+    m.objetivoAplicado = false
+    m.edadObjetivo = 0
+    m.menuEtiquetas = [m.top.findNode("menuInicio"), m.top.findNode("menuPeliculas"), m.top.findNode("menuSeries")]
+    m.secciones = ["inicio", "pelicula", "serie"]
+    m.menuSel = 0
+    m.enMenu = false
+    m.volver = "inicio"
+    m.grilla = m.top.findNode("grilla")
+    m.grilla.observeField("itemSelected", "alElegirGrilla")
+    ' El reproductor estilo Netflix
+    m.controles = m.top.findNode("controles")
+    m.ctrlTitulo = m.top.findNode("ctrlTitulo")
+    m.ctrlTiempo = m.top.findNode("ctrlTiempo")
+    m.ctrlBotones = m.top.findNode("ctrlBotones")
+    m.ctrlFoco = m.top.findNode("ctrlFoco")
+    m.barraLlena = m.top.findNode("barraLlena")
+    m.barraPunto = m.top.findNode("barraPunto")
+    m.botones = []
+    m.botonFoco = 0
+    m.enBarra = false
+    ' Subtítulos dibujados por el canal
+    m.capaSubs = m.top.findNode("capaSubs")
+    m.subEtiquetas = [m.top.findNode("subTexto"), m.top.findNode("subSombra1"), m.top.findNode("subSombra2")]
+    m.cues = []
+    m.idxCue = 0
+    m.subActivo = -1
+    m.retraso = 0
+    m.escalaSubs = 1.0
+    m.toast = m.top.findNode("toast")
+    m.toastTimer = CreateObject("roSGNode", "Timer")
+    m.toastTimer.duration = 3.5
+    m.toastTimer.observeField("fire", "alToast")
+    m.video.notificationInterval = 0.1
+    m.video.observeField("position", "alPosicion")
+    m.desde = 0            ' ms: el video convertido por la PC empieza acá (se suma a la posición del Roku)
+    m.durTotal = 0         ' ms: duración del video entero (el convertido no la sabe)
+    m.modoFicha = ""       ' "" tal cual · "audio" / "video": convertido por la PC (adelantar = pedirlo de nuevo)
+    m.objetivo = -1
+    m.ocultar = CreateObject("roSGNode", "Timer")
+    m.ocultar.duration = 8
+    m.ocultar.observeField("fire", "alOcultar")
+    m.saltoTimer = CreateObject("roSGNode", "Timer")
+    m.saltoTimer.duration = 0.6
+    m.saltoTimer.observeField("fire", "alSalto")
     ' Si la PC no contesta (apagada, TorrentVision cerrado), se reintenta sola cada unos segundos
     m.reintentoTimer = CreateObject("roSGNode", "Timer")
     m.reintentoTimer.duration = 8
@@ -154,6 +207,13 @@ sub alRespuesta(evento as Object)
         alFicha(r)
     else if r.etiqueta = "hola" then
         alHola(r)
+    else if r.etiqueta = "catalogo" then
+        alCatalogo(r)
+    else if r.etiqueta = "subs" then
+        if r.codigo = 200 and r.datos <> invalid and r.datos.cues <> invalid then
+            m.cues = r.datos.cues
+            m.idxCue = 0
+        end if
     end if
 end sub
 
@@ -162,8 +222,16 @@ end sub
 sub cambiarPantalla(nombre as String)
     m.pantalla = nombre
     m.filas.visible = (nombre = "inicio")
+    m.grilla.visible = (nombre = "grilla")
     m.episodios.visible = (nombre = "episodios")
     m.video.visible = (nombre = "video")
+    m.menuSup.visible = (nombre = "inicio" or nombre = "grilla")
+    m.logoTop.visible = (nombre <> "inicio" and nombre <> "grilla" and nombre <> "video")
+    if nombre <> "video" then
+        m.controles.visible = false
+        m.avisoIntro.visible = false
+        m.panel.visible = false
+    end if
     hayTexto = (nombre = "buscando" or nombre = "emparejando" or nombre = "error")
     m.mensaje.visible = hayTexto
     m.codigo.visible = hayTexto
@@ -171,18 +239,82 @@ sub cambiarPantalla(nombre as String)
     m.fondo.visible = (nombre <> "video")
     if nombre = "inicio" then
         m.seccion.text = ""
-        m.pie.text = "* Opciones"
+        m.pie.text = "◀ Menú     OK Elegir     ✱ Opciones"
+        m.enMenu = false
+        marcarMenu()
         m.filas.setFocus(true)
+    else if nombre = "grilla" then
+        m.seccion.text = ""
+        m.pie.text = "◀ Menú     OK Elegir     Atrás: Menú"
+        m.enMenu = false
+        marcarMenu()
+        m.grilla.setFocus(true)
     else if nombre = "episodios" then
         m.pie.text = "Atrás: volver"
         m.episodios.setFocus(true)
     else if nombre = "video" then
         m.pie.text = ""
-        m.video.setFocus(true)
+        m.top.setFocus(true)
     else
         m.pie.text = "* Opciones"
         m.top.setFocus(true)
     end if
+end sub
+
+' --- Menú de arriba: Inicio · Películas · Series ---------------------------------------------------------
+
+sub marcarMenu()
+    for i = 0 to 2
+        if i = m.menuSel and m.enMenu then
+            m.menuEtiquetas[i].color = "0x000000FF"       ' sobre la píldora blanca
+        else if i = m.menuSel then
+            m.menuEtiquetas[i].color = "0xFFFFFFFF"
+        else
+            m.menuEtiquetas[i].color = "0x9FB3CCFF"
+        end if
+    end for
+    y = 146 + m.menuSel * 68
+    m.menuFoco.translation = [14, y]
+    m.menuFoco.visible = m.enMenu
+    m.menuMarca.translation = [8, y + 10]
+end sub
+
+sub irSeccion(i as Integer)
+    m.menuSel = i
+    if m.secciones[i] = "inicio" then
+        if m.filas.content = invalid then
+            mostrarInicio()
+        else
+            cambiarPantalla("inicio")
+        end if
+    else
+        cambiarPantalla("grilla")
+        m.grilla.content = invalid
+        m.mensaje.visible = true
+        m.mensaje.text = "Cargando…"
+        pedir("GET", con_token("/roku/catalogo?tipo=" + m.secciones[i]), "", "catalogo")
+    end if
+    if m.enMenu then m.top.setFocus(true)
+end sub
+
+sub alCatalogo(r as Object)
+    m.mensaje.visible = false
+    if r.codigo <> 200 or r.datos = invalid then return
+    raiz = CreateObject("roSGNode", "ContentNode")
+    for each it in r.datos.items
+        raiz.appendChild(tarjeta(it))
+    end for
+    m.grilla.content = raiz
+    if raiz.getChildCount() = 0 then
+        m.mensaje.visible = true
+        m.mensaje.text = "No hay nada acá todavía."
+    end if
+    if not m.enMenu and m.pantalla = "grilla" then m.grilla.setFocus(true)
+end sub
+
+sub alElegirGrilla()
+    item = m.grilla.content.getChild(m.grilla.itemSelected)
+    if item <> invalid then elegirItem(item, "grilla")
 end sub
 
 sub buscarPC()
@@ -357,19 +489,47 @@ sub alDesvinculado()
     desvincular("La PC desvinculó este Roku.")
 end sub
 
+function posActual() as Float
+    if m.objetivo >= 0 then return m.objetivo
+    return m.video.position + m.desde / 1000.0
+end function
+
+function durActual() as Float
+    if m.durTotal > 0 then return m.durTotal / 1000.0
+    return m.video.duration
+end function
+
 function enIntro() as Boolean
     if m.pantalla <> "video" or m.intro.Count() <> 2 then return false
-    ms = m.video.position * 1000
+    ms = posActual() * 1000
     return ms >= m.intro[0] - 500 and ms < m.intro[1] - 1500
 end function
 
 sub saltarIntro()
     if m.intro.Count() = 2 then irA(m.intro[1] / 1000)
     m.avisoIntro.visible = false
+    m.navego = false
+end sub
+
+sub mostrarIntro()
+    ver = enIntro() and not m.panel.visible
+    if ver <> m.avisoIntro.visible then m.avisoIntro.visible = ver
+    if ver then
+        ' Blanco sólido = «OK salta»; atenuado = estás en otro botón
+        if m.controles.visible and m.navego then
+            m.introFondo.color = "0x000000AA"
+            m.introTexto.color = "0xFFFFFFFF"
+        else
+            m.introFondo.color = "0xFFFFFFFF"
+            m.introTexto.color = "0x000000FF"
+        end if
+    end if
 end sub
 
 sub alReloj()
-    m.avisoIntro.visible = enIntro() and not m.panel.visible
+    mostrarIntro()
+    if m.controles.visible then actualizarBarra()
+    vigilarVideo()
     if m.latido = invalid then return
     e = { estado: "inactivo", pos: 0, dur: 0, id: 0, titulo: "" }
     if m.pantalla = "video" then
@@ -377,8 +537,8 @@ sub alReloj()
         e.estado = "reproduciendo"
         if s = "paused" then e.estado = "pausa"
         if s = "finished" then e.estado = "terminado"
-        e.pos = Int(m.video.position * 1000)
-        e.dur = Int(m.video.duration * 1000)
+        e.pos = Int(posActual() * 1000)
+        e.dur = Int(durActual() * 1000)
         e.id = m.actual.id
         e.titulo = m.actual.titulo
         nombres = []
@@ -387,6 +547,8 @@ sub alReloj()
         end for
         e.subs = nombres
         e.sub = subtituloActual()
+        e.retraso = m.retraso
+        e.escala = m.escalaSubs
     end if
     m.latido.estado = e
 end sub
@@ -412,7 +574,7 @@ sub ejecutarOrden(o as Object)
             m.video.control = "pause"
         end if
     else if c = "adelantar" then
-        irA(m.video.position + o.ms / 1000)
+        irA(posActual() + o.ms / 1000)
     else if c = "ir_a" then
         irA(o.ms / 1000)
     else if c = "detener" then
@@ -421,13 +583,85 @@ sub ejecutarOrden(o as Object)
         if o.activo = true then m.video.globalCaptionMode = "On" else m.video.globalCaptionMode = "Off"
     else if c = "subtitulo" then
         elegirSubtitulo(Int(o.n))
+    else if c = "retraso" then
+        m.retraso = Int(o.ms)
+        avisar2("Subtítulos: " + textoRetraso())
+    else if c = "tamano" then
+        m.escalaSubs = o.escala
+        aplicarTamano()
+    else if c = "aviso" then
+        avisar2(o.texto)
+    else if c = "siguiente" then
+        if m.actual.siguiente > 0 then
+            siguiente = m.actual.siguiente
+            cerrarVideo()
+            reproducir(Int(siguiente))
+        end if
     end if
 end sub
 
 sub irA(segundos as Float)
-    if segundos < 0 then segundos = 0
-    if m.video.duration > 0 and segundos > m.video.duration - 1 then segundos = m.video.duration - 1
-    m.video.seek = segundos
+    if segundos < 0.5 then segundos = 0.5      ' justo en 0 algunos videos se quedan con la imagen congelada
+    d = durActual()
+    if d > 0 and segundos > d - 2 then segundos = d - 2
+    ' La barra se mueve ya; el salto real se hace una sola vez, un instante después del último toque
+    m.objetivo = segundos
+    m.objetivoAplicado = false
+    m.saltoTimer.control = "stop"
+    m.saltoTimer.control = "start"
+    actualizarBarra()
+end sub
+
+sub alSalto()
+    if m.objetivo < 0 or m.actual.id <= 0 then return
+    if m.modoFicha <> "" then
+        ' Convertido por la PC: se pide de nuevo desde ahí
+        pedirFicha(Int(m.actual.id), m.modoFicha, Int(m.objetivo * 1000))
+    else
+        m.video.seek = m.objetivo
+        m.objetivoAplicado = true
+        m.edadObjetivo = 0
+    end if
+end sub
+
+' Cada segundo: si el video no arranca o se queda quieto, se pasa al modo que convierte la PC
+sub vigilarVideo()
+    if m.pantalla <> "video" then
+        m.espera = 0
+        m.quieto = 0
+        return
+    end if
+    s = m.video.state
+    if m.objetivoAplicado then
+        m.edadObjetivo = m.edadObjetivo + 1
+        if m.edadObjetivo > 6 then
+            m.objetivo = -1
+            m.objetivoAplicado = false
+        end if
+    end if
+    if s = "buffering" or s = "none" then
+        m.espera = m.espera + 1
+    else
+        m.espera = 0
+    end if
+    limite = 18
+    if m.modoFicha = "video" then limite = 40
+    if m.espera >= limite and m.objetivo < 0 then
+        m.espera = 0
+        reintentarOAvisar()
+        return
+    end if
+    posVideo = m.video.position
+    if s = "playing" and Abs(posVideo - m.posAnt) < 0.05 and m.objetivo < 0 then
+        m.quieto = m.quieto + 1
+    else
+        m.quieto = 0
+    end if
+    m.posAnt = posVideo
+    if m.quieto >= 8 then
+        m.quieto = 0
+        reintentarOAvisar()
+    end if
 end sub
 
 sub alPedido()
@@ -497,6 +731,15 @@ sub alElegir(evento as Object)
     if fila = invalid then return
     item = fila.getChild(sel[1])
     if item = invalid then return
+    elegirItem(item, "inicio")
+end sub
+
+sub elegirItem(item as Object, desde as String)
+    if item.tipo = "seccion" then
+        irSeccion(Int(Val(item.clave)))
+        return
+    end if
+    m.volver = desde
     m.episodiosAbiertos = false
     if item.tipo = "serie" then
         m.serieTitulo = item.title
@@ -541,13 +784,15 @@ end sub
 sub reproducir(id as Integer)
     if m.token = "" then return
     m.reintento = 0
-    pedirFicha(id, m.compat)
+    pedirFicha(id, m.compat, -1)
 end sub
 
-sub pedirFicha(id as Integer, modo as String)
+sub pedirFicha(id as Integer, modo as String, desde as Integer)
     m.pendiente = id
     m.modoActual = modo
-    pedir("GET", con_token("/roku/ficha?id=" + id.ToStr() + "&modo=" + modo), "", "ficha")
+    extra = ""
+    if desde >= 0 then extra = "&desde=" + desde.ToStr()
+    pedir("GET", con_token("/roku/ficha?id=" + id.ToStr() + "&modo=" + modo + extra), "", "ficha")
 end sub
 
 sub alFicha(r as Object)
@@ -558,31 +803,45 @@ sub alFicha(r as Object)
         return
     end if
     f = r.datos
+    ' Si es el mismo video pedido de nuevo (adelantar en uno convertido), se mantiene el subtítulo elegido
+    mismo = (m.pantalla = "video" and m.actual.id = f.id)
+    m.desde = 0
+    if f.desde <> invalid then m.desde = f.desde
+    m.durTotal = 0
+    if f.dur <> invalid then m.durTotal = f.dur
+    m.modoFicha = ""
+    if f.modo <> invalid then m.modoFicha = f.modo
+    m.objetivo = -1
+    m.objetivoAplicado = false
+    m.espera = 0
+    m.quieto = 0
+    m.posAnt = -1
     c = CreateObject("roSGNode", "ContentNode")
     c.url = m.base + con_token(f.url)
     c.title = f.titulo
     c.streamFormat = f.formato
     c.playStart = f.pos / 1000
     pistas = []
-    elegida = ""
+    elegida = -1
     for each s in f.subtitulos
-        direccion = m.base + con_token("/roku/subtitulo?id=" + f.id.ToStr() + "&n=" + s.n.ToStr())
-        pistas.Push({ Language: "spa", TrackName: direccion, Description: s.texto })
-        if s.elegido = true or elegida = "" then elegida = direccion
+        pistas.Push({ Description: s.texto, n: s.n })
+        if s.elegido = true and elegida < 0 then elegida = pistas.Count() - 1
     end for
-    if pistas.Count() > 0 then c.update({ SubtitleTracks: pistas }, true)
     m.pistas = pistas
     m.actual = { id: f.id, titulo: f.titulo, siguiente: f.siguiente }
     m.intro = []
     if f.intro <> invalid and f.intro.Count() = 2 then m.intro = f.intro
     m.video.content = c
     m.video.globalCaptionMode = "Off"
-    if pistas.Count() > 0 then
-        m.video.globalCaptionMode = "On"
-        m.video.subtitleTrack = elegida
+    if not mismo then
+        m.retraso = 0
+        if f.retraso <> invalid then m.retraso = f.retraso
+        elegirSubtitulo(elegida)
     end if
+    m.ctrlTitulo.text = f.titulo
     cambiarPantalla("video")
     m.video.control = "play"
+    mostrarControles()
 end sub
 
 sub alEstadoVideo()
@@ -593,17 +852,16 @@ sub alEstadoVideo()
         if siguiente > 0 then reproducir(Int(siguiente))
     else if s = "error" then
         reintentarOAvisar()
+    else if s = "paused" then
+        mostrarControles()
     end if
 end sub
 
 sub reintentarOAvisar()
-    ' Sonido que el Roku no entiende (DTS…) o un contenedor raro: la PC lo convierte (primero solo el audio)
-    if m.reintento = 0 and m.modoActual <> "audio" and m.modoActual <> "video" then
-        m.reintento = 1
-        pedirFicha(Int(m.actual.id), "audio")
-    else if m.reintento = 1 and m.modoActual = "audio" then
-        m.reintento = 2
-        pedirFicha(Int(m.actual.id), "video")
+    ' Algo que el Roku no pudo abrir: la PC lo convierte entero (imagen y sonido) desde donde iba
+    if m.modoFicha <> "video" and m.reintento < 2 then
+        m.reintento = m.reintento + 1
+        pedirFicha(Int(m.actual.id), "video", Int(posActual() * 1000))
     else
         cerrarVideo()
         avisar("El Roku no puede reproducir este video (ni convertido por la PC).")
@@ -617,66 +875,268 @@ sub alReintento()
     end if
 end sub
 
-' --- El menú durante la película ----------------------------------------------------------------------
+' --- El reproductor, como Netflix -----------------------------------------------------------------------
 
-sub abrirPanel()
-    m.modoMenu = "principal"
-    armarMenu()
-    m.panelTitulo.text = m.actual.titulo
-    m.panel.visible = true
-    m.menuVideo.setFocus(true)
+sub mostrarControles()
+    firma = m.pistas.Count().ToStr() + "|" + m.actual.siguiente.ToStr() + "|" + m.video.state
+    if firma <> m.firmaBotones then
+        m.firmaBotones = firma
+        armarBotones()
+    end if
+    actualizarBarra()
+    mostrarIntro()
+    m.controles.visible = true
+    m.ocultar.control = "stop"
+    m.ocultar.control = "start"
 end sub
 
-sub cerrarPanel()
-    m.panel.visible = false
-    if m.pantalla = "video" then m.video.setFocus(true)
+sub ocultarControles()
+    m.controles.visible = false
+    m.navego = false
+    mostrarIntro()
 end sub
 
-function subtituloActual() as Integer
-    if m.video.globalCaptionMode <> "On" then return -1
-    for i = 0 to m.pistas.Count() - 1
-        if m.pistas[i].TrackName = m.video.subtitleTrack then return i
+sub alOcultar()
+    ' En pausa quedan a la vista (como Netflix)
+    if m.video.state <> "paused" and not m.panel.visible then ocultarControles()
+end sub
+
+sub armarBotones()
+    pausa = "Pausa"
+    if m.video.state = "paused" then pausa = "Reproducir"
+    m.botones = [[pausa, "pausa", 150], ["-10 s", "atras", 110], ["+10 s", "adelante", 110]]
+    if m.pistas.Count() > 0 then m.botones.Push(["Subtítulos", "subs", 160])
+    if m.actual.siguiente > 0 then m.botones.Push(["Siguiente episodio", "siguiente", 250])
+    m.botones.Push(["Salir", "salir", 110])
+    if m.botonFoco >= m.botones.Count() then m.botonFoco = m.botones.Count() - 1
+    m.ctrlBotones.removeChildrenIndex(m.ctrlBotones.getChildCount(), 0)
+    x = 0
+    for each b in m.botones
+        l = CreateObject("roSGNode", "Label")
+        l.text = b[0]
+        l.width = b[2]
+        l.height = 52
+        l.horizAlign = "center"
+        l.vertAlign = "center"
+        l.font = "font:MediumSystemFont"
+        l.color = "0xFFFFFFFF"
+        l.translation = [x, 0]
+        m.ctrlBotones.appendChild(l)
+        x = x + b[2] + 14
     end for
-    return -1
-end function
+    ubicarFoco()
+end sub
 
-sub armarMenu()
+sub ubicarFoco()
+    x = 0
+    for i = 0 to m.botonFoco - 1
+        x = x + m.botones[i][2] + 14
+    end for
+    m.ctrlFoco.translation = [60 + x, 622]
+    m.ctrlFoco.width = m.botones[m.botonFoco][2]
+    if m.enBarra = invalid then m.enBarra = false
+    m.ctrlFoco.visible = not m.enBarra
+    m.barraPunto.width = 16
+    m.barraPunto.height = 16
+    if m.enBarra then
+        m.barraPunto.width = 26
+        m.barraPunto.height = 26
+    end if
+    for i = 0 to m.ctrlBotones.getChildCount() - 1
+        if i = m.botonFoco and not m.enBarra then
+            m.ctrlBotones.getChild(i).color = "0x000000FF"
+        else
+            m.ctrlBotones.getChild(i).color = "0xFFFFFFFF"
+        end if
+    end for
+end sub
+
+sub actualizarBarra()
+    d = durActual()
+    p = posActual()
+    frac = 0
+    if d > 0 then frac = p / d
+    if frac < 0 then frac = 0
+    if frac > 1 then frac = 1
+    m.barraLlena.width = Int(1040 * frac)
+    r = Int(m.barraPunto.width / 2)
+    m.barraPunto.translation = [60 - r + Int(1040 * frac), 583 - r]
+    ' Como Netflix: lo que falta
+    m.ctrlTiempo.text = reloj(Int(d - p))
+end sub
+
+sub alternarPausa()
+    if m.video.state = "paused" then
+        m.video.control = "resume"
+    else
+        m.video.control = "pause"
+    end if
+end sub
+
+sub activarBoton(accion as String)
+    if accion = "pausa" then
+        alternarPausa()
+    else if accion = "atras" then
+        irA(posActual() - 10)
+    else if accion = "adelante" then
+        irA(posActual() + 10)
+    else if accion = "subs" then
+        abrirSubs()
+        return
+    else if accion = "siguiente" then
+        siguiente = m.actual.siguiente
+        cerrarVideo()
+        reproducir(Int(siguiente))
+        return
+    else if accion = "salir" then
+        cerrarVideo()
+        return
+    end if
+    mostrarControles()
+end sub
+
+' --- Subtítulos (panel a la derecha) ---
+
+sub abrirSubs()
+    if m.pistas.Count() = 0 then return
     raiz = CreateObject("roSGNode", "ContentNode")
     m.accionesMenu = []
     actual = subtituloActual()
-    if m.modoMenu = "subs" then
-        m.panelInfo.text = "Subtítulos"
-        opciones = [["Sin subtítulos", -1]]
-        for i = 0 to m.pistas.Count() - 1
-            opciones.Push([m.pistas[i].Description, i])
-        end for
-        for each o in opciones
-            marca = "     "
-            if o[1] = actual then marca = "✓  "
-            n = raiz.createChild("ContentNode")
-            n.title = marca + o[0]
-            m.accionesMenu.Push("sub:" + o[1].ToStr())
-        end for
-    else
-        m.panelInfo.text = reloj(Int(m.video.position)) + " / " + reloj(Int(m.video.duration))
-        nombre = "no"
-        if actual >= 0 then nombre = m.pistas[actual].Description
-        pausa = "Pausar"
-        if m.video.state = "paused" then pausa = "Seguir viendo"
-        opciones = [[pausa, "pausa"], ["Volver 30 segundos", "atras30"], ["Adelantar 1 minuto", "adelante60"]]
-        if enIntro() then opciones.Unshift(["Saltar intro", "intro"])
-        if m.pistas.Count() > 0 then opciones.Push(["Subtítulos: " + nombre, "subs"])
-        if m.actual.siguiente > 0 then opciones.Push(["Siguiente capítulo", "siguiente"])
-        opciones.Push(["Parar y volver a la lista", "parar"])
-        opciones.Push(["Cerrar este menú", "cerrar"])
-        for each o in opciones
+    opciones = [["Desactivados", "sub:-1"]]
+    for i = 0 to m.pistas.Count() - 1
+        opciones.Push([m.pistas[i].Description, "sub:" + i.ToStr()])
+    end for
+    elegido = 0
+    for i = 0 to opciones.Count() - 1
+        marca = "     "
+        if opciones[i][1] = "sub:" + actual.ToStr() then
+            marca = "✓  "
+            elegido = i
+        end if
+        n = raiz.createChild("ContentNode")
+        n.title = marca + opciones[i][0]
+        m.accionesMenu.Push(opciones[i][1])
+    end for
+    if actual >= 0 then
+        tam = "Normal"
+        if m.escalaSubs < 0.9 then tam = "Chico"
+        if m.escalaSubs > 1.15 then tam = "Grande"
+        extras = [["—  Ahora: " + textoRetraso(), "nada"], ["Que salgan antes (−0,5 s)", "ret:-500"],
+                  ["Que salgan después (+0,5 s)", "ret:500"], ["Sincronizar solos con el audio", "sync"],
+                  ["Tamaño: " + tam, "tam"]]
+        for each o in extras
             n = raiz.createChild("ContentNode")
             n.title = o[0]
             m.accionesMenu.Push(o[1])
         end for
     end if
     m.menuVideo.content = raiz
-    m.menuVideo.jumpToItem = 0
+    m.menuVideo.jumpToItem = elegido
+    ocultarControles()
+    m.panel.visible = true
+    m.menuVideo.setFocus(true)
+end sub
+
+sub cerrarSubs()
+    m.panel.visible = false
+    m.top.setFocus(true)
+    mostrarControles()
+end sub
+
+sub alMenuVideo()
+    i = m.menuVideo.itemSelected
+    if i < 0 or i >= m.accionesMenu.Count() then return
+    a = m.accionesMenu[i]
+    if Left(a, 4) = "sub:" then
+        elegirSubtitulo(Int(Val(a.Mid(4))))
+        cerrarSubs()
+    else if Left(a, 4) = "ret:" then
+        m.retraso = m.retraso + Int(Val(a.Mid(4)))
+        avisar2("Subtítulos: " + textoRetraso())
+        abrirSubs()
+        m.menuVideo.jumpToItem = i
+    else if a = "sync" then
+        pedir("POST", con_token("/roku/sincronizar"), "{}", "sync")
+        avisar2("Sincronizando los subtítulos con el audio… (puede tardar un rato)")
+        cerrarSubs()
+    else if a = "tam" then
+        if m.escalaSubs < 0.9 then
+            m.escalaSubs = 1.0
+        else if m.escalaSubs < 1.15 then
+            m.escalaSubs = 1.3
+        else
+            m.escalaSubs = 0.8
+        end if
+        aplicarTamano()
+        abrirSubs()
+        m.menuVideo.jumpToItem = i
+    end if
+end sub
+
+function subtituloActual() as Integer
+    return m.subActivo
+end function
+
+sub alPosicion()
+    mostrarIntro()
+    if m.controles.visible then actualizarBarra()
+    if m.objetivoAplicado and m.objetivo >= 0 then
+        ' Ya saltó: la barra deja de mostrar el destino cuando la posición real lo alcanzó
+        if Abs(m.video.position + m.desde / 1000.0 - m.objetivo) < 3 then
+            m.objetivo = -1
+            m.objetivoAplicado = false
+        end if
+    end if
+    if m.cues.Count() = 0 or m.subActivo < 0 then
+        m.capaSubs.visible = false
+        return
+    end if
+    t = m.video.position * 1000 + m.desde - m.retraso
+    i = m.idxCue
+    if i >= m.cues.Count() then i = m.cues.Count() - 1
+    if i < 0 then i = 0
+    while i > 0 and m.cues[i][0] > t
+        i = i - 1
+    end while
+    while i < m.cues.Count() - 1 and m.cues[i][1] <= t
+        i = i + 1
+    end while
+    m.idxCue = i
+    c = m.cues[i]
+    texto = ""
+    if c[0] <= t and t < c[1] then texto = c[2]
+    for each l in m.subEtiquetas
+        l.text = texto
+    end for
+    m.capaSubs.visible = (texto <> "")
+end sub
+
+sub aplicarTamano()
+    fuente = "font:MediumBoldSystemFont"
+    if m.escalaSubs < 0.9 then fuente = "font:SmallBoldSystemFont"
+    if m.escalaSubs > 1.15 then fuente = "font:LargeBoldSystemFont"
+    for each l in m.subEtiquetas
+        l.font = fuente
+    end for
+end sub
+
+function textoRetraso() as String
+    if m.retraso = 0 then return "sincronizados"
+    seg = Abs(m.retraso) / 1000.0
+    texto = Str(Int(seg * 10 + 0.5) / 10.0).Trim().Replace(".", ",") + " s"
+    if m.retraso > 0 then return texto + " después"
+    return texto + " antes"
+end function
+
+sub avisar2(texto as String)
+    m.toast.text = texto
+    m.toast.visible = true
+    m.toastTimer.control = "stop"
+    m.toastTimer.control = "start"
+end sub
+
+sub alToast()
+    m.toast.visible = false
 end sub
 
 function reloj(segundos as Integer) as String
@@ -688,66 +1148,41 @@ function reloj(segundos as Integer) as String
     return mi.ToStr() + ":" + Right("0" + s.ToStr(), 2)
 end function
 
-sub alMenuVideo()
-    i = m.menuVideo.itemSelected
-    if i < 0 or i >= m.accionesMenu.Count() then return
-    accion = m.accionesMenu[i]
-    if Left(accion, 4) = "sub:" then
-        elegirSubtitulo(Int(Val(accion.Mid(4))))
-        cerrarPanel()
-    else if accion = "subs" then
-        m.modoMenu = "subs"
-        armarMenu()
-    else if accion = "pausa" then
-        if m.video.state = "paused" then
-            m.video.control = "resume"
-        else
-            m.video.control = "pause"
-        end if
-        cerrarPanel()
-    else if accion = "intro" then
-        saltarIntro()
-        cerrarPanel()
-    else if accion = "atras30" then
-        irA(m.video.position - 30)
-        cerrarPanel()
-    else if accion = "adelante60" then
-        irA(m.video.position + 60)
-        cerrarPanel()
-    else if accion = "siguiente" then
-        siguiente = m.actual.siguiente
-        cerrarPanel()
-        cerrarVideo()
-        reproducir(Int(siguiente))
-    else if accion = "parar" then
-        cerrarPanel()
-        cerrarVideo()
-    else
-        cerrarPanel()
-    end if
-end sub
-
 sub elegirSubtitulo(n as Integer)
+    m.video.globalCaptionMode = "Off"
+    m.cues = []
+    m.idxCue = 0
+    m.capaSubs.visible = false
     if n < 0 or n >= m.pistas.Count() then
-        m.video.globalCaptionMode = "Off"
-    else
-        m.video.globalCaptionMode = "On"
-        m.video.subtitleTrack = m.pistas[n].TrackName
+        m.subActivo = -1
+        return
     end if
+    m.subActivo = n
+    pedir("GET", con_token("/roku/subs?id=" + m.actual.id.ToStr() + "&n=" + m.pistas[n].n.ToStr()), "", "subs")
 end sub
 
 sub cerrarVideo()
     ' Por dónde iba, ya (el latido lo guarda cada 10 s: así no se pierde nada al salir)
-    if m.actual.id > 0 and m.video.duration > 0 and m.pantalla = "video" then
-        fin = { estado: "detenido", pos: Int(m.video.position * 1000), dur: Int(m.video.duration * 1000), id: m.actual.id, titulo: m.actual.titulo }
+    if m.actual.id > 0 and durActual() > 0 and m.pantalla = "video" then
+        fin = { estado: "detenido", pos: Int(posActual() * 1000), dur: Int(durActual() * 1000), id: m.actual.id, titulo: m.actual.titulo }
         pedir("POST", con_token("/roku/latido"), FormatJson(fin), "fin")
     end if
     m.panel.visible = false
+    m.controles.visible = false
     m.avisoIntro.visible = false
+    m.navego = false
+    m.firmaBotones = ""
+    m.saltoTimer.control = "stop"
+    m.objetivoAplicado = false
+    m.objetivo = -1
     m.intro = []
+    m.cues = []
+    m.capaSubs.visible = false
     m.video.control = "stop"
     if m.episodiosAbiertos = true then
         cambiarPantalla("episodios")
+    else if m.volver = "grilla" then
+        cambiarPantalla("grilla")
     else
         cambiarPantalla("inicio")
     end if
@@ -829,39 +1264,37 @@ end sub
 
 function onKeyEvent(tecla as String, presionada as Boolean) as Boolean
     if not presionada then return false
-    if tecla = "options" and m.pantalla <> "video" then
+    if m.pantalla = "video" then return teclaVideo(tecla)
+    if tecla = "options" then
         mostrarOpciones()
         return true
     end if
-    if m.pantalla = "video" then
-        if m.panel.visible then
-            if tecla = "back" or tecla = "options" or tecla = "left" then
-                if m.modoMenu = "subs" and tecla <> "options" then
-                    m.modoMenu = "principal"
-                    armarMenu()
-                else
-                    cerrarPanel()
-                end if
-                return true
+    if m.pantalla = "inicio" or m.pantalla = "grilla" then
+        if m.enMenu then
+            if tecla = "up" and m.menuSel > 0 then
+                irSeccion(m.menuSel - 1)
+            else if tecla = "down" and m.menuSel < 2 then
+                irSeccion(m.menuSel + 1)
+            else if tecla = "right" or tecla = "OK" then
+                m.enMenu = false
+                marcarMenu()
+                if m.pantalla = "inicio" then m.filas.setFocus(true) else m.grilla.setFocus(true)
+            else if tecla = "back" then
+                return false     ' desde el menú, Atrás sale del canal
             end if
-            return false
-        end if
-        if tecla = "back" then
-            cerrarVideo()
             return true
         end if
-        if tecla = "up" and enIntro() then
-            saltarIntro()
-            return true
-        end if
-        if tecla = "options" or tecla = "up" or tecla = "down" then
-            abrirPanel()
+        if tecla = "left" or tecla = "back" then
+            ' ◀ (en la primera columna) o Atrás: al menú lateral
+            m.enMenu = true
+            marcarMenu()
+            m.top.setFocus(true)
             return true
         end if
         return false
     end if
     if m.pantalla = "episodios" and tecla = "back" then
-        cambiarPantalla("inicio")
+        cambiarPantalla(m.volver)
         return true
     end if
     if (m.pantalla = "error" or m.pantalla = "reintentar") and tecla = "OK" then
@@ -874,4 +1307,101 @@ function onKeyEvent(tecla as String, presionada as Boolean) as Boolean
         return true
     end if
     return false
+end function
+
+function teclaVideo(tecla as String) as Boolean
+    if m.panel.visible then
+        if tecla = "back" or tecla = "left" or tecla = "options" then
+            cerrarSubs()
+            return true
+        end if
+        return false   ' arriba, abajo y OK los maneja la lista de subtítulos
+    end if
+    if tecla = "back" then
+        if m.controles.visible and m.video.state <> "paused" then
+            ocultarControles()
+        else
+            cerrarVideo()
+        end if
+        return true
+    end if
+    if tecla = "rewind" then
+        irA(posActual() - 30)
+        mostrarControles()
+        return true
+    end if
+    if tecla = "fastforward" then
+        irA(posActual() + 30)
+        mostrarControles()
+        return true
+    end if
+    if tecla = "play" then
+        alternarPausa()
+        mostrarControles()
+        return true
+    end if
+    ' «Saltar intro» a la vista: OK salta, salvo que ya te estés moviendo por los botones
+    if tecla = "OK" and m.avisoIntro.visible and not (m.controles.visible and m.navego) then
+        saltarIntro()
+        return true
+    end if
+    if m.controles.visible then
+        ' Como Netflix: arriba la barra (◀▶ adelanta/atrasa), abajo los botones (◀▶ elige)
+        if tecla = "up" then
+            m.enBarra = true
+            m.navego = true
+            ubicarFoco()
+        else if tecla = "down" then
+            m.enBarra = false
+            m.navego = true
+            ubicarFoco()
+        else if tecla = "left" and m.enBarra then
+            m.navego = true
+            irA(posActual() - 10)
+        else if tecla = "right" and m.enBarra then
+            m.navego = true
+            irA(posActual() + 10)
+        else if tecla = "OK" and m.enBarra then
+            alternarPausa()
+        else if tecla = "left" then
+            m.navego = true
+            if m.botonFoco > 0 then m.botonFoco = m.botonFoco - 1
+            ubicarFoco()
+        else if tecla = "right" then
+            m.navego = true
+            if m.botonFoco < m.botones.Count() - 1 then m.botonFoco = m.botonFoco + 1
+            ubicarFoco()
+        else if tecla = "OK" then
+            activarBoton(m.botones[m.botonFoco][1])
+            return true
+        else if tecla = "options" then
+            abrirSubs()
+            return true
+        end if
+        mostrarIntro()
+        m.ocultar.control = "stop"
+        m.ocultar.control = "start"
+        return true
+    end if
+    ' Sin los controles a la vista
+    if tecla = "OK" then
+        alternarPausa()
+        mostrarControles()
+    else if tecla = "left" then
+        m.enBarra = true
+        irA(posActual() - 10)
+        mostrarControles()
+    else if tecla = "right" then
+        m.enBarra = true
+        irA(posActual() + 10)
+        mostrarControles()
+    else if tecla = "options" then
+        abrirSubs()
+    else
+        m.botonFoco = 0
+        m.enBarra = (tecla <> "down")
+        mostrarControles()
+        ubicarFoco()
+    end if
+    return true
 end function

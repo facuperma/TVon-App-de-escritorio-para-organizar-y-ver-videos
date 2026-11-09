@@ -7,38 +7,80 @@
   </interface>
   <children>
     <Rectangle id="fondo" color="0x0B1220FF" width="1280" height="720" />
-    <Label id="logo" text="TorrentVision" translation="[60,28]" font="font:MediumBoldSystemFont" color="0x3DAEEBFF" />
-    <Label id="seccion" text="" translation="[1000,36]" width="220" horizAlign="right" font="font:SmallSystemFont" color="0x9FB3CCFF" />
+    <Label id="logoTop" text="TorrentVision" translation="[60,28]" font="font:MediumBoldSystemFont" color="0x3DAEEBFF" />
+    <!-- Menú lateral: siempre a la vista (◀ o Atrás desde las películas) -->
+    <Group id="menuSup" visible="false">
+      <Rectangle width="214" height="720" color="0x0F1A2EFF" />
+      <Rectangle translation="[214,0]" width="2" height="720" color="0x1E2E4A" />
+      <Label id="logo" text="TorrentVision" translation="[22,34]" width="180" font="font:SmallBoldSystemFont" color="0x3DAEEBFF" />
+      <Rectangle id="menuFoco" translation="[14,146]" width="188" height="58" color="0xFFFFFFFF" visible="false" />
+      <Rectangle id="menuMarca" translation="[8,156]" width="5" height="38" color="0x3DAEEBFF" />
+      <Label id="menuInicio" text="Inicio" translation="[34,146]" width="160" height="58" vertAlign="center"
+             font="font:MediumBoldSystemFont" color="0xFFFFFFFF" />
+      <Label id="menuPeliculas" text="Películas" translation="[34,214]" width="160" height="58" vertAlign="center"
+             font="font:MediumBoldSystemFont" color="0x9FB3CCFF" />
+      <Label id="menuSeries" text="Series" translation="[34,282]" width="160" height="58" vertAlign="center"
+             font="font:MediumBoldSystemFont" color="0x9FB3CCFF" />
+      <Label text="◀  Menú&#10;✱  Opciones" translation="[22,600]" width="180" height="80" wrap="true"
+             font="font:SmallestSystemFont" color="0x6F86A6FF" />
+    </Group>
+    <Label id="seccion" text="" translation="[640,34]" width="600" horizAlign="right" font="font:SmallSystemFont" color="0x9FB3CCFF" />
     <Label id="mensaje" text="" translation="[90,230]" width="1100" height="120" wrap="true" horizAlign="center"
            font="font:MediumSystemFont" color="0xFFFFFFFF" />
     <Label id="codigo" text="" translation="[90,340]" width="1100" horizAlign="center"
            font="font:LargeBoldSystemFont" color="0x3DAEEBFF" />
     <Label id="ayuda" text="" translation="[160,440]" width="960" height="160" wrap="true" horizAlign="center"
            font="font:SmallSystemFont" color="0x9FB3CCFF" />
-    <RowList id="filas" translation="[40,90]" itemComponentName="Tarjeta" itemSize="[1200,330]"
+    <RowList id="filas" translation="[236,86]" itemComponentName="Tarjeta" itemSize="[1030,330]"
              rowItemSize="[[180,314]]" rowItemSpacing="[[16,0]]" numRows="2" itemSpacing="[0,30]"
              showRowLabel="[true]" rowLabelOffset="[[0,6]]" focusXOffset="[0]" rowFocusAnimationStyle="floatingFocus"
              visible="false" />
-    <LabelList id="episodios" translation="[160,110]" itemSize="[960,48]" numRows="10" visible="false" />
-    <Label id="pie" text="" translation="[60,676]" width="1160" font="font:SmallestSystemFont" color="0x6F86A6FF" />
-    <Video id="video" translation="[0,0]" width="1280" height="720" visible="false" />
-    <!-- «Saltar intro»: mientras pasa la intro de una serie -->
-    <Group id="avisoIntro" visible="false" translation="[60,580]">
-      <Rectangle width="330" height="64" color="0x0B1220DD" />
-      <Rectangle width="330" height="3" color="0x3DAEEBFF" />
-      <Label translation="[22,14]" width="300" text="Saltar intro: flecha arriba" font="font:MediumBoldSystemFont"
-             color="0xFFFFFFFF" />
+    <!-- Películas o Series: todas, en grilla -->
+    <MarkupGrid id="grilla" translation="[240,90]" itemComponentName="Tarjeta" itemSize="[180,314]"
+                itemSpacing="[16,22]" numColumns="5" numRows="2" visible="false" />
+    <LabelList id="episodios" translation="[160,100]" itemSize="[960,48]" numRows="10" visible="false" />
+    <Label id="pie" text="" translation="[236,680]" width="1160" font="font:SmallestSystemFont" color="0x6F86A6FF" />
+    <Video id="video" translation="[0,0]" width="1280" height="720" visible="false" enableUI="false"
+           enableTrickPlay="false" />
+
+    <!-- Los subtítulos los dibuja el canal: blancos, con sombra, sin el recuadro negro del Roku -->
+    <Group id="capaSubs" visible="false">
+      <Label id="subSombra1" translation="[92,442]" width="1100" height="220" wrap="true" horizAlign="center"
+             vertAlign="bottom" font="font:MediumBoldSystemFont" color="0x000000E6" />
+      <Label id="subSombra2" translation="[88,442]" width="1100" height="220" wrap="true" horizAlign="center"
+             vertAlign="bottom" font="font:MediumBoldSystemFont" color="0x000000E6" />
+      <Label id="subTexto" translation="[90,440]" width="1100" height="220" wrap="true" horizAlign="center"
+             vertAlign="bottom" font="font:MediumBoldSystemFont" color="0xFFFFFFFF" />
     </Group>
-    <!-- El menú que se abre durante la película (flechas arriba/abajo o la tecla de asterisco) -->
+    <Label id="toast" visible="false" translation="[140,150]" width="1000" horizAlign="center" wrap="true"
+           font="font:MediumBoldSystemFont" color="0xFFFFFFFF" />
+    <!-- El reproductor, como Netflix: título arriba, barra roja y botones abajo -->
+    <Group id="controles" visible="false">
+      <Rectangle width="1280" height="130" color="0x000000AA" />
+      <Label id="ctrlTitulo" translation="[60,40]" width="1160" font="font:LargeBoldSystemFont" color="0xFFFFFFFF" />
+      <Rectangle translation="[0,520]" width="1280" height="200" color="0x000000B4" />
+      <Rectangle id="barraFondo" translation="[60,580]" width="1040" height="6" color="0xFFFFFF55" />
+      <Rectangle id="barraLlena" translation="[60,580]" width="0" height="6" color="0xE50914FF" />
+      <Rectangle id="barraPunto" translation="[52,575]" width="16" height="16" color="0xE50914FF" />
+      <Label id="ctrlTiempo" translation="[1115,568]" width="150" horizAlign="right" font="font:SmallSystemFont"
+             color="0xFFFFFFFF" />
+      <Rectangle id="ctrlFoco" translation="[60,622]" width="160" height="52" color="0xFFFFFFFF" />
+      <Group id="ctrlBotones" translation="[60,622]" />
+    </Group>
+    <!-- «Saltar intro»: botón blanco, OK para saltar (se atenúa si estás moviéndote por los botones) -->
+    <Group id="avisoIntro" visible="false" translation="[940,430]">
+      <Rectangle id="introFondo" width="290" height="68" color="0xFFFFFFFF" />
+      <Label id="introTexto" translation="[0,0]" width="290" height="68" horizAlign="center" vertAlign="center"
+             text="▶▶  Saltar intro" font="font:MediumBoldSystemFont" color="0x000000FF" />
+    </Group>
+    <!-- Subtítulos: a la derecha, como «Audio y subtítulos» de Netflix -->
     <Group id="panel" visible="false">
-      <Rectangle translation="[800,0]" width="480" height="720" color="0x0B1220E8" />
-      <Rectangle translation="[800,0]" width="4" height="720" color="0x3DAEEBFF" />
-      <Label id="panelTitulo" translation="[840,56]" width="410" height="80" wrap="true" maxLines="2"
-             font="font:MediumBoldSystemFont" color="0xFFFFFFFF" />
-      <Label id="panelInfo" translation="[840,140]" width="410" font="font:SmallSystemFont" color="0x9FB3CCFF" />
-      <LabelList id="menuVideo" translation="[840,196]" itemSize="[410,54]" numRows="8" />
-      <Label translation="[840,660]" width="410" text="OK: elegir   Atrás: cerrar" font="font:SmallestSystemFont"
-             color="0x6F86A6FF" />
+      <Rectangle translation="[820,0]" width="460" height="720" color="0x141414F0" />
+      <Label id="panelTitulo" translation="[860,60]" width="380" text="Subtítulos" font="font:MediumBoldSystemFont"
+             color="0xFFFFFFFF" />
+      <LabelList id="menuVideo" translation="[860,120]" itemSize="[380,54]" numRows="10" />
+      <Label translation="[860,660]" width="380" text="OK: elegir   Atrás: volver" font="font:SmallestSystemFont"
+             color="0x9FB3CCFF" />
     </Group>
   </children>
 </component>

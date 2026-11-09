@@ -21,8 +21,11 @@ import urllib.request
 from pathlib import Path
 from urllib.parse import quote
 
+import subprocess
+import sys
+
 from . import seguridad
-from .remoto import ErrorRemoto, _entero, _Manejador, _Servidor, ffmpeg
+from .remoto import ErrorRemoto, _entero, _Manejador, _Servidor, ffmpeg, subtitulos_del_video
 
 PUERTO_ROKU = 8770
 PUERTO_ECP = 8060            # el control externo que trae todo Roku (abrir el canal desde la PC)
@@ -44,6 +47,9 @@ class EstadoRoku:
         self.encontrados: list[dict] = []
         self.buscando = False
         self.conectando = ""
+        # Sincronización automática de subtítulos para el video del Roku: -1 = no, 0..99 = avance
+        self.sincronizando = -1
+        self.ultimo_aviso = ""
 
     def latido(self, huella: str, nombre: str, ip: str, datos: dict) -> list[dict]:
         """Registra el latido y devuelve (y vacía) las órdenes pendientes de ese Roku."""
@@ -56,6 +62,7 @@ class EstadoRoku:
                 # Los subtítulos que tiene el video en el Roku y cuál está puesto (-1: ninguno), para el celular
                 "subs": [str(x)[:60] for x in datos.get("subs", [])][:30] if isinstance(datos.get("subs"), list) else [],
                 "sub": _entero(datos.get("sub", -1)) if datos.get("sub") is not None else -1,
+                "retraso": _entero(datos.get("retraso", 0)), "escala": float(datos.get("escala") or 1.0),
             }
             return self._ordenes.pop(huella, [])
 
@@ -83,6 +90,12 @@ class EstadoRoku:
         with self._cerrojo:
             self._latidos.pop(huella, None)
             self._ordenes.pop(huella, None)
+
+    def guardar_subs_si_cambio(self, huella: str, clave: tuple) -> bool:
+        with self._cerrojo:
+            antes = getattr(self, "_subs_guardados", {}).get(huella)
+            self._subs_guardados = {**getattr(self, "_subs_guardados", {}), huella: clave}
+        return antes is not None and antes != clave
 
     def guardar_progreso_ahora(self, huella: str) -> bool:
         """True como mucho una vez cada 10 s por Roku (para no escribir la base en cada latido)."""
@@ -266,15 +279,18 @@ class _ManejadorRoku(_Manejador):
         if ruta == "/roku/catalogo":
             return self._json(llamar(lambda: {"items": [
                 _item(t) for t in control.catalogo(consulta.get("tipo", "todo"), "", consulta.get("q", "")[:80], "titulo")
-            ][:400]}))
+            ][:3000]}))
         if ruta == "/roku/serie":
             return self._json(llamar(lambda: _episodios(control, consulta.get("c", ""))))
         if ruta == "/roku/ficha":
-            return self._json(llamar(lambda: _ficha(control, _entero(consulta.get("id")), consulta.get("modo", ""))))
+            desde = _entero(consulta["desde"]) if "desde" in consulta else None
+            return self._json(llamar(lambda: _ficha(control, _entero(consulta.get("id")), consulta.get("modo", ""), desde)))
         if ruta == "/roku/video":
             return self._video(consulta)
         if ruta == "/roku/subtitulo":
-            return self._subtitulo(consulta)
+            return self._subtitulo_roku(consulta)
+        if ruta == "/roku/subs":
+            return self._subs_roku(consulta)
         if ruta == "/roku/poster":
             return self._poster(consulta.get("c", ""))
         del token
@@ -287,6 +303,9 @@ class _ManejadorRoku(_Manejador):
             return self._solicitar_roku()
         if ruta == "/roku/pase":
             return self._usar_pase()
+        if ruta == "/roku/sincronizar":
+            self._sesion(consulta)
+            return self._json(self.remoto.puente.llamar(lambda: self.remoto.control.accion_roku_sincronizar()) or {})
         if ruta == "/roku/latido":
             return self._latido(consulta)
         raise ErrorRemoto("No existe", 404)
@@ -310,6 +329,42 @@ class _ManejadorRoku(_Manejador):
             raise ErrorRemoto("Ya hay un pedido de este Roku esperando en la PC", 409)
         self._json({"id": resultado, "codigo": self.remoto.codigo_vinculo(resultado, roku=True)})
 
+    def _subs_roku(self, consulta: dict):
+        """Los diálogos de un subtítulo como lista [inicio ms, fin ms, texto]: el Roku los dibuja él (blancos, con
+        sombra) y así se puede correr el retraso y sincronizar. Sin las etiquetas de formato del .srt."""
+        from .subtitulos import Subtitulos
+        ruta = self._video_de(consulta)
+        lista = self.remoto.puente.llamar(lambda: subtitulos_del_video(self.remoto.bib, str(ruta)))
+        try:
+            sub = Subtitulos(lista[int(consulta.get("n", 0))])
+        except (ValueError, IndexError, OSError):
+            raise ErrorRemoto("Ese subtítulo no existe", 404) from None
+        self._json({"cues": [[a, b, re.sub(r"\{\\[^}]*\}", "", t)] for a, b, t in sub.cues]})
+
+    def _subtitulo_roku(self, consulta: dict):
+        """Como el de ON, pero si el video convertido empieza más adelante («desde», en ms), los tiempos se corren
+        para que coincidan con lo que el Roku cuenta desde 0."""
+        desde = _entero(consulta.get("desde", 0))
+        if not desde:
+            return self._subtitulo(consulta)
+        from .subtitulos import Subtitulos
+        ruta = self._video_de(consulta)
+        lista = self.remoto.puente.llamar(lambda: subtitulos_del_video(self.remoto.bib, str(ruta)))
+        try:
+            sub = Subtitulos(lista[int(consulta.get("n", 0))])
+        except (ValueError, IndexError, OSError):
+            raise ErrorRemoto("Ese subtítulo no existe", 404) from None
+
+        def tiempo(ms):
+            return f"{ms // 3600000:02d}:{ms // 60000 % 60:02d}:{ms // 1000 % 60:02d},{ms % 1000:03d}"
+        bloques = []
+        for a, b, texto in sub.cues:
+            if b - desde <= 0:
+                continue
+            bloques.append(f"{len(bloques) + 1}\n{tiempo(max(0, a - desde))} --> {tiempo(b - desde)}\n{texto}\n")
+        self._responder(200, "\n".join(bloques).encode("utf-8"), "application/x-subrip; charset=utf-8",
+                        {"Cache-Control": "no-store"})
+
     def _usar_pase(self):
         """El Roku que la PC abrió desde el celular («Conectar un Roku») canjea su pase por un token."""
         ip = self.client_address[0]
@@ -330,6 +385,13 @@ class _ManejadorRoku(_Manejador):
         ordenes = self.remoto.roku.latido(huella, nombre, self.client_address[0], datos)
         # Por dónde va queda en la misma base que la PC y el celular (seguir viendo en cualquier lado)
         aid, pos, dur = _entero(datos.get("id")), _entero(datos.get("pos")), _entero(datos.get("dur"))
+        if aid > 0 and "sub" in datos:
+            clave = (aid, _entero(datos.get("sub", -1)), _entero(datos.get("retraso", 0)))
+            if self.remoto.roku.guardar_subs_si_cambio(huella, clave):
+                try:
+                    self.remoto.puente.llamar(lambda: self.remoto.control.guardar_subs_roku(*clave))
+                except ErrorRemoto:
+                    pass
         # «detenido»: el Roku salió del video (atrás o Parar): se guarda ya, sin esperar los 10 s
         if aid > 0 and dur > 0 and datos.get("estado") in ("reproduciendo", "pausa", "terminado", "detenido") \
                 and (datos.get("estado") in ("terminado", "detenido") or self.remoto.roku.guardar_progreso_ahora(huella)):
@@ -378,24 +440,110 @@ def _episodios(control, clave: str) -> dict:
     return {"titulo": serie["titulo"], "episodios": lista, "seguir": serie["seguir"]}
 
 
-def _ficha(control, aid: int, modo: str) -> dict:
-    """Lo que el Roku necesita para reproducir un video: dirección, formato, desde dónde y subtítulos."""
+# --- Qué puede reproducir el Roku tal cual ---------------------------------------------------------------
+# El Roku Express no decodifica video HEVC de 10 bits (los «x265 10bit» de los torrents) y con sonido 5.1 (AAC 5.1,
+# AC3, DTS) queda mudo según la tele. La PC mira cada video con ffprobe y, si hace falta, lo convierte mientras se ve:
+# solo el sonido (barato) o también la imagen, con la placa de video si se puede (NVENC).
+
+_analisis: dict[tuple[str, float], dict] = {}
+_nvenc: bool | None = None
+
+
+def analizar(ruta: str) -> dict:
+    """Códecs del primer video y del primer audio, y la duración (ms). {} si no hay ffprobe."""
+    exe = ffmpeg()
+    if not exe:
+        return {}
+    try:
+        clave = (ruta, Path(ruta).stat().st_mtime)
+    except OSError:
+        return {}
+    if clave in _analisis:
+        return _analisis[clave]
+    sonda = Path(exe).with_name("ffprobe.exe" if exe.lower().endswith(".exe") else "ffprobe")
+    try:
+        r = subprocess.run([str(sonda), "-v", "error", "-print_format", "json", "-show_streams", "-show_format", ruta],
+                           capture_output=True, timeout=30,
+                           creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0)
+        datos = json.loads(r.stdout or b"{}")
+    except (OSError, subprocess.TimeoutExpired, ValueError):
+        return {}
+    video = next((s for s in datos.get("streams", []) if s.get("codec_type") == "video"
+                  and not (s.get("disposition") or {}).get("attached_pic")), {})
+    audio = next((s for s in datos.get("streams", []) if s.get("codec_type") == "audio"), {})
+    try:
+        duracion = int(float((datos.get("format") or {}).get("duration") or 0) * 1000)
+    except ValueError:
+        duracion = 0
+    def _inicio(flujo):
+        try:
+            return float(flujo.get("start_time") or 0)
+        except ValueError:
+            return 0.0
+
+    info = {"video": video.get("codec_name", ""), "pixeles": video.get("pix_fmt", ""),
+            "desfase": abs(_inicio(video) - _inicio(audio)) if audio else 0.0,
+            "audio": audio.get("codec_name", ""), "canales": int(audio.get("channels") or 0), "duracion": duracion}
+    _analisis[clave] = info
+    return info
+
+
+def modo_para_roku(ruta: str) -> str:
+    """«» si el Roku lo reproduce tal cual; «audio» si hay que pasar el sonido a estéreo; «video» si también la imagen."""
+    info = analizar(ruta)
+    if not info:
+        return ""
+    video_bien = info["video"] == "h264" and info["pixeles"] in ("yuv420p", "yuvj420p", "")
+    audio_bien = not info["audio"] or (info["audio"] in ("aac", "mp3") and info["canales"] <= 2)
+    if video_bien:
+        # Imagen y sonido que no empiezan juntos: el Roku se confunde al saltar (imagen congelada con sonido).
+        # Pasando por la PC, ffmpeg los alinea
+        return "" if audio_bien and info.get("desfase", 0) < 0.04 else "audio"
+    return "video"
+
+
+def nvenc_disponible() -> bool:
+    """¿Esta PC puede convertir a H.264 con la placa de video (NVIDIA)? Se prueba una vez."""
+    global _nvenc
+    if _nvenc is None:
+        exe = ffmpeg()
+        try:
+            r = subprocess.run([exe, "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i",
+                                "testsrc=size=320x240:rate=10", "-t", "0.5", "-c:v", "h264_nvenc", "-pix_fmt",
+                                "yuv420p", "-f", "null", "-"], capture_output=True, timeout=30,
+                               creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0)
+            _nvenc = r.returncode == 0
+        except (OSError, subprocess.TimeoutExpired, TypeError):
+            _nvenc = False
+    return _nvenc
+
+
+def _ficha(control, aid: int, modo: str, desde_ms: int | None = None) -> dict:
+    """Lo que el Roku necesita para reproducir un video: dirección, formato, desde dónde y subtítulos.
+    Si hay que convertirlo, el video convertido empieza en «desde» (el Roku suma ese corrimiento a su posición)."""
     f = control.ficha_archivo(aid)
     (_a, ruta, _t), = control._archivos([aid])
     formato = FORMATOS.get(Path(ruta).suffix.lower())
     base = f"/roku/video?id={aid}"
-    if modo in ("audio", "video") or formato is None:
-        if not ffmpeg():
-            raise ErrorRemoto("Este video necesita ffmpeg en la PC para verse en el Roku "
-                              "(winget install Gyan.FFmpeg y reabrir TorrentVision)", 501)
-        base += f"&compat={modo if modo in ('audio', 'video') else 'video'}&desde=0"
-        formato, pos = "ts", 0  # la conversión no se puede adelantar: arranca de cero
-    else:
-        pos = f["posicion"]
+    pos = f["posicion"] if desde_ms is None else max(0, int(desde_ms))
+    duracion = f["duracion"]
+    if modo not in ("audio", "video"):
+        modo = modo_para_roku(ruta) or ("video" if formato is None else "")
+    if modo and not ffmpeg():
+        raise ErrorRemoto("Este video necesita ffmpeg en la PC para verse en el Roku "
+                          "(winget install Gyan.FFmpeg y reabrir TorrentVision)", 501)
+    desde = 0
+    if modo:
+        base += f"&compat={modo}&desde={pos / 1000:.3f}"
+        formato, desde, pos = "ts", pos, 0
+        duracion = duracion or analizar(ruta).get("duracion", 0)
+    guardado = control.bib.subtitulos_de(ruta)
     return {"id": aid, "titulo": f["titulo"] if not f["serie"] else f"{f['titulo']} · {f['nombre_lindo']}"[:120],
-            "url": base, "formato": formato, "pos": pos, "dur": f["duracion"],
+            "url": base, "formato": formato, "pos": pos, "dur": duracion, "desde": desde, "modo": modo,
+            "retraso": guardado[1] if guardado else 0,
             "subtitulos": [{"n": s["n"], "texto": s["texto"][:60], "elegido": s["elegido"]} for s in f["subtitulos"]],
-            "siguiente": f["siguiente"] or 0,
+            # El siguiente capítulo, solo en las series (una película con números en el nombre no tiene «siguiente»)
+            "siguiente": (f["siguiente"] or 0) if f["serie"] else 0,
             # La intro de la serie (ms), si ya se detectó: el Roku ofrece saltarla
             "intro": list(intro) if (intro := control.ventana.intro_de(ruta)) else []}
 

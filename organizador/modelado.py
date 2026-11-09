@@ -245,7 +245,7 @@ def guardar_glb(ruta, partes: list[tuple[str, tuple, dict]]):
         ii = agregar(np.ascontiguousarray(t, np.uint32).tobytes(), 34963)
         accesores.append({"bufferView": ii, "componentType": 5125, "count": int(t.size), "type": "SCALAR"})
         material = {"name": nombre, "pbrMetallicRoughness": {
-            "baseColorFactor": [*mat.get("color", (1, 1, 1)), 1.0],
+            "baseColorFactor": [*mat.get("color", (1, 1, 1)), float(mat.get("alfa", 1.0))],
             "metallicFactor": mat.get("metal", 0.0), "roughnessFactor": mat.get("rugosidad", 0.7)}}
         if mat.get("textura"):
             imagenes.append({"bufferView": agregar(mat["textura"]), "mimeType": mat.get("tipo", "image/jpeg")})
@@ -253,6 +253,8 @@ def guardar_glb(ruta, partes: list[tuple[str, tuple, dict]]):
             material["pbrMetallicRoughness"]["baseColorTexture"] = {"index": len(texturas) - 1}
         if mat.get("dos_caras"):
             material["doubleSided"] = True
+        if mat.get("alfa", 1.0) < 1.0 or mat.get("transparente"):
+            material["alphaMode"] = "BLEND"
         materiales.append(material)
         mallas.append({"name": nombre, "primitives": [{"attributes": atributos, "indices": len(accesores) - 1,
                                                        "material": len(materiales) - 1}]})

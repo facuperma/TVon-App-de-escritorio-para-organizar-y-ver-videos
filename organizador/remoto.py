@@ -623,6 +623,8 @@ class Remoto(QObject):
             "titulo": activo["titulo"] if activo else "",
             "id": activo["id"] if activo else 0,
             "subs": activo.get("subs", []) if activo else [], "sub": activo.get("sub", -1) if activo else -1,
+            "retraso": activo.get("retraso", 0) if activo else 0, "escala": activo.get("escala", 1.0) if activo else 1.0,
+            "sincronizando": self.roku.sincronizando,
             "posicion": activo["pos"] if activo else 0, "duracion": activo["dur"] if activo else 0,
             "vinculados": vinculados, "pendientes": pendientes,
             "buscando": self.roku.buscando, "conectando": self.roku.conectando,
@@ -1121,8 +1123,20 @@ class _Manejador(BaseHTTPRequestHandler):
         segundos = float(desde)
         if not 0 <= segundos < 10 * 3600:
             raise ErrorRemoto("Posición inválida")
-        video = ["-c:v", "copy"] if modo == "audio" else [
-            "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p"]
+        if modo == "audio":
+            video = ["-c:v", "copy"]
+            from .roku import analizar
+            if analizar(str(ruta)).get("video") == "h264":
+                # Algunos .mp4 (p. ej. Lo Dejamos Acá) tienen los parámetros del video en un lugar que se pierde al
+                # pasar a mpegts y la imagen no arranca: se repiten en cada cuadro clave
+                video += ["-bsf:v", "h264_mp4toannexb,dump_extra=freq=keyframe"]
+        else:
+            # Con placa NVIDIA, la conversión la hace la placa (rápido y sin cargar el procesador)
+            from .roku import nvenc_disponible
+            escala = ["-vf", "scale='min(1920,iw)':-2,format=yuv420p"]
+            video = escala + (["-c:v", "h264_nvenc", "-preset", "p4", "-rc", "vbr", "-cq", "23", "-b:v", "0",
+                               "-profile:v", "high", "-g", "48"] if nvenc_disponible() else
+                              ["-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-g", "48"])
         orden = [exe, "-hide_banner", "-loglevel", "error", "-ss", f"{segundos:.3f}", "-i", str(ruta),
                  "-map", "0:v:0", "-map", "0:a:0?", "-sn", "-dn", *video,
                  "-c:a", "aac", "-b:a", "192k", "-ac", "2", "-f", "mpegts", "pipe:1"]
@@ -2011,6 +2025,88 @@ class _Control:
     def accion_roku_subtitulo(self, n):
         """Elegir uno de los subtítulos del video que está en el Roku (-1: sin subtítulos)."""
         self._orden_roku(c="subtitulo", n=int(n))
+
+    def accion_roku_retraso(self, ms):
+        """Retraso de los subtítulos en el Roku (ms; negativo: salen antes)."""
+        self._orden_roku(c="retraso", ms=max(-600_000, min(600_000, int(ms))))
+
+    def accion_roku_tamano(self, escala):
+        self._orden_roku(c="tamano", escala=max(0.6, min(2.0, float(escala))))
+
+    def accion_roku_siguiente(self):
+        self._orden_roku(c="siguiente")
+
+    def accion_roku_volumen(self, tecla):
+        """Volumen de la tele con el control externo del Roku (subir, bajar o silencio)."""
+        from .roku import _pedir_ecp
+        tecla = {"mas": "VolumeUp", "menos": "VolumeDown", "silencio": "VolumeMute"}.get(str(tecla))
+        if not tecla:
+            raise ErrorRemoto("Tecla de volumen desconocida")
+        with self.remoto._cerrojo:
+            ips = {s.get("ip") for s in self.remoto._sesiones.values() if s.get("roku") and s.get("ip")}
+        if not any(_pedir_ecp(ip, f"/keypress/{tecla}", "POST") is not None for ip in ips):
+            raise ErrorRemoto("No se pudo llegar al Roku para cambiar el volumen", 409)
+
+    def accion_roku_sincronizar_ahora(self):
+        """«🎯 Ahora habla» en la tele: el diálogo más cercano pasa a empezar en este momento."""
+        from .subtitulos import Subtitulos
+        activo = self.remoto.roku.ultimo()
+        if not activo or activo.get("sub", -1) < 0 or not activo.get("id"):
+            raise ErrorRemoto("En la tele no hay subtítulos puestos")
+        (_aid, ruta, _t), = self._archivos([activo["id"]])
+        subs = subtitulos_del_video(self.bib, ruta)
+        if not 0 <= activo["sub"] < len(subs):
+            raise ErrorRemoto("Ese subtítulo ya no está")
+        cues = Subtitulos(subs[activo["sub"]]).cues
+        if not cues:
+            raise ErrorRemoto("El subtítulo está vacío")
+        pos, retraso = int(activo.get("pos", 0)), int(activo.get("retraso", 0))
+        ahora = pos - retraso
+        cue = min(cues, key=lambda c: abs(c[0] - ahora))
+        self._orden_roku(c="retraso", ms=max(-600_000, min(600_000, pos - cue[0])))
+
+    def guardar_subs_roku(self, aid: int, n: int, retraso: int):
+        """Lo que se eligió en el Roku queda guardado para ese video (lo usan también la PC y el celular)."""
+        (aid, ruta, _t), = self._archivos([aid])
+        subs = subtitulos_del_video(self.bib, ruta)
+        self.bib.guardar_subtitulos(ruta, subs[n] if 0 <= n < len(subs) else None, retraso)
+
+    def accion_roku_sincronizar(self):
+        """Sincroniza solo los subtítulos del video que está en el Roku (como 🪄 Auto en la PC)."""
+        from . import sincronia
+        from .subtitulos import Subtitulos
+        estado = self.remoto.roku
+        activo = estado.ultimo()
+        if not activo or activo.get("sub", -1) < 0 or not activo.get("id"):
+            raise ErrorRemoto("En la tele no hay subtítulos puestos")
+        if estado.sincronizando >= 0:
+            raise ErrorRemoto("Ya se está sincronizando")
+        exe = ffmpeg()
+        if not exe:
+            raise ErrorRemoto("Para sincronizar hace falta ffmpeg en la PC", 501)
+        (_aid, ruta, _t), = self._archivos([activo["id"]])
+        subs = subtitulos_del_video(self.bib, ruta)
+        if not 0 <= activo["sub"] < len(subs):
+            raise ErrorRemoto("Ese subtítulo ya no está")
+        cues = Subtitulos(subs[activo["sub"]]).cues
+        duracion = max(1, activo.get("dur", 0) / 1000)
+        estado.sincronizando = 0
+        self.remoto.roku.encolar({"c": "aviso", "texto": "Sincronizando los subtítulos con el audio…"})
+
+        def trabajo():
+            try:
+                retraso, _conf = sincronia.sincronizar(
+                    exe, ruta, cues, lambda seg: setattr(estado, "sincronizando", min(99, int(seg * 100 / duracion))))
+                estado.encolar({"c": "retraso", "ms": int(retraso)})
+                estado.encolar({"c": "aviso", "texto": "✓ Subtítulos sincronizados"})
+            except sincronia.ErrorSincronia as e:
+                estado.encolar({"c": "aviso", "texto": str(e)[:120]})
+            finally:
+                estado.sincronizando = -1
+                self.remoto.estado_cambiado.emit()
+
+        threading.Thread(target=trabajo, daemon=True).start()
+        return {"aviso": "Sincronizando los subtítulos de la tele con el audio…"}
 
     def accion_roku_resolver(self, id, permitir):
         """Aprobar o rechazar desde el celular el pedido de un Roku (también se puede en la PC)."""

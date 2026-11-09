@@ -83,6 +83,8 @@ class Modelo(app: Application) : AndroidViewModel(app) {
     var pestana by mutableStateOf(Pestana.INICIO)
         private set
     var conectado by mutableStateOf(true)
+    /** Con un Roku conectado, Control maneja solo el Roku; esto es «me desconecté del Roku: controlar la PC». */
+    var controlarPc by mutableStateOf(false)
     var enPrimerPlano = true
     val base get() = pc?.base.orEmpty()
     val huella get() = pc?.huella.orEmpty()
@@ -528,6 +530,8 @@ class Modelo(app: Application) : AndroidViewModel(app) {
 
     /** Una orden a TVon (POST /api/accion). Avisa del error y lo vuelve a lanzar. */
     suspend fun accion(nombre: String, vararg datos: Pair<String, Any?>): JSONObject? {
+        // Mandar algo a la tele (o conectar un Roku) vuelve a poner Control en el Roku
+        if (nombre == "roku_reproducir" || nombre == "roku_conectar") controlarPc = false
         try {
             val r = conPc().post("/api/accion", json("accion" to nombre, *datos))
             conectado = true
