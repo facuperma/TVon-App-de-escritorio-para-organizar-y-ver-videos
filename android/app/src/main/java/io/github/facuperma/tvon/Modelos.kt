@@ -239,7 +239,7 @@ private fun JSONObject.decimalONull(clave: String): Double? = if (isNull(clave) 
 data class Cartel(
     val tipo: String, val id: Int?, val clave: String, val titulo: String, val anio: String?, val sub: String,
     val poster: Boolean, val generos: List<String>, val puntaje: Double?, val visto: Boolean, val progreso: Float?,
-    val episodios: Int, val sinVer: Int, val favorito: Boolean,
+    val episodios: Int, val sinVer: Int, val favorito: Boolean, val categorias: List<Int> = emptyList(),
 ) {
     companion object {
         fun de(o: JSONObject) = Cartel(
@@ -247,6 +247,7 @@ data class Cartel(
             o.optString("titulo"), o.textoONull("anio"), o.optString("sub"), o.optBoolean("poster"),
             o.textos("generos"), o.decimalONull("puntaje"), o.optBoolean("visto"),
             o.decimalONull("progreso")?.toFloat(), o.optInt("episodios"), o.optInt("sin_ver"), o.optBoolean("favorito"),
+            o.optJSONArray("categorias").let { a -> (0 until (a?.length() ?: 0)).map { a!!.getInt(it) } },
         )
     }
 }

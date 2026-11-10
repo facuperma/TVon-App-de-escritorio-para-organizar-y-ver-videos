@@ -1578,7 +1578,7 @@ class Ventana(QMainWindow):
         # En la pantalla sin video, apoyado en el logo (si lo quiere así)
         visor = getattr(self, "visor", None)
         if visor is not None:
-            visor.vacio.poner_protagonista(social.avatar if social.en_logo else None)
+            visor.vacio.poner_protagonista(social.avatar if social.en_logo else None, social.animacion)
         tarjeta = getattr(self, "_tarjeta_prota", None)
         if tarjeta is not None and tarjeta.isVisible():
             self._mostrar_tarjeta_protagonista(True)

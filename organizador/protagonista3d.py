@@ -14,7 +14,7 @@ import numpy as np
 from . import avatar3d
 from .modelado import cortar, curva, elipsoide, esfera, capsula, caja_redonda, guardar_glb, malla, restar, unir
 
-VERSION = 11 # subir si cambia la forma: así se rearman los que están en caché
+VERSION = 13 # subir si cambia la forma: así se rearman los que están en caché
 PASO = 0.0045
 
 # Puntos de articulación (para animar): hombros, cuello, cadera
@@ -96,12 +96,16 @@ def _cabeza_sdf(p, con_foto=False):
     return d
 
 
-RADIO_FOTO, RADIO_FOTO_X, HONDO_FOTO = 0.118, 0.146, 0.041   # alto, ancho (se abre hacia los lados) y hondura
+RADIO_FOTO, RADIO_FOTO_X, HONDO_FOTO = 0.122, 0.138, 0.04   # alto, ancho (apenas más ancho que alto) y hondura
 
 
 def _hondo_foto(p):
-    r2 = (p[..., 0] ** 2 / RADIO_FOTO_X ** 2 + (p[..., 1] - 0.8) ** 2 / RADIO_FOTO ** 2)
-    return HONDO_FOTO * np.clip(1 - r2, 0, None) * (p[..., 2] > 0.04)
+    """Un cuadro circular hundido en la cara: borde que baja suave y el fondo parejo (ahí va la foto)."""
+    r = np.sqrt(p[..., 0] ** 2 / RADIO_FOTO_X ** 2 + (p[..., 1] - 0.8) ** 2 / RADIO_FOTO ** 2)
+    u = np.clip((1 - r) / 0.28, 0, 1)
+    # Un reborde apenas levantado alrededor, como el párpado del ojo
+    reborde = 0.0065 * np.exp(-(((r - 1.12) / 0.11) ** 2))
+    return (HONDO_FOTO * (u * u * (3 - 2 * u)) - reborde) * (p[..., 2] > 0.04)
 
 
 def _linea_pelo(p):
@@ -325,9 +329,6 @@ def _armar(s: dict, foto_jpg: bytes | None) -> dict[str, list]:
     _lentes(partes["cabeza"], s, ca)
     if con_foto:
         partes["cabeza"].append(("foto", "foto", None, {"color": (1, 1, 1), "rugosidad": 0.6, "textura": foto_jpg, "dos_caras": True}))
-        partes["cabeza"].append(("vidrio", "vidrio", None, {"color": (1, 1, 1), "rugosidad": 0.05, "transparente": True,
-                                                             "textura": _reflejo_vidrio(), "tipo": "image/png",
-                                                             "dos_caras": True}))
 
     # Torso: cuello, ropa, estampa
     partes["torso"].append(("cuello", lambda p: capsula(p, (0, 0.58, 0), (0, 0.7, 0), 0.046),
@@ -393,33 +394,11 @@ def _armar(s: dict, foto_jpg: bytes | None) -> dict[str, list]:
     return partes
 
 
-def _limite_pelo(p, sombrero):
-    """Hasta dónde puede llegar el pelo con ese sombrero: por encima del borde queda adentro del gorro (no lo atraviesa);
-    por debajo (patillas, nuca, melena) queda libre. Negativo = permitido."""
-    y = p[..., 1]
-    if sombrero in ("gorra", "gorro"):
-        base = 0.90
-        forma = (elipsoide(p, (0, 0.88, -0.01), (0.215, 0.2, 0.2)) if sombrero == "gorra"
-                 else elipsoide(p, (0, 0.89, -0.01), (0.22, 0.215, 0.205)))
-        return np.minimum(forma - 0.006, base - y)
-    radio = {"sombrero": 0.17, "galera": 0.155, "corona": 0.152}.get(sombrero)
-    if radio is None:
-        return None
-    cilindro_h = np.linalg.norm(p[..., [0, 2]], axis=-1) - radio
-    return np.minimum(cilindro_h - 0.006, 0.936 - y)
-
-
 def _pelo_funcion(s):
-    if s["peinado"] == "pelado":
+    # Con algo en la cabeza (gorra, gorro, sombrero, galera, corona) no se le pone pelo: así nada atraviesa el accesorio
+    if s["peinado"] == "pelado" or s["cabeza"] != "ninguno":
         return None
-    if s["cabeza"] == "ninguno":
-        return lambda p: _pelo(p, s)
-
-    def con_sombrero(p):
-        d = _pelo(p, s)
-        limite = _limite_pelo(p, s["cabeza"])
-        return d if limite is None else np.maximum(d, limite)
-    return con_sombrero
+    return lambda p: _pelo(p, s)
 
 
 def _sombreros(lista, s, ca, detalle):
@@ -550,32 +529,49 @@ def _auriculares(lista, s, ca):
 
 # --- La foto en la cara ------------------------------------------------------------------------------------
 
-_REFLEJO = None
-
-
-def _reflejo_vidrio() -> bytes:
-    """Textura del vidrio: casi transparente, con un brillo diagonal arriba a la izquierda y otro chiquito abajo."""
-    global _REFLEJO
-    if _REFLEJO is None:
-        from PySide6.QtCore import QBuffer, QByteArray
-        from PySide6.QtGui import QImage
-        n = 128
-        y, x = np.mgrid[0:n, 0:n].astype(np.float32) / (n - 1) * 2 - 1
-        alfa = np.full((n, n), 0.02, np.float32)
-        banda = np.exp(-(((x + y + 0.75) / 0.16) ** 2)) * np.clip(1.2 - np.hypot(x + 0.35, y + 0.35), 0, 1)
-        fina = np.exp(-(((x + y + 0.38) / 0.05) ** 2)) * np.clip(1.0 - np.hypot(x + 0.2, y + 0.2), 0, 1)
-        punto = np.exp(-((np.hypot(x - 0.42, y - 0.5) / 0.09) ** 2))
-        alfa = np.clip(alfa + 0.3 * banda + 0.24 * fina + 0.28 * punto, 0, 1)
-        rgba = np.zeros((n, n, 4), np.uint8)
-        rgba[..., :3] = 255
-        rgba[..., 3] = (alfa * 255).astype(np.uint8)
-        imagen = QImage(rgba.tobytes(), n, n, 4 * n, QImage.Format.Format_RGBA8888).copy()
+def _ojo(jpg: bytes) -> bytes:
+    """La foto como si fuera el ojo del Protagonista, sin exagerar: un aro oscuro en el borde, el borde apenas más
+    oscuro (como el volumen de un ojo) y un brillito de luz arriba a la izquierda (más otro chico). Sin vidrio."""
+    try:
+        from PySide6.QtCore import QBuffer, QByteArray, QPointF, Qt
+        from PySide6.QtGui import QBrush, QColor, QImage, QPainter, QPen, QRadialGradient
+        imagen = QImage.fromData(jpg)
+        if imagen.isNull():
+            return jpg
+        n = 384
+        imagen = imagen.scaled(n, n, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
+        imagen = imagen.copy((imagen.width() - n) // 2, (imagen.height() - n) // 2, n, n).convertToFormat(QImage.Format_RGB32)
+        pintor = QPainter(imagen)
+        pintor.setRenderHint(QPainter.Antialiasing)
+        # Lo que se ve de la foto es una elipse (la foto no se estira): el dibujo se hace en un círculo y se achata
+        pintor.translate(n / 2, n / 2)
+        pintor.scale(RADIO_FOTO / RADIO_FOTO_X, 1.0)
+        r = n / 2
+        sombra = QRadialGradient(QPointF(0, 0), r)
+        sombra.setColorAt(0.0, QColor(0, 0, 0, 0))
+        sombra.setColorAt(0.6, QColor(0, 0, 0, 0))
+        sombra.setColorAt(0.88, QColor(0, 0, 0, 55))
+        sombra.setColorAt(1.0, QColor(0, 0, 0, 120))
+        pintor.fillRect(-n, -n, 2 * n, 2 * n, QBrush(sombra))
+        pintor.setBrush(Qt.NoBrush)
+        pintor.setPen(QPen(QColor(25, 15, 10, 110), n * 0.022))
+        pintor.drawEllipse(QPointF(0, 0), r * 0.985, r * 0.985)
+        for (cx, cy, rad, alfa) in ((-0.34, -0.36, 0.11, 215), (0.30, 0.33, 0.045, 110)):
+            brillo = QRadialGradient(QPointF(cx * r, cy * r), rad * r)
+            brillo.setColorAt(0.0, QColor(255, 255, 255, alfa))
+            brillo.setColorAt(0.55, QColor(255, 255, 255, alfa // 2))
+            brillo.setColorAt(1.0, QColor(255, 255, 255, 0))
+            pintor.setPen(Qt.NoPen)
+            pintor.setBrush(QBrush(brillo))
+            pintor.drawEllipse(QPointF(cx * r, cy * r), rad * r, rad * r)
+        pintor.end()
         datos = QByteArray()
         buffer = QBuffer(datos)
         buffer.open(QBuffer.OpenModeFlag.WriteOnly)
-        imagen.save(buffer, "PNG")
-        _REFLEJO = bytes(datos)
-    return _REFLEJO
+        imagen.save(buffer, "JPG", 92)
+        return bytes(datos)
+    except Exception:  # noqa: BLE001 - si algo falla, la foto sin retocar
+        return jpg
 
 
 def _disco_foto(vidrio=False):
@@ -659,7 +655,7 @@ def construir(spec: dict, carpeta: Path, paso: float = PASO) -> Path:
     foto = None
     if s.get("foto"):
         import base64
-        foto = base64.b64decode(s["foto"].split(",", 1)[1])
+        foto = _ojo(base64.b64decode(s["foto"].split(",", 1)[1]))
     partes = _armar(s, foto)
     _auriculares(partes["cabeza"], s, s["accesorio_color"])
     for nombre_parte, piezas in partes.items():
@@ -674,8 +670,8 @@ def construir(spec: dict, carpeta: Path, paso: float = PASO) -> Path:
         nuevas = {}
         mallas = []
         for nombre, funcion, caja, material in piezas:
-            if funcion in ("foto", "vidrio"):
-                mallas.append((nombre, _disco_foto(funcion == "vidrio"), material))
+            if funcion == "foto":
+                mallas.append((nombre, _disco_foto(), material))
                 continue
             if f"{nombre}__v" in guardadas:
                 geo = (guardadas[f"{nombre}__v"], guardadas[f"{nombre}__n"], guardadas[f"{nombre}__t"])

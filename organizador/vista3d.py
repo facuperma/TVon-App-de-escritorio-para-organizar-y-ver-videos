@@ -31,11 +31,17 @@ Item {
     // Poses (la escena del logo): inclinación del cuerpo, brazo derecho extendido para empujar (0 a 1), hacia dónde mira
     // la cabeza y cuánto se balancea solo (0 = quieto en su lugar)
     property real inclinacion: 0
+    // Las dos manos hacia adelante (empujar algo pesado), giro en el aire alrededor del centro del cuerpo y la sombra del piso
+    property real manos: 0
+    property real vuelo: 0
+    property bool sombra: true
     property real empuje: 0
     property real mira: 0
     property real vaiven: 1
     // Escena liviana (la del logo, que se anima todo el tiempo): sin sombras ni oclusión, para llegar a 30 cuadros/s
     property bool liviano: false
+    property real cuerpoK: 0.88
+    property real cabezaK: 1.2
     property vector3d escala: Qt.vector3d(1, 1, 1)
     property real tiempo: 0
     property int cargadas: 0
@@ -66,46 +72,58 @@ Item {
 
         // Sombra de apoyo, debajo de los pies
         Model {
-            visible: !raiz.busto && raiz.carpeta !== ""
+            visible: !raiz.busto && raiz.carpeta !== "" && raiz.sombra
             source: "#Cylinder"; scale: Qt.vector3d(0.0042, 0.0001, 0.0028); position: Qt.vector3d(0, 0.001, 0.02)
             materials: PrincipledMaterial { baseColor: "black"; opacity: 0.28; alphaMode: PrincipledMaterial.Blend
                                             lighting: PrincipledMaterial.NoLighting }
         }
 
         Node {
+            id: pivote
+            y: 0.5
+            eulerRotation.z: raiz.vuelo
+        Node {
             id: cuerpo
             scale: raiz.escala
             eulerRotation.y: (raiz.quieto ? -16 : 15 * Math.sin(raiz.tiempo * 0.35) * raiz.vaiven) + raiz.giroMano
             eulerRotation.z: raiz.inclinacion
-            y: raiz.quieto ? 0 : 0.006 * Math.abs(Math.sin(raiz.tiempo * 1.1))
-            RuntimeLoader { source: raiz.url("piernas"); onStatusChanged: if (status === RuntimeLoader.Success) raiz.cuenta() }
+            y: -0.5 + (raiz.quieto ? 0 : 0.006 * Math.abs(Math.sin(raiz.tiempo * 1.1)))
+            // Cuerpo más chico y cabeza más grande (cabezón): la altura total queda casi igual
             Node {
-                // Respirar: el torso se infla apenas
-                y: 0.43; scale.y: 1 + 0.012 * Math.sin(raiz.tiempo * 2.2); scale.x: 1 + 0.006 * Math.sin(raiz.tiempo * 2.2)
-                RuntimeLoader { source: raiz.url("torso"); y: -0.43; onStatusChanged: if (status === RuntimeLoader.Success) raiz.cuenta() }
+                id: tronco
+                scale: Qt.vector3d(raiz.cuerpoK, raiz.cuerpoK, raiz.cuerpoK)
+                RuntimeLoader { source: raiz.url("piernas"); onStatusChanged: if (status === RuntimeLoader.Success) raiz.cuenta() }
+                Node {
+                    // Respirar: el torso se infla apenas
+                    y: 0.43; scale.y: 1 + 0.012 * Math.sin(raiz.tiempo * 2.2); scale.x: 1 + 0.006 * Math.sin(raiz.tiempo * 2.2)
+                    RuntimeLoader { source: raiz.url("torso"); y: -0.43; onStatusChanged: if (status === RuntimeLoader.Success) raiz.cuenta() }
+                }
+                Node {
+                    position: Qt.vector3d(-0.155, 0.585, 0)
+                    eulerRotation.z: (-4 - 2 * Math.sin(raiz.tiempo * 1.1)) * (1 - raiz.manos)
+                    eulerRotation.x: 4 * Math.sin(raiz.tiempo * 0.8) * (1 - raiz.manos) - raiz.manos * 98
+                    RuntimeLoader { source: raiz.url("brazo_i"); position: Qt.vector3d(0.155, -0.585, 0)
+                                    onStatusChanged: if (status === RuntimeLoader.Success) raiz.cuenta() }
+                }
+                Node {
+                    position: Qt.vector3d(0.155, 0.585, 0)
+                    eulerRotation.z: (4 + 2 * Math.sin(raiz.tiempo * 1.1 + 1)) * (1 - raiz.manos) + raiz.empuje * 80
+                    eulerRotation.x: -4 * Math.sin(raiz.tiempo * 0.8) * (1 - raiz.manos) - raiz.empuje * 35 - raiz.manos * 98
+                    RuntimeLoader { source: raiz.url("brazo_d"); position: Qt.vector3d(-0.155, -0.585, 0)
+                                    onStatusChanged: if (status === RuntimeLoader.Success) raiz.cuenta() }
+                }
             }
             Node {
-                position: Qt.vector3d(-0.155, 0.585, 0)
-                eulerRotation.z: -4 - 2 * Math.sin(raiz.tiempo * 1.1); eulerRotation.x: 4 * Math.sin(raiz.tiempo * 0.8)
-                RuntimeLoader { source: raiz.url("brazo_i"); position: Qt.vector3d(0.155, -0.585, 0)
-                                onStatusChanged: if (status === RuntimeLoader.Success) raiz.cuenta() }
-            }
-            Node {
-                position: Qt.vector3d(0.155, 0.585, 0)
-                eulerRotation.z: 4 + 2 * Math.sin(raiz.tiempo * 1.1 + 1) + raiz.empuje * 80
-                eulerRotation.x: -4 * Math.sin(raiz.tiempo * 0.8) - raiz.empuje * 35
-                RuntimeLoader { source: raiz.url("brazo_d"); position: Qt.vector3d(-0.155, -0.585, 0)
-                                onStatusChanged: if (status === RuntimeLoader.Success) raiz.cuenta() }
-            }
-            Node {
-                // La cabeza mira para los costados y se inclina un poco
-                position: Qt.vector3d(0, 0.64, 0)
+                // La cabeza (más grande) mira para los costados y se inclina un poco; gira sobre el cuello
+                position: Qt.vector3d(0, 0.64 * raiz.cuerpoK, 0)
+                scale: Qt.vector3d(raiz.cabezaK, raiz.cabezaK, raiz.cabezaK)
                 eulerRotation.y: (raiz.quieto ? 0 : 11 * Math.sin(raiz.tiempo * 0.55) * raiz.vaiven) + raiz.mira
                 eulerRotation.z: raiz.quieto ? 3 : 3 * Math.sin(raiz.tiempo * 0.9)
                 eulerRotation.x: raiz.quieto ? 0 : -3 + 3 * Math.sin(raiz.tiempo * 0.7)
                 RuntimeLoader { source: raiz.url("cabeza"); position: Qt.vector3d(0, -0.64, 0)
                                 onStatusChanged: if (status === RuntimeLoader.Success) raiz.cuenta() }
             }
+        }
         }
     }
     function cuenta() { raiz.cargadas += 1; if (raiz.cargadas >= 5) raiz.listo() }

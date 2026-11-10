@@ -807,7 +807,7 @@ class _Manejador(BaseHTTPRequestHandler):
         elif ruta == "/api/catalogo":
             self._json(self.remoto.puente.llamar(lambda: control.catalogo(
                 consulta.get("tipo", "pelicula"), consulta.get("genero", ""), consulta.get("q", ""),
-                consulta.get("orden", "recientes"))))
+                consulta.get("orden", "recientes"), consulta.get("categoria"), consulta.get("estado", ""))))
         elif ruta == "/api/serie":
             self._json(self.remoto.puente.llamar(lambda: control.serie(consulta.get("c", ""))))
         elif ruta == "/api/ficha":
@@ -1472,7 +1472,8 @@ class _Control:
         peliculas, series = fichas.agrupar(self.bib)
         todas = fichas.fichas(self.bib)
         progresos = self.bib.progresos()
-        fav = {a for a, cids in self.bib.categorias_por_archivo().items() if self.bib.favoritos in cids}
+        por_archivo = self.bib.categorias_por_archivo()
+        fav = {a for a, cids in por_archivo.items() if self.bib.favoritos in cids}
         tarjetas = []
         for p in peliculas:
             prog = progresos.get(p["ruta"])
@@ -1483,6 +1484,7 @@ class _Control:
                 "visto": bool(prog and prog[2]),
                 "progreso": round(prog[0] / prog[1], 3) if prog and prog[1] and prog[0] and not prog[2] else None,
                 "agregado": _creado(p["ruta"]), "favorito": p["id"] in fav,
+                "categorias": por_archivo.get(p["id"], []),
             })
         for s in series.values():
             vistos = sum(1 for e in s["episodios"] if (pr := progresos.get(e["ruta"])) and pr[2])
@@ -1496,6 +1498,7 @@ class _Control:
                 "episodios": total, "sin_ver": total - vistos,
                 "agregado": max(_creado(e["ruta"]) for e in s["episodios"]),
                 "favorito": any(e["id"] in fav for e in s["episodios"]),
+                "categorias": sorted({c for e in s["episodios"] for c in por_archivo.get(e["id"], [])}),
             })
         return tarjetas, series
 
@@ -1544,14 +1547,30 @@ class _Control:
             "conversion": ffmpeg() is not None,
         }
 
-    def catalogo(self, tipo: str, genero: str, texto: str, orden: str) -> list[dict]:
+    def catalogo(self, tipo: str, genero: str, texto: str, orden: str, categoria=None, estado: str = "") -> list[dict]:
+        """Las tarjetas de películas y series. Además del tipo y el género: «categoria» (id), «estado» (vistas / sin_ver)
+        y un texto que busca en el título, el año, los géneros, la calidad y el nombre de sus categorías."""
         if tipo not in ("pelicula", "serie", "todo"):
             raise ErrorRemoto("Tipo desconocido")
+        if estado not in ("", "vistas", "sin_ver"):
+            raise ErrorRemoto("Estado desconocido")
         tarjetas, _ = self._tarjetas()
         buscado = fichas._normal(texto)
+        cid = int(categoria) if categoria not in (None, "") else None
+        nombres = {cid_: nombre for cid_, nombre, _n in self.bib.listar_categorias()} if buscado else {}
+
+        def coincide(t: dict) -> bool:
+            if not buscado:
+                return True
+            campos = [t["titulo"], t.get("anio") or "", t.get("sub") or "", *t["generos"],
+                      *(nombres.get(c, "") for c in t.get("categorias", []))]
+            return any(buscado in fichas._normal(c) for c in campos)
+
         lista = [t for t in tarjetas if (tipo == "todo" or t["tipo"] == tipo)
                  and (not genero or genero in t["generos"])
-                 and (not buscado or buscado in fichas._normal(t["titulo"]))]
+                 and (cid is None or cid in t.get("categorias", []))
+                 and (not estado or (t["visto"] if estado == "vistas" else not t["visto"]))
+                 and coincide(t)]
         if orden == "titulo":
             lista.sort(key=lambda t: orden_natural(t["titulo"]))
         elif orden == "anio":
@@ -2102,12 +2121,15 @@ class _Control:
 
         def trabajo():
             try:
-                retraso, _conf = sincronia.sincronizar(
+                resultado = sincronia.sincronizar_detallado(
                     exe, ruta, cues, lambda seg: setattr(estado, "sincronizando", min(99, int(seg * 100 / duracion))))
-                estado.encolar({"c": "retraso", "ms": int(retraso)})
-                estado.encolar({"c": "aviso", "texto": "✓ Subtítulos sincronizados"})
+                estado.encolar({"c": "retraso", "ms": int(resultado.retraso_ms)})
+                estado.encolar({"c": "aviso", "texto": "✓ Subtítulos sincronizados" +
+                                (f". {resultado.avisos[0]}"[:160] if resultado.avisos else "")})
             except sincronia.ErrorSincronia as e:
-                estado.encolar({"c": "aviso", "texto": str(e)[:120]})
+                estado.encolar({"c": "aviso", "texto": str(e)[:220]})
+            except Exception as e:  # noqa: BLE001 - que un fallo raro no deje al Roku esperando sin decir nada
+                estado.encolar({"c": "aviso", "texto": f"No se pudo sincronizar: {type(e).__name__}"})
             finally:
                 estado.sincronizando = -1
                 self.remoto.estado_cambiado.emit()

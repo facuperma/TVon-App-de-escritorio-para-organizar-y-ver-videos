@@ -550,6 +550,8 @@ def analizar(ruta: str) -> dict:
             "desfase": abs(_inicio(video) - _inicio(audio)) if audio else 0.0,
             "audio": audio.get("codec_name", ""), "canales": _entero_seguro(audio.get("channels")),
             "audio_idx": elegido, "subs": subs, "moov_al_final": _moov_al_final(ruta),
+            "audios": [{"canales": _entero_seguro(a.get("channels")),
+                        "idioma": ((a.get("tags") or {}).get("language") or "").lower()} for a in audios],
             "duracion": _entero_seguro(float(formato.get("duration") or 0) * 1000 if str(formato.get("duration") or "0").replace(".", "", 1).isdigit() else 0)}
     _analisis[clave] = info
     return info

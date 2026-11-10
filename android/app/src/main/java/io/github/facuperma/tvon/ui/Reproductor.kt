@@ -54,49 +54,75 @@ import kotlinx.coroutines.delay
 
 private val ESTADOS = mapOf(
     "reproduciendo" to "▶ Reproduciendo", "pausa" to "⏸ En pausa", "detenido" to "⏹ Detenido",
-    "vista_previa" to "Vista previa: tocá ▶ para empezar",
+    "vista_previa" to "Vista previa: tocá ▶ para empezar", "cargando" to "⏳ Cargando en la tele…",
 )
 
 @Composable
 fun deslizador() = SliderDefaults.colors(thumbColor = Color.White, activeTrackColor = C.acento, inactiveTrackColor = C.fondoHondo)
 
+/** A qué se le manda lo que se toca en Control: la PC, el Roku o el Chromecast. */
+private enum class Destino { PC, ROKU, CAST }
+
 @Composable
 fun PestanaReproductor(vm: Modelo) {
     val e = vm.estado
-    // Con el Roku conectado, este mismo control maneja la película de la tele (hasta «Desconectarme del Roku»)
     val roku = e?.roku?.takeIf { it.disponible && it.conectado }
-    val tele = roku != null && !vm.controlarPc
-    val rep = if (tele) roku!!.let {
-        Reproduccion(if (it.estado == "pausa") "pausa" else if (it.viendo) "reproduciendo" else "detenido",
-            it.posicion, it.duracion, 50, false, 0L, 0L)
-    }.takeIf { roku!!.viendo } else e?.reproduccion
+    val cast = e?.cast?.transmision
+    // Un solo control para todo: con una tele conectada maneja lo que se ve en ella (hasta «Desconectarme»);
+    // si no, la PC. El Roku va primero si está viendo algo; si no, el Chromecast que esté transmitiendo.
+    val destino = when {
+        vm.controlarPc -> Destino.PC
+        roku?.viendo == true -> Destino.ROKU
+        cast != null -> Destino.CAST
+        roku != null -> Destino.ROKU
+        else -> Destino.PC
+    }
+    val tele = destino != Destino.PC
+    val rep: Reproduccion? = when (destino) {
+        Destino.ROKU -> roku!!.takeIf { it.viendo }?.let {
+            Reproduccion(if (it.estado == "pausa") "pausa" else "reproduciendo", it.posicion, it.duracion, 50, false, 0L, 0L)
+        }
+        Destino.CAST -> Reproduccion(
+            when (cast!!.estado) { "pausa" -> "pausa"; "cargando" -> "cargando"; else -> "reproduciendo" },
+            cast.posicion, cast.duracion, cast.volumen, false, 0L, 0L)
+        Destino.PC -> e?.reproduccion
+    }
     val hay = rep != null
-    // Las acciones van a la PC o, con la tele, a la película del Roku
-    fun orden(pc: String, deTele: String, vararg datos: Pair<String, Any?>) = vm.hacer(if (tele) deTele else pc, *datos)
+    // Las acciones tienen el mismo nombre para los tres: «adelantar», «roku_adelantar», «cast_adelantar»…
+    fun nombreAccion(base: String) = when (destino) { Destino.PC -> base; Destino.ROKU -> "roku_$base"; Destino.CAST -> "cast_$base" }
+    fun orden(base: String, vararg datos: Pair<String, Any?>) = vm.hacer(nombreAccion(base), *datos)
     Column(
         Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp, vertical = 6.dp)
     ) {
-        if (roku != null) {
+        if (tele) {
             Tarjeta {
-                if (tele) {
-                    Pista("📺 Controlando la tele (${roku.nombre.ifBlank { "Roku" }})")
-                    Boton("💻 Desconectarme del Roku y controlar la PC", Modifier.fillMaxWidth(), chico = true) { vm.controlarPc = true }
-                } else {
-                    Pista("📺 Hay un Roku conectado (${roku.nombre}). Ahora estás controlando la PC.")
-                    Boton("📺 Volver a controlar el Roku", Modifier.fillMaxWidth(), chico = true) { vm.controlarPc = false }
-                }
+                Pista(if (destino == Destino.ROKU) "📺 Controlando la tele (${roku!!.nombre.ifBlank { "Roku" }})"
+                else "📺 Controlando el Chromecast (${cast!!.dispositivo})")
+                Boton("💻 Desconectarme de la tele y controlar la PC", Modifier.fillMaxWidth(), chico = true) { vm.controlarPc = true }
+            }
+        } else if (roku != null || cast != null) {
+            Tarjeta {
+                Pista("📺 Hay una tele conectada. Ahora estás controlando la PC.")
+                Boton("📺 Volver a controlar la tele", Modifier.fillMaxWidth(), chico = true) { vm.controlarPc = false }
             }
         }
         Tarjeta {
-            if (tele) {
-                Text(roku!!.titulo.ifBlank { "Nada en la tele" }, color = C.titulo, fontWeight = FontWeight.SemiBold)
-                Pista(if (hay) ESTADOS[rep!!.estado].orEmpty() else "Elegí una película o un capítulo y tocá «📺 En la tele»")
-            } else {
-                Text(e?.archivo?.nombre ?: "Nada en reproducción", color = C.titulo, fontWeight = FontWeight.SemiBold)
-                Pista(rep?.let { ESTADOS[it.estado].orEmpty() } ?: if (e?.archivo != null) "🖼 Imagen" else "Elegí algo en la Biblioteca")
+            when (destino) {
+                Destino.ROKU -> {
+                    Text(roku!!.titulo.ifBlank { "Nada en la tele" }, color = C.titulo, fontWeight = FontWeight.SemiBold)
+                    Pista(if (hay) ESTADOS[rep!!.estado].orEmpty() else "Elegí una película o un capítulo y tocá «📺 En la tele»")
+                }
+                Destino.CAST -> {
+                    Text(cast!!.titulo.ifBlank { "En el Chromecast" }, color = C.titulo, fontWeight = FontWeight.SemiBold)
+                    Pista(ESTADOS[rep!!.estado].orEmpty())
+                }
+                Destino.PC -> {
+                    Text(e?.archivo?.nombre ?: "Nada en reproducción", color = C.titulo, fontWeight = FontWeight.SemiBold)
+                    Pista(rep?.let { ESTADOS[it.estado].orEmpty() } ?: if (e?.archivo != null) "🖼 Imagen" else "Elegí algo en la Biblioteca")
+                }
             }
         }
 
@@ -110,7 +136,7 @@ fun PestanaReproductor(vm: Modelo) {
                 onValueChange = { arrastre = it },
                 onValueChangeFinished = {
                     arrastre?.let { ms ->
-                        vm.correr { try { vm.accion(if (tele) "roku_ir_a" else "ir_a", "ms" to ms.toLong()) } finally { arrastre = null } }
+                        vm.correr { try { vm.accion(nombreAccion("ir_a"), "ms" to ms.toLong()) } finally { arrastre = null } }
                     }
                 },
             )
@@ -121,48 +147,72 @@ fun PestanaReproductor(vm: Modelo) {
             if (rep?.enIntro == true) {
                 Boton("⏭ Saltar intro", Modifier.fillMaxWidth(), Estilo.PRIMARIO) { vm.hacer("saltar_intro") }
             }
+            val conSiguiente = destino != Destino.CAST
+            // En la PC, ▶ se ve salvo que esté reproduciendo; en las teles, ⏸ salvo que esté en pausa
+            val sonando = if (tele) rep?.estado != "pausa" else rep?.estado == "reproduciendo"
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
                 Redondo("⏮", habilitado = !tele) { vm.hacer("lista", "paso" to -1) }
-                Redondo("↺15", habilitado = hay) { orden("adelantar", "roku_adelantar", "ms" to -15000) }
-                Redondo(if (rep?.estado == "reproduciendo") "⏸" else "▶", grande = true, habilitado = hay) {
-                    orden("play_pausa", "roku_play_pausa")
-                }
-                Redondo("15↻", habilitado = hay) { orden("adelantar", "roku_adelantar", "ms" to 15000) }
-                Redondo("⏭", habilitado = hay) { orden("siguiente", "roku_siguiente") }
+                Redondo("↺15", habilitado = hay) { orden("adelantar", "ms" to -15000) }
+                Redondo(if (sonando && hay) "⏸" else "▶", grande = true, habilitado = hay) { orden("play_pausa") }
+                Redondo("15↻", habilitado = hay) { orden("adelantar", "ms" to 15000) }
+                Redondo("⏭", habilitado = hay && conSiguiente) { orden("siguiente") }
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Boton("−5 s", Modifier.weight(1f), habilitado = hay, chico = true) { orden("adelantar", "roku_adelantar", "ms" to -5000) }
-                Boton("⏹", Modifier.weight(1f), habilitado = hay, chico = true) { orden("detener", "roku_detener") }
-                Boton("+5 s", Modifier.weight(1f), habilitado = hay, chico = true) { orden("adelantar", "roku_adelantar", "ms" to 5000) }
+                Boton("−5 s", Modifier.weight(1f), habilitado = hay, chico = true) { orden("adelantar", "ms" to -5000) }
+                Boton("⏹", Modifier.weight(1f), habilitado = hay, chico = true) { orden("detener") }
+                Boton("+5 s", Modifier.weight(1f), habilitado = hay, chico = true) { orden("adelantar", "ms" to 5000) }
                 Boton("Lista ▶", Modifier.weight(1f), habilitado = !tele, chico = true) { vm.hacer("lista", "paso" to 1) }
             }
-            if (tele) {
-                // El volumen de la tele va por el control externo del Roku (como las teclas del control)
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Boton("🔇", Modifier.weight(1f), chico = true) { vm.hacer("roku_volumen", "tecla" to "silencio") }
-                    Boton("🔉 −", Modifier.weight(1f), chico = true) { vm.hacer("roku_volumen", "tecla" to "menos") }
-                    Boton("🔊 +", Modifier.weight(1f), chico = true) { vm.hacer("roku_volumen", "tecla" to "mas") }
+            when (destino) {
+                Destino.ROKU -> {
+                    // El volumen de la tele va por el control externo del Roku (como las teclas del control)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Boton("🔇", Modifier.weight(1f), chico = true) { vm.hacer("roku_volumen", "tecla" to "silencio") }
+                        Boton("🔉 −", Modifier.weight(1f), chico = true) { vm.hacer("roku_volumen", "tecla" to "menos") }
+                        Boton("🔊 +", Modifier.weight(1f), chico = true) { vm.hacer("roku_volumen", "tecla" to "mas") }
+                    }
                 }
-            } else {
-                Volumen(vm, rep?.volumen ?: 50, rep?.silencio ?: false, hay)
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Boton("⛶ Pantalla completa", chico = true) { vm.hacer("pantalla_completa") }
-                    Box(Modifier.weight(1f).padding(start = 12.dp)) {
-                        Interruptor("🔌 Apagar la PC al terminar", e?.apagarAlTerminar ?: false) { vm.hacer("apagar_al_terminar", "activo" to it) }
+                Destino.CAST -> {
+                    // El Chromecast sí deja poner el volumen exacto
+                    var tocado by remember { mutableStateOf<Float?>(null) }
+                    val valor = tocado ?: cast!!.volumen.toFloat()
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text("🔊")
+                        Slider(
+                            value = valor, valueRange = 0f..100f, colors = deslizador(),
+                            modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+                            onValueChange = { tocado = it },
+                            onValueChangeFinished = { tocado?.let { v -> vm.hacer("cast_volumen", "valor" to v.toInt()) }; tocado = null },
+                        )
+                        Pista("${valor.toInt()} %", Modifier.width(44.dp))
+                    }
+                }
+                Destino.PC -> {
+                    Volumen(vm, rep?.volumen ?: 50, rep?.silencio ?: false, hay)
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Boton("⛶ Pantalla completa", chico = true) { vm.hacer("pantalla_completa") }
+                        Box(Modifier.weight(1f).padding(start = 12.dp)) {
+                            Interruptor("🔌 Apagar la PC al terminar", e?.apagarAlTerminar ?: false) { vm.hacer("apagar_al_terminar", "activo" to it) }
+                        }
                     }
                 }
             }
         }
 
         if (tele) {
-            // Los subtítulos de la tele, con las mismas opciones que los de la PC
-            val r = roku!!
-            if (hay && r.subs.isNotEmpty()) {
-                TarjetaSubtitulos(vm, Subtitulos(
-                    archivos = r.subs.mapIndexed { i, t -> SubArchivo(i.toString(), t, i == r.sub) }, pistas = emptyList(),
-                    activos = r.sub >= 0, retraso = r.retraso, escala = r.escala,
-                    tamanos = e.subtitulos?.tamanos ?: TAMANOS_TELE, sincronizando = r.sincronizando,
-                ), conClave = false, tele = true)
+            if (destino == Destino.ROKU) {
+                // Los subtítulos de la tele, con las mismas opciones que los de la PC
+                val r = roku!!
+                if (hay && r.subs.isNotEmpty()) {
+                    TarjetaSubtitulos(vm, Subtitulos(
+                        archivos = r.subs.mapIndexed { i, t -> SubArchivo(i.toString(), t, i == r.sub) }, pistas = emptyList(),
+                        activos = r.sub >= 0, retraso = r.retraso, escala = r.escala,
+                        tamanos = e?.subtitulos?.tamanos ?: TAMANOS_TELE, sincronizando = r.sincronizando,
+                    ), conClave = false, tele = true)
+                }
+            } else {
+                Pista("El Chromecast no deja cambiar los subtítulos desde acá; para verlos con subtítulos, usá el Roku o la PC.",
+                    Modifier.padding(vertical = 6.dp))
             }
             vm.errorControl?.let { Text(it, color = C.error) }
             return@Column

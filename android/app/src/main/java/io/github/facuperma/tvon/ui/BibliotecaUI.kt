@@ -13,6 +13,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -57,9 +62,108 @@ import io.github.facuperma.tvon.Opcion
 import io.github.facuperma.tvon.PedirTexto
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalLayoutApi::class)
+/** La Biblioteca: pósters (películas y series, con filtros) o, si se prefiere, la lista de archivos como en la PC. */
 @Composable
 fun PestanaBiblioteca(vm: Modelo) {
+    if (vm.bibModo == "lista") PestanaBibliotecaLista(vm) else PestanaBibliotecaPosters(vm)
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun PestanaBibliotecaPosters(vm: Modelo) {
+    val bib = vm.biblioteca
+    val foco = LocalFocusManager.current
+    val hayFiltro = vm.bibTipo.isNotEmpty() || vm.bibEstado.isNotEmpty() || vm.bibCategoria != null || vm.bibTexto.isNotBlank()
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp)) {
+        item { Box(Modifier.padding(horizontal = 16.dp)) { SelectorBiblioteca(vm) } }
+        item {
+            Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    vm.bibTexto, vm::buscarBib, Modifier.weight(1f), singleLine = true, colors = campoColores(),
+                    placeholder = { Text("🔎 Buscar en tu biblioteca…") },
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = { foco.clearFocus() }),
+                )
+                Chip("☰ Archivos") { vm.bibModo = "lista" }
+            }
+        }
+        item {
+            // Cada filtro se activa con un toque y se desactiva volviendo a tocarlo
+            LazyRow(Modifier.padding(top = 10.dp), contentPadding = PaddingValues(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                item { Chip("🎬 Películas", vm.bibTipo == "pelicula") { vm.alternarBibTipo("pelicula") } }
+                item { Chip("📺 Series", vm.bibTipo == "serie") { vm.alternarBibTipo("serie") } }
+                item { Chip("✓ Vistas", vm.bibEstado == "vistas") { vm.alternarBibEstado("vistas") } }
+                item { Chip("Sin ver", vm.bibEstado == "sin_ver") { vm.alternarBibEstado("sin_ver") } }
+                if (hayFiltro) item { Chip("✕ Quitar filtros") { vm.quitarFiltrosBib() } }
+            }
+        }
+        if (bib != null) {
+            item {
+                Text("🏷 Categorías", color = C.titulo, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(start = 16.dp, top = 14.dp, bottom = 6.dp))
+                // Favoritos primero, después lo que tiene algo por ver y al final lo que ya se vio entero
+                val orden = bib.categorias.sortedBy {
+                    when { it.id == bib.favoritos -> 0; it.estado == "pendiente" -> 1; it.estado == "vista" -> 3; else -> 2 }
+                }
+                LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(orden, key = { it.id }) { c -> ChipCategoria(vm, c) }
+                    item { Chip("＋ Nueva") { nuevaCategoria(vm) } }
+                }
+            }
+        }
+        item {
+            val n = vm.bibCarteles.size
+            Pista(
+                if (!vm.bibListo) "Cargando…" else if (n == 1) "1 título" else "$n títulos",
+                Modifier.padding(start = 16.dp, top = 12.dp, bottom = 4.dp),
+            )
+        }
+        if (vm.bibListo && vm.bibCarteles.isEmpty()) {
+            item {
+                Pista(if (hayFiltro) "Nada con esos filtros. Tocá un filtro activo para desactivarlo."
+                else "Todavía no hay películas ni series en la biblioteca.", Modifier.padding(16.dp))
+            }
+        }
+        // Grilla de pósters, de a tres; lo ya visto lleva la marca ✓
+        items(vm.bibCarteles.chunked(3), key = { fila -> fila.joinToString { "${it.tipo}${it.id}${it.clave}" } }) { fila ->
+            Row(Modifier.padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                for (c in fila) Box(Modifier.weight(1f)) { CartelPoster(vm, c, Modifier.fillMaxWidth()) { foco.clearFocus() } }
+                repeat(3 - fila.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+    }
+}
+
+/** Una categoría como botón: punto amarillo si hay algo por ver, verde si ya se vio entera; mantenerla apretada abre sus opciones. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun ChipCategoria(vm: Modelo, c: Categoria) {
+    val bib = vm.biblioteca ?: return
+    val activa = vm.bibCategoria == c.id
+    val color = when (c.estado) { "pendiente" -> C.pendiente; "vista" -> C.vista; else -> Color.Transparent }
+    val vibrar = LocalHapticFeedback.current
+    Row(
+        Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(if (activa) C.chipActivo else C.panel)
+            .border(1.dp, if (activa) C.acento else C.borde, RoundedCornerShape(20.dp))
+            .combinedClickable(
+                onClick = { vm.alternarBibCategoria(c.id) },
+                onLongClick = { vibrar.performHapticFeedback(HapticFeedbackType.LongPress); menuCategoria(vm, c) },
+            )
+            .padding(horizontal = 12.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        if (color != Color.Transparent) Punto(color)
+        Text("${bib.nombre(c)} (${c.cantidad})", color = if (activa) C.titulo else C.texto, fontSize = 14.sp, maxLines = 1)
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun PestanaBibliotecaLista(vm: Modelo) {
     val bib = vm.biblioteca
     val lista = rememberLazyListState()
     val alcance = rememberCoroutineScope()
@@ -81,6 +185,7 @@ fun PestanaBiblioteca(vm: Modelo) {
                     Boton(if (vm.eligiendo) "Listo" else "Elegir") {
                         if (vm.eligiendo) vm.terminarSeleccion() else vm.eligiendo = true
                     }
+                    Chip("⊞ Pósters") { vm.terminarSeleccion(); vm.bibModo = "posters" }
                 }
             }
             if (bib == null) {
@@ -246,7 +351,7 @@ private fun Miniatura(vm: Modelo, id: Int) {
 
 // --- Menús (hoja de acciones) ------------------------------------------------------------------------
 
-private fun nuevaCategoria(vm: Modelo, ids: List<Int> = emptyList()) {
+internal fun nuevaCategoria(vm: Modelo, ids: List<Int> = emptyList()) {
     vm.pedirTexto = PedirTexto("Nombre de la categoría nueva:") { nombre ->
         vm.accion("nueva_categoria", "nombre" to nombre, "ids" to ids)
         vm.cargarBiblioteca()
@@ -293,7 +398,7 @@ private fun menuArchivo(vm: Modelo, a: ArchivoBib) {
 }
 
 /** Categorías de uno o varios archivos: cada una se pone o se saca con un toque. */
-private fun menuCategorias(vm: Modelo, ids: List<Int>, actuales: List<Int>? = null) {
+internal fun menuCategorias(vm: Modelo, ids: List<Int>, actuales: List<Int>? = null) {
     val bib = vm.biblioteca ?: return
     val tiene = { c: Categoria ->
         actuales?.contains(c.id) ?: ids.all { id -> vm.archivos.find { it.id == id }?.categorias?.contains(c.id) == true }

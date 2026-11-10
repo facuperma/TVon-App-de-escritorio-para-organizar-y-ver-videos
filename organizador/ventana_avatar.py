@@ -84,6 +84,15 @@ class EstadoSocial(QObject):
         self.bib.guardar_config("protagonista_en_logo", "1" if activo else "0")
         self.cambio.emit()
 
+    @property
+    def animacion(self) -> bool:
+        """¿En la pantalla del logo, el Protagonista hace su escena (empuja al logo y sale volando)? (por defecto sí)"""
+        return self.bib.config("protagonista_animacion") != "0"
+
+    def guardar_animacion(self, activo: bool):
+        self.bib.guardar_config("protagonista_animacion", "1" if activo else "0")
+        self.cambio.emit()
+
     def nombre_visible(self) -> str:
         return self.nombre or (self.perfil["nombre"] if self.perfil else "") or self.usuario or "Tu Protagonista"
 
@@ -400,8 +409,14 @@ class VentanaAvatar(QWidget):
         capa.addWidget(secciones, 1)
         self.en_logo = QCheckBox("Que aparezca apoyado en el logo cuando no hay ningún video elegido")
         self.en_logo.setChecked(self.estado.en_logo)
+        self.con_animacion = QCheckBox("Con la animación: empuja al logo y sale volando (si no, queda apoyado quieto)")
+        self.con_animacion.setChecked(self.estado.animacion)
+        self.con_animacion.setEnabled(self.estado.en_logo)
+        self.con_animacion.toggled.connect(self.estado.guardar_animacion)
         self.en_logo.toggled.connect(self.estado.guardar_en_logo)   # esto se aplica en el momento
+        self.en_logo.toggled.connect(self.con_animacion.setEnabled)
         capa.addWidget(self.en_logo)
+        capa.addWidget(self.con_animacion)
         botones = QHBoxLayout()
         azar = QPushButton("🎲 Sorprendeme")
         azar.clicked.connect(self._al_azar)

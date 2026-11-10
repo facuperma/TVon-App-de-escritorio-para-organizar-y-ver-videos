@@ -172,7 +172,7 @@ fun Poster(vm: Modelo, clave: String, hay: Boolean, titulo: String, modifier: Mo
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun CartelPoster(vm: Modelo, c: Cartel, modifier: Modifier, antes: () -> Unit = {}) {
+internal fun CartelPoster(vm: Modelo, c: Cartel, modifier: Modifier, antes: () -> Unit = {}) {
     val vibrar = LocalHapticFeedback.current
     Column(
         modifier.combinedClickable(
@@ -202,7 +202,7 @@ private fun CartelPoster(vm: Modelo, c: Cartel, modifier: Modifier, antes: () ->
     }
 }
 
-private fun menuCartel(vm: Modelo, c: Cartel) {
+internal fun menuCartel(vm: Modelo, c: Cartel) {
     val opciones = mutableListOf<Opcion>()
     c.id?.let { id ->
         opciones += Opcion("📱 Ver en el celular") { vm.verAcaId(id) }
@@ -212,13 +212,24 @@ private fun menuCartel(vm: Modelo, c: Cartel) {
         }
         opciones += Opcion("☰ A la cola de la PC") { vm.accion("cola_agregar", "ids" to listOf(id)) }
         opciones += Opcion(if (c.visto) "↺ Marcar como no visto" else "✓ Marcar como visto") {
-            vm.accion("visto", "ids" to listOf(id), "visto" to !c.visto); vm.cargarInicio(); vm.cargarCatalogo()
+            vm.accion("visto", "ids" to listOf(id), "visto" to !c.visto); recargarTodo(vm)
         }
-        opciones += opcionesBorrar(vm, id, c.titulo) { vm.cargarInicio(); vm.cargarCatalogo() }
+        opciones += Opcion(if (c.favorito) "☆ Quitar de Favoritos" else "★ Agregar a Favoritos") {
+            vm.accion("favoritos", "ids" to listOf(id), "activo" to !c.favorito); recargarTodo(vm)
+        }
+        opciones += Opcion("🏷 Categorías…") { menuCategorias(vm, listOf(id), c.categorias) }
+        opciones += opcionesBorrar(vm, id, c.titulo) { recargarTodo(vm) }
     }
     if (c.tipo == "serie") opciones += Opcion("📺 Ver la serie") { vm.abrirSerie(c.clave) }
     opciones += Opcion("🎞 Corregir la ficha…") { corregirFicha(vm, c.clave, c.titulo) }
     vm.hoja = Hoja(c.titulo, opciones)
+}
+
+/** Después de cambiar algo de un título: el inicio y la biblioteca se ponen al día. */
+private suspend fun recargarTodo(vm: Modelo) {
+    vm.cargarInicio()
+    vm.cargarCatalogo()
+    vm.cargarBiblioteca()
 }
 
 /** Quitar de la biblioteca (el archivo queda en la PC) o mandarlo a la Papelera de la PC. */

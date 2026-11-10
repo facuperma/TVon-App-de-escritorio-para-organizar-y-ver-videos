@@ -81,6 +81,22 @@ _CARPETAS_EXTRA = {
     "behind the scenes", "deleted scenes", "escenas eliminadas", "shorts", "cortos", "cortometrajes",
     "samples", "sample", "bonus", "bonus features", "special features", "making of",
 }
+# Carpetas con la palabra en el nombre, como las traen las releases: «Stalker.Extras-Grym», «Movie - Featurettes».
+# Solo cuenta si hay algo antes (así no se confunde con una serie que se llama «Extras»)
+_PALABRAS_CARPETA_EXTRA = re.compile(
+    r"(?i)(?<![a-z])(extras|featurettes|interviews|entrevistas|behind the scenes|deleted scenes|escenas eliminadas|"
+    r"special features|bonus features|bonus content|making of)(?![a-z])"
+)
+
+
+def _carpeta_de_extras(nombre: str) -> bool:
+    limpio = re.sub(r"[._\-\[\]\(\)]+", " ", nombre).strip().lower()
+    if limpio in _CARPETAS_EXTRA:
+        return True
+    palabra = _PALABRAS_CARPETA_EXTRA.search(limpio)
+    return bool(palabra) and palabra.start() > 0
+
+
 # «Pelicula-trailer.mkv», como los nombra Plex
 _SUFIJO_EXTRA = re.compile(r"(?i)-(trailer|teaser|sample|featurette|interview|behindthescenes|deleted|scene|short)$")
 EXTRA_CHICO = 300 * 1024 * 1024
@@ -92,7 +108,7 @@ def es_extra(ruta: Path, tamano: int | None = None) -> bool:
     después del título, o el archivo ser chico y la carpeta no llamarse igual.
     tamano: en bytes, si ya se sabe (si no, se mira en el disco solo cuando hace falta)."""
     ruta = Path(ruta)
-    if any(re.sub(r"[._]+", " ", c).strip().lower() in _CARPETAS_EXTRA for c in ruta.parts[-4:-1]):
+    if any(_carpeta_de_extras(c) for c in ruta.parts[-4:-1]):
         return True
     if _SUFIJO_EXTRA.search(ruta.stem):
         return True

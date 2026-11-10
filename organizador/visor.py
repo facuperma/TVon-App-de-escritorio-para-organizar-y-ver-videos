@@ -288,6 +288,10 @@ class LogoAnimado(QWidget):
         self._logo.setDevicePixelRatio(escala)
         self._t = 0.0
         self._reloj = QTimer(self, interval=33, timeout=self._tic)
+        # Efectos que le pone la escena del Protagonista: tamaño, giro (grados) y destello del golpe (0 a 1)
+        self.efecto_escala = 1.0
+        self.efecto_giro = 0.0
+        self.efecto_destello = 0.0
 
     def showEvent(self, e):
         super().showEvent(e)
@@ -308,8 +312,14 @@ class LogoAnimado(QWidget):
         p.setRenderHint(QPainter.Antialiasing)
         p.setRenderHint(QPainter.SmoothPixmapTransform)
         centro = QPointF(self.width() / 2, self.height() / 2 + 4 * math.sin(self._t * 1.1))
+        p.save()
+        if self.efecto_escala != 1.0 or self.efecto_giro:
+            p.translate(centro)
+            p.rotate(self.efecto_giro)
+            p.scale(self.efecto_escala, self.efecto_escala)
+            p.translate(-centro)
         # El logo, respirando
-        p.setOpacity(0.32 + 0.12 * math.sin(self._t * 1.6))
+        p.setOpacity(min(1.0, 0.32 + 0.12 * math.sin(self._t * 1.6) + 0.5 * self.efecto_destello))
         p.drawPixmap(QPointF(centro.x() - self.LADO / 2, centro.y() - self.LADO / 2), self._logo)
         # La estela que gira alrededor del anillo: un arco que se desvanece hacia la cola
         p.setOpacity(1.0)
@@ -328,6 +338,21 @@ class LogoAnimado(QWidget):
         p.setPen(Qt.NoPen)
         p.setBrush(QColor(220, 245, 255, 220))
         p.drawEllipse(QPointF(centro.x() + radio * math.cos(cabeza), centro.y() + radio * math.sin(cabeza)), 3, 3)
+        p.restore()
+        if self.efecto_destello > 0.01:
+            # El golpe: un anillo que se abre y rayitas que salen del logo
+            d = self.efecto_destello
+            apertura = 1.0 - d
+            p.setBrush(Qt.NoBrush)
+            p.setPen(QPen(QColor(200, 240, 255, int(220 * d)), 4 * d + 1))
+            r = self.LADO * (0.38 + 0.28 * apertura)
+            p.drawEllipse(centro, r, r)
+            p.setPen(QPen(QColor(255, 230, 140, int(240 * d)), 3, Qt.SolidLine, Qt.RoundCap))
+            for i in range(10):
+                ang = math.radians(i * 36 + 18)
+                desde, hasta = self.LADO * (0.46 + 0.12 * apertura), self.LADO * (0.54 + 0.22 * apertura)
+                p.drawLine(QPointF(centro.x() + desde * math.cos(ang), centro.y() + desde * math.sin(ang)),
+                           QPointF(centro.x() + hasta * math.cos(ang), centro.y() + hasta * math.sin(ang)))
         p.end()
 
 
@@ -341,7 +366,7 @@ class Bienvenida(QWidget):
     está apoyado en el logo; de vez en cuando lo empuja, el logo lo empuja de vuelta y lo saca del recuadro, y después
     vuelve caminando (poner_protagonista)."""
 
-    PERIODO = 18.0          # segundos que dura una vuelta de la escena
+    PERIODO = 21.0          # segundos que dura una vuelta de la escena
     ALTO_PROTA, ANCHO_PROTA = 190, 230
 
     def __init__(self, texto: str):
@@ -367,9 +392,10 @@ class Bienvenida(QWidget):
 
     # --- El Protagonista ----------------------------------------------------------------------------------
 
-    def poner_protagonista(self, spec: dict | None):
-        """spec = cómo es; None = que no aparezca."""
+    def poner_protagonista(self, spec: dict | None, animar: bool = True):
+        """spec = cómo es; None = que no aparezca. animar=False: se queda apoyado en el logo, sin moverse."""
         self._spec = spec
+        self._animar = animar
         if spec is None:
             if self._prota is not None:
                 self._prota.hide()
@@ -383,9 +409,13 @@ class Bienvenida(QWidget):
             self._prota.setFixedSize(self.ANCHO_PROTA, self.ALTO_PROTA)
         else:
             self._prota.poner(spec)
-        self._pose(inclinacion=-8, empuje=0, giroMano=34, mira=14, vaiven=0, liviano=True)
-        if self.isVisible():
+        self._pose(liviano=True, vaiven=0, **self._pose_de_reposo(0.0))
+        if self.isVisible() and animar:
             self._arrancar()
+        else:
+            self._reloj.stop()
+            self._acomodar()
+            self._logo_quieto()
         self._acomodar()
 
     def _arrancar(self):
@@ -394,7 +424,7 @@ class Bienvenida(QWidget):
 
     def showEvent(self, e):
         super().showEvent(e)
-        if self._spec is not None:
+        if self._spec is not None and getattr(self, "_animar", True):
             self._arrancar()
 
     def hideEvent(self, e):
@@ -435,6 +465,16 @@ class Bienvenida(QWidget):
         if self._prota is not None and self._prota.isVisible():
             self._prota.move(round(self._base_prota[0] + protagonista[0]), round(self._base_prota[1] + protagonista[1]))
 
+    def _logo_quieto(self):
+        self.logo.efecto_escala, self.logo.efecto_giro, self.logo.efecto_destello = 1.0, 0.0, 0.0
+        self.logo.update()
+
+    def _pose_de_reposo(self, t: float) -> dict:
+        """Apoyado de costado en el logo (de espaldas a él), mirando para el que mira, con una respiración suave."""
+        respira = math.sin(t * 1.4)
+        return dict(giroMano=-68, mira=64 + 5 * math.sin(t * 0.5), inclinacion=-12 + 1.2 * respira, empuje=0.12,
+                    manos=0.0, vuelo=0.0, sombra=True)
+
     def _tic(self):
         if self.window().isMinimized() or self._prota is None or self._spec is None:
             return
@@ -444,40 +484,69 @@ class Bienvenida(QWidget):
             return
         self._ultimo = ahora
         self._t += min(paso, 0.2)
-        u = self._t % self.PERIODO
-        # Hasta dónde hay que ir para salir del recuadro por la izquierda
-        salida = -(self.width() / 2 + self.ANCHO_PROTA)
-        d_logo, d_x, d_y, inc, emp, giro = 0.0, 0.0, 0.0, -8.0 + 1.2 * math.sin(self._t * 1.3), 0.0, 34.0
-        if u < 5:                                   # apoyado, mirando al logo
+        t = self._t
+        u = t % self.PERIODO
+        bx, by = self._base_prota
+        pose = self._pose_de_reposo(t)
+        d_logo, d_x, d_y = 0.0, 0.0, 0.0
+        escala, giro_logo, destello = 1.0, 0.0, 0.0
+        salida_x = -(bx + self.ANCHO_PROTA + 30)           # afuera del recuadro, por la izquierda
+        if u < 5.5:                                         # 1) apoyado de costado, de espaldas al logo
             pass
-        elif u < 7.5:                               # lo empuja
-            k = _suave((u - 5) / 2.5)
-            emp, inc = k, -8 - 9 * k
-            d_logo, d_x = 28 * k, 14 * k
-            giro = 34 + 14 * k
-        elif u < 10.6:                              # el logo se la devuelve y lo saca del recuadro
-            k = (u - 7.5) / 3.1
-            golpe = _suave(k * 6)                   # el sacudón es rápido al principio
-            d_logo = 28 - 44 * golpe + 16 * _suave((k - 0.2) / 0.8)
-            recorrido = _suave(k) ** 0.8
-            d_x = 14 + (salida - 14) * recorrido
-            d_y = -26 * math.sin(math.pi * min(1.0, k * 1.4)) * (1 - k)    # sale despedido y rebota
-            inc = -17 + 62 * golpe
-            emp = max(0.0, 1 - golpe * 3)
-            giro = 48 - 20 * golpe
-        elif u < 13.2:                              # el logo, solo y contento (se acomoda)
-            k = (u - 10.6) / 2.6
-            d_logo = 0.0 + (-12 + 12 * _suave(k)) + 5 * math.sin(k * 14) * (1 - k)
-            d_x, inc, giro = salida, 20.0, 34.0
-        elif u < 16.4:                              # vuelve caminando y se apoya de nuevo
-            k = _suave((u - 13.2) / 3.2)
-            d_x = salida * (1 - k)
-            d_y = -8 * abs(math.sin((u - 13.2) * 5.0)) * (1 - k)
-            inc = 20 - 28 * k
-            giro = 34
-        else:
-            pass
-        self._pose(inclinacion=inc, empuje=emp, giroMano=giro, mira=14, vaiven=0)
+        elif u < 6.7:                                       # 2) se da vuelta, para quedar frente al logo
+            k = _suave((u - 5.5) / 1.2)
+            pose.update(giroMano=-68 + 150 * k, mira=(64 + 5) * (1 - k) - 18 * k, inclinacion=-12 + 6 * k, empuje=0.12 * (1 - k))
+        elif u < 7.6:                                       # 3) toma impulso: se echa un poco para atrás y levanta las manos
+            k = _suave((u - 6.7) / 0.9)
+            pose.update(giroMano=82, mira=-18, inclinacion=-6 + 10 * k, empuje=0.0, manos=0.85 * k)
+            d_x = -6 * k
+        elif u < 11.6:                                      # 4) empuja con las dos manos, como algo muy pesado
+            k = (u - 7.6) / 4.0
+            avance = _suave(k)
+            # Se mueve a tirones: el logo cede un poco, se frena y vuelve a ceder
+            tirones = avance + 0.045 * math.sin(k * 34) * (1 - abs(2 * k - 1) * 0.3)
+            d_logo = 50 * max(0.0, tirones)
+            esfuerzo = 1.6 * math.sin(t * 17) * (0.4 + 0.6 * math.sin(math.pi * k))
+            pose.update(giroMano=82, mira=-12, inclinacion=-24 + esfuerzo + 3 * math.sin(k * 34), empuje=0.0, manos=1.0)
+            d_x = -6 + 0.82 * d_logo + 2.0 * math.sin(t * 17)
+            giro_logo = 4 * math.sin(k * 34) * k
+            escala = 1.0 - 0.03 * math.sin(math.pi * k)
+        elif u < 12.1:                                      # 5) el logo se frena, tiembla, se está cargando…
+            k = (u - 11.6) / 0.5
+            d_logo = 50 - 6 * k + 2.5 * math.sin(t * 60)
+            pose.update(giroMano=82, mira=-12, inclinacion=-24 + 6 * k, empuje=0.0, manos=1.0 - 0.2 * k)
+            d_x = -6 + 0.82 * 50 - 6 * k
+            escala = 1.0 - 0.10 * k
+            giro_logo = 3 * math.sin(t * 60)
+        elif u < 14.2:                                      # 6) ¡PAM!: el logo explota hacia atrás y lo manda a volar
+            T = 2.1
+            k = (u - 12.1) / T
+            golpe = min(1.0, (u - 12.1) / 0.12)
+            d_logo = 44 - 80 * _suave(min(1.0, (u - 12.1) / 0.18)) + 36 * _suave((u - 12.3) / 1.4)
+            escala = 0.90 + 0.42 * math.sin(math.pi * min(1.0, golpe)) if k < 0.1 else 1.0 + 0.12 * math.exp(-5 * (k - 0.1)) * math.cos(26 * (k - 0.1))
+            giro_logo = -12 * math.exp(-4 * k) * math.cos(22 * k)
+            destello = max(0.0, 1.0 - k * 2.2)
+            # Sale volando en arco, girando como una hélice, hacia arriba y a la izquierda
+            km = min(1.0, k * 1.1)
+            d_x = (-6 + 0.82 * 44) + (salida_x - (-6 + 0.82 * 44)) * (km ** 1.15)
+            d_y = -(105 * 4 * km * (1 - km)) + 80 * km * km
+            pose.update(giroMano=82 + 700 * km, mira=0, inclinacion=-18 * (1 - km), empuje=0.3, manos=max(0.0, 1.0 - km * 3),
+                        vuelo=-1100 * (km ** 0.9), sombra=False)
+        elif u < 16.8:                                      # 7) el logo solo, se acomoda (y se «ríe» un poquito)
+            k = (u - 14.2) / 2.6
+            d_logo = 36 * (1 - _suave(k * 1.6)) * math.cos(k * 9)
+            escala = 1.0 + 0.04 * math.sin(k * 18) * (1 - k)
+            d_x, d_y = salida_x - 20, -80
+            pose.update(sombra=False, vuelo=0.0)
+        elif u < 19.8:                                      # 8) vuelve caminando, masajeándose el hombro
+            k = _suave((u - 16.8) / 3.0)
+            d_x = (salida_x - 20) * (1 - k)
+            d_y = -9 * abs(math.sin((u - 16.8) * 5.2)) * (1 - k * 0.8)
+            pose.update(giroMano=70 - 138 * k, mira=20 + 40 * k, inclinacion=14 * (1 - k) - 12 * k, empuje=0.12 * k, manos=0.0,
+                        vuelo=0.0, sombra=True)
+        # (de 19,8 a 21 queda apoyado, como al principio)
+        self._pose(vaiven=0, **pose)
+        self.logo.efecto_escala, self.logo.efecto_giro, self.logo.efecto_destello = escala, giro_logo, destello
         self._mover(d_logo, (d_x, d_y))
 
 
@@ -1011,10 +1080,11 @@ class Visor(QWidget):
         def listo(resultado):
             self._sincronizando = False
             self._terminar_carga()
-            retraso, _confianza = resultado
+            retraso = resultado.retraso_ms
             if self.ruta_video == ruta and self.subs is subs:  # si cambió de video mientras tanto, no se toca
                 self.fijar_retraso(retraso)
-                self.pantalla.mostrar_osd(f"✓ Subtítulos sincronizados: {texto_sincronia(retraso)}")
+                aviso = f"  ·  {resultado.avisos[0]}" if resultado.avisos else ""
+                self.pantalla.mostrar_osd(f"✓ Subtítulos sincronizados: {texto_sincronia(retraso)}{aviso}")
 
         def fallo(mensaje):
             self._sincronizando = False
@@ -1024,7 +1094,7 @@ class Visor(QWidget):
         def avance(segundos: float):  # desde el hilo de fondo: la señal lo pasa al de la interfaz
             self.avance_sincronia.emit(min(99, int(segundos * 100 / duracion_s)))
 
-        en_segundo_plano(lambda: sincronia.sincronizar(exe, ruta, subs.cues, avance), listo, fallo)
+        en_segundo_plano(lambda: sincronia.sincronizar_detallado(exe, ruta, subs.cues, avance), listo, fallo)
         return "Analizando el audio… el ajuste se aplica solo al terminar"
 
     def _guardar_subtitulos(self):

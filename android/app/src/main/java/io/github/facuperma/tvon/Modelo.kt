@@ -153,6 +153,15 @@ class Modelo(app: Application) : AndroidViewModel(app) {
     var catalogoGenero by mutableStateOf("")
     var catalogoOrden by mutableStateOf("recientes")
     var catalogoTexto by mutableStateOf("")
+    // Biblioteca con pósters: tipo (película / serie), visto o sin ver, una categoría y una búsqueda propia.
+    // Tocar un filtro lo activa y volver a tocarlo lo desactiva.
+    var bibModo by mutableStateOf("posters")   // «posters» o «lista» (los archivos, como en la PC)
+    var bibTipo by mutableStateOf("")          // «», «pelicula» o «serie»
+    var bibEstado by mutableStateOf("")        // «», «vistas» o «sin_ver»
+    var bibCategoria by mutableStateOf<Int?>(null)
+    var bibTexto by mutableStateOf("")
+    var bibCarteles by mutableStateOf<List<Cartel>>(emptyList())
+    var bibListo by mutableStateOf(false)
     /** Lo que se abrió encima de la pestaña: la serie, después el capítulo… (atrás vuelve de a uno). */
     var detalles by mutableStateOf<List<Detalle>>(emptyList())
     var viendoAca by mutableStateOf<VerEnCelular?>(null)
@@ -531,7 +540,7 @@ class Modelo(app: Application) : AndroidViewModel(app) {
     /** Una orden a TVon (POST /api/accion). Avisa del error y lo vuelve a lanzar. */
     suspend fun accion(nombre: String, vararg datos: Pair<String, Any?>): JSONObject? {
         // Mandar algo a la tele (o conectar un Roku) vuelve a poner Control en el Roku
-        if (nombre == "roku_reproducir" || nombre == "roku_conectar") controlarPc = false
+        if (nombre == "roku_reproducir" || nombre == "roku_conectar" || nombre == "cast_iniciar") controlarPc = false
         try {
             val r = conPc().post("/api/accion", json("accion" to nombre, *datos))
             conectado = true
@@ -609,6 +618,52 @@ class Modelo(app: Application) : AndroidViewModel(app) {
     suspend fun cargarBiblioteca() {
         biblioteca = Biblioteca.de(leer { it.obj("/api/biblioteca") })
         cargarArchivos()
+        cargarCartelesBib()
+    }
+
+    suspend fun cargarCartelesBib() {
+        val ruta = Uri.Builder().path("/api/catalogo")
+            .appendQueryParameter("tipo", bibTipo.ifEmpty { "todo" })
+            .appendQueryParameter("estado", bibEstado).appendQueryParameter("q", bibTexto)
+            .appendQueryParameter("orden", "titulo")
+            .apply { bibCategoria?.let { appendQueryParameter("categoria", it.toString()) } }
+            .build().toString()
+        bibCarteles = leer { it.lista(ruta) }.objetos(Cartel::de)
+        bibListo = true
+    }
+
+    private var relojBib: Job? = null
+
+    fun buscarBib(texto: String) {
+        bibTexto = texto
+        relojBib?.cancel()
+        relojBib = correr {
+            delay(300)
+            cargarCartelesBib()
+        }
+    }
+
+    fun alternarBibTipo(tipo: String) {
+        bibTipo = if (bibTipo == tipo) "" else tipo
+        correr { cargarCartelesBib() }
+    }
+
+    fun alternarBibEstado(estado: String) {
+        bibEstado = if (bibEstado == estado) "" else estado
+        correr { cargarCartelesBib() }
+    }
+
+    fun alternarBibCategoria(id: Int) {
+        bibCategoria = if (bibCategoria == id) null else id
+        correr { cargarCartelesBib() }
+    }
+
+    fun quitarFiltrosBib() {
+        bibTipo = ""
+        bibEstado = ""
+        bibCategoria = null
+        bibTexto = ""
+        correr { cargarCartelesBib() }
     }
 
     suspend fun cargarArchivos() {
