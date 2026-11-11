@@ -427,7 +427,7 @@ class Ventana(QMainWindow):
         config = barra.addMenu("&Configuración")
         config.addAction("Preferencias…", self._abrir_configuracion)
         config.addAction("📱 ON: manejar desde el celular…", self._abrir_on)
-        config.addAction("🎬 Tu Protagonista, cuenta y amigos…", self._abrir_avatar)
+        config.addAction("🎬 Tu BiriBiri, cuenta y amigos…", self._abrir_avatar)
         apagar = config.addAction("Apagar la PC al terminar el video")
         apagar.setCheckable(True)
         apagar.toggled.connect(self.chk_apagar.setChecked)
@@ -1568,12 +1568,12 @@ class Ventana(QMainWindow):
         self.munequito.setToolTip("")
         self.lbl_munequito.setToolTip("")
         p = social.perfil
-        if social.nombre:                       # el nombre que le puso reemplaza a «Armá tu Protagonista»
+        if social.nombre:                       # el nombre que le puso reemplaza a «Armá tu BiriBiri»
             texto = f"{social.nombre} · {p['puntos']} pts" if p else social.nombre
         elif p:
             texto = f"{p['nombre']} · {p['puntos']} pts"
         else:
-            texto = social.usuario if social.conectado else "🎬 Armá tu Protagonista"
+            texto = social.usuario if social.conectado else "🎬 Armá tu BiriBiri"
         self.lbl_munequito.setText(texto)
         # En la pantalla sin video, apoyado en el logo (si lo quiere así)
         visor = getattr(self, "visor", None)
@@ -1590,7 +1590,7 @@ class Ventana(QMainWindow):
         social = self.social
         rango = social.perfil["rango"] if social.perfil else ""
         self._tarjeta_prota.mostrar(social.avatar, social.nombre_visible() if (social.nombre or social.conectado)
-                                    else "Tu Protagonista", rango, social.puntos_texto())
+                                    else "Tu BiriBiri", rango, social.puntos_texto())
 
     def _abrir_avatar(self):
         if self.ventana_avatar is None:

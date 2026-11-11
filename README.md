@@ -10,13 +10,13 @@ Aplicación de escritorio para bajar, organizar y ver películas, series y video
 
 ## Descargar
 
-**[⬇ TorrentVision-Setup-1.10.25.exe](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-Setup-1.10.25.exe)** (90 MB) — para la PC (Windows 10/11, 64 bits)
+**[⬇ TorrentVision-Setup-1.10.26.exe](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-Setup-1.10.26.exe)** (91 MB) — para la PC (Windows 10/11, 64 bits)
 
 **[⬇ TorrentVision-Android-1.1.29.apk](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-Android-1.1.29.apk)** (3 MB) — app para el celular (Android 8 o más nuevo): ver más abajo, en [📱 ON](#-on-manejar-torrentvision-desde-el-celular)
 
 También desde la **[página de TorrentVision](https://facuperma.github.io/TVon-App-de-escritorio-para-organizar-y-ver-videos/#bajar)**: en la compu muestra un QR para bajar la app en el celular.
 
-**¿Es el original?** En la [página de descargas](https://facuperma.github.io/TVon-App-de-escritorio-para-organizar-y-ver-videos/#bajar), el botón **🔒 Bajar verificado** lo comprueba solo: baja el archivo, calcula su huella SHA-256 y la compara con la publicada en [`instalador/SHA256.txt`](instalador/SHA256.txt); solo si coincide te deja guardarlo, y si no, te avisa que no lo instales. A mano: `certutil -hashfile TorrentVision-Setup-1.10.25.exe SHA256` (en PowerShell: `Get-FileHash`) y compará con `SHA256.txt`.
+**¿Es el original?** En la [página de descargas](https://facuperma.github.io/TVon-App-de-escritorio-para-organizar-y-ver-videos/#bajar), el botón **🔒 Bajar verificado** lo comprueba solo: baja el archivo, calcula su huella SHA-256 y la compara con la publicada en [`instalador/SHA256.txt`](instalador/SHA256.txt); solo si coincide te deja guardarlo, y si no, te avisa que no lo instales. A mano: `certutil -hashfile TorrentVision-Setup-1.10.26.exe SHA256` (en PowerShell: `Get-FileHash`) y compará con `SHA256.txt`.
 
 El instalador de la PC: ejecutalo y seguí los pasos: no hace falta instalar Python ni nada más, ni permisos de administrador. Crea accesos directos en el menú Inicio (y en el Escritorio, si lo elegís) y se desinstala desde *Configuración → Aplicaciones*.
 
@@ -168,9 +168,11 @@ Al elegir una película de la lista aparece su **vista previa**: póster, direct
 
 **🔎 Buscar cualquier película o serie:** escribí el nombre en el buscador que está arriba del reproductor (filtra la biblioteca mientras escribís, por palabras) y apretá **Enter**: si ya la tenés, la ventana **Buscar** te la muestra con su categoría (doble clic para verla); si no, la busca para bajar. Aparecen las que se llaman así, en castellano o en inglés (los datos salen de Wikidata; la vista previa, de Letterboxd o, para las series, de Wikipedia). Entiende *temporada 2*, *season 2*, *capítulo 5*, *S03E07*, *2x05* y *completa*: «Twin peaks temporada 2» busca el torrent como **Twin Peaks season 2**, y «los soprano completa» como **The Sopranos complete**. El cuadro **Buscar el torrent como** muestra el texto que se va a buscar y se puede cambiar (otra calidad, otro idioma…). Doble clic: abre la búsqueda y, al copiar el link magnet, se pone a bajar sola.
 
-### 🎬 Tu Protagonista, cuenta y amigos
+### 🎬 Tu BiriBiri, cuenta y amigos
 
-Arriba a la derecha está **tu Protagonista**: un muñequito 3D (formas suaves dibujadas con Qt Quick 3D, en la placa de video, con luz, sombras y una animación de reposo) que se arma a tu gusto (cara, peinado, ropa, sombreros, lentes, pochoclos, claqueta…) y al que le podés poner **tu foto en la cara**. Con una cuenta (usuario y contraseña, **sin correo**: al crearla te da un código de recuperación) cada película que terminás suma 10 puntos y cada capítulo 2, y agregás amigos para ver su Protagonista y sus puntos. Por ahora las cuentas se guardan en la PC («local»); el servidor de cuentas para usarlo entre casas está en [`servidor_social/`](servidor_social/LEEME.md). No se manda qué viste: solo una huella de cada título, para no contarlo dos veces.
+Arriba a la derecha está **tu BiriBiri**: un muñequito 3D (formas suaves dibujadas con Qt Quick 3D, en la placa de video, con luz, sombras y una animación de reposo) que se arma a tu gusto (cara, peinado, ropa, sombreros, lentes, pochoclos, claqueta…) y al que le podés poner **tu foto en la cara**. Con una cuenta (usuario y contraseña, **sin correo**: al crearla te da un código de recuperación) cada película que terminás suma 10 puntos y cada capítulo 2, y agregás amigos para ver su Protagonista y sus puntos. Por ahora las cuentas se guardan en la PC («local»); el servidor de cuentas para usarlo entre casas está en [`servidor_social/`](servidor_social/LEEME.md). No se manda qué viste: solo una huella de cada título, para no contarlo dos veces.
+
+**Para armarlo:** género (hombre, mujer, no binario), 9 expresiones de ojos, 10 tipos de cejas (finitas, peludas, pobladas…), 9 bocas (con dientes, carcajada, abierta…), 13 prendas (traje con corbata, camisa, vestido largo, pollera, peto…), 8 modelos de lentes con el color del borde a elección, sombrero de paja, kipá y la **bandera de tu país flameando de fondo**. Con foto, la cara sale hacia adelante como una lente.
 
 ### Películas de dominio público
 

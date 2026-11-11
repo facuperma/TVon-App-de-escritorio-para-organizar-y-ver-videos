@@ -1,4 +1,4 @@
-"""Tu Protagonista (el muñequito 3D): editarlo, la cuenta (usuario y contraseña, sin correo) y los amigos con sus puntos."""
+"""Tu BiriBiri (el muñequito 3D): editarlo, la cuenta (usuario y contraseña, sin correo) y los amigos con sus puntos."""
 from __future__ import annotations
 
 import base64
@@ -24,10 +24,11 @@ PALETAS = {
     "estampa_color": ("#f2f2f2", "#1d1d1f", "#e0a21a", "#d4513d", "#2ec5d6", "#e8707a"),
     "pantalon": ("#2b3a55", "#1d1d1f", "#5b4636", "#3c6e9e", "#7a7f87"),
     "zapatillas": ("#f2f2f2", "#1d1d1f", "#d4513d", "#2f7fd1"),
-    "accesorio_color": ("#d4513d", "#2f7fd1", "#1d1d1f", "#e0a21a", "#2e9f6b"),
+    "accesorio_color": ("#d4513d", "#2f7fd1", "#1d1d1f", "#e0a21a", "#2e9f6b", "#f2f2f2"),
+    "lentes_color": ("#151515", "#f4f4f4", "#d4513d", "#2f7fd1", "#e0a21a", "#2e9f6b", "#8a5cd1", "#e8707a", "#7a7f87"),
 }
 NOMBRES = {"piel": "Piel", "pelo": "Pelo", "ojos": "Ojos", "remera": "Ropa", "estampa_color": "Detalles", "pantalon": "Pantalón",
-           "zapatillas": "Zapatillas", "accesorio_color": "Color de los accesorios"}
+           "zapatillas": "Zapatillas", "accesorio_color": "Color de los accesorios", "lentes_color": "Borde de los lentes"}
 
 
 class EstadoSocial(QObject):
@@ -66,7 +67,7 @@ class EstadoSocial(QObject):
 
     @property
     def nombre(self) -> str:
-        """El nombre que le puso a su Protagonista (vacío si todavía no le puso)."""
+        """El nombre que le puso a su BiriBiri (vacío si todavía no le puso)."""
         return (self.bib.config("protagonista_nombre") or "").strip()
 
     def guardar_nombre(self, nombre: str):
@@ -94,7 +95,7 @@ class EstadoSocial(QObject):
         self.cambio.emit()
 
     def nombre_visible(self) -> str:
-        return self.nombre or (self.perfil["nombre"] if self.perfil else "") or self.usuario or "Tu Protagonista"
+        return self.nombre or (self.perfil["nombre"] if self.perfil else "") or self.usuario or "Tu BiriBiri"
 
     def puntos_texto(self) -> str:
         if self.perfil:
@@ -104,7 +105,7 @@ class EstadoSocial(QObject):
     def resumen(self) -> str:
         if not self.conectado:
             return (f"{self.nombre} · sin cuenta, sin puntos" if self.nombre else
-                    "🎬 Armá tu Protagonista: la estrella de tu videoteca. Tocalo para empezar")
+                    "🎬 Armá tu BiriBiri: la estrella de tu videoteca. Tocalo para empezar")
         if self.perfil:
             return f"{self.nombre_visible()} · {self.perfil['rango']} · {self.perfil['puntos']} puntos"
         return f"{self.nombre_visible()} · conectando…"
@@ -325,10 +326,10 @@ class VentanaAvatar(QWidget):
         super().__init__(None, Qt.Window)
         self.estado = estado
         self.spec = dict(estado.avatar)
-        self.setWindowTitle("Tu Protagonista — TorrentVision")
+        self.setWindowTitle("Tu BiriBiri — TorrentVision")
         self.resize(900, 620)
 
-        self.vista = vista3d.crear(self.spec, arrastrable=True)
+        self.vista = vista3d.crear(self.spec, arrastrable=True, fondo=True)
         self.vista.setMinimumSize(260, 430)
         # Las caritas de los amigos (se arman de a una, en una vista escondida)
         self._miniaturas = vista3d.Miniaturas(96)
@@ -338,7 +339,7 @@ class VentanaAvatar(QWidget):
         izquierda.addWidget(QLabel("Arrastralo para girarlo", objectName="pista", alignment=Qt.AlignCenter))
 
         self.pestanas = QTabWidget()
-        self.pestanas.addTab(self._armar_editor(), "🎬 Protagonista")
+        self.pestanas.addTab(self._armar_editor(), "🎬 BiriBiri")
         self.pestanas.addTab(self._armar_cuenta(), "🔑 Cuenta")
         self.pestanas.addTab(self._armar_amigos(), "👥 Amigos")
         self.pestanas.currentChanged.connect(lambda i: i == 2 and self._cargar_amigos())
@@ -357,8 +358,8 @@ class VentanaAvatar(QWidget):
         self._muestras = {}
         self._combos = {}
         fila_nombre = QHBoxLayout()
-        self.nombre = QLineEdit(self.estado.nombre, maxLength=24, placeholderText="Ponele un nombre a tu Protagonista")
-        self.nombre.setToolTip("Este nombre reemplaza a «Armá tu Protagonista» arriba a la derecha")
+        self.nombre = QLineEdit(self.estado.nombre, maxLength=24, placeholderText="Ponele un nombre a tu BiriBiri")
+        self.nombre.setToolTip("Este nombre reemplaza a «Armá tu BiriBiri» arriba a la derecha")
         self.nombre.textEdited.connect(lambda _t: self.lbl_guardado.setText("Sin guardar"))
         self.nombre.returnPressed.connect(lambda: self._guardar())
         fila_nombre.addWidget(QLabel("<b>Nombre</b>"))
@@ -380,10 +381,15 @@ class VentanaAvatar(QWidget):
         form.addRow(fila_foto)
         form.addRow(QLabel("Una foto tuya de frente: se recorta en un círculo y se pega en la cara.",
                            objectName="pista", wordWrap=True))
+        self._combo(form, "genero", "Género")
         self._fila_color(form, "piel")
         self._fila_color(form, "ojos")
+        self._combo(form, "mirada", "Expresión de los ojos")
+        self._combo(form, "cejas", "Cejas")
         self._combo(form, "boca", "Boca")
         self._combo(form, "barba", "Barba y bigote")
+        form.addRow(QLabel("Con una foto puesta se ven solo la foto y lo que lleva encima (lentes, sombreros…): los ojos, "
+                           "las cejas y la boca son para la cara sin foto.", objectName="pista", wordWrap=True))
         secciones.addTab(cara, "🙂 Cara")
 
         pelo, form = self._seccion()
@@ -394,6 +400,7 @@ class VentanaAvatar(QWidget):
         ropa, form = self._seccion()
         self._combo(form, "cuerpo", "Cuerpo")
         self._combo(form, "ropa", "Ropa")
+        self._filtrar_ropa()
         self._combo(form, "estampa", "Estampa")
         for clave in ("remera", "estampa_color", "pantalon", "zapatillas"):
             self._fila_color(form, clave)
@@ -401,10 +408,17 @@ class VentanaAvatar(QWidget):
 
         extras, form = self._seccion()
         self._combo(form, "cabeza", "En la cabeza")
-        self._combo(form, "lentes", "En los ojos")
+        self._combo(form, "lentes", "Lentes")
+        self._fila_color(form, "lentes_color")
         self._combo(form, "extra", "Para la función")
         self._fila_color(form, "accesorio_color")
         secciones.addTab(extras, "🎩 Accesorios")
+
+        fondo, form = self._seccion()
+        self._combo(form, "bandera", "Bandera de fondo")
+        form.addRow(QLabel("La bandera de tu país flamea detrás de tu BiriBiri (en esta ventana y en la tarjeta que aparece "
+                           "al pasar el mouse por su botón).", objectName="pista", wordWrap=True))
+        secciones.addTab(fondo, "🏳 Fondo")
 
         capa.addWidget(secciones, 1)
         self.en_logo = QCheckBox("Que aparezca apoyado en el logo cuando no hay ningún video elegido")
@@ -453,11 +467,29 @@ class VentanaAvatar(QWidget):
         self._muestras[clave] = m
         form.addRow(NOMBRES[clave], m)
 
+    def _filtrar_ropa(self):
+        """Las prendas que se ofrecen según el género (vestidos y pollera para «mujer», traje para «hombre»; «no binario»
+        ve todas). Si la que estaba puesta ya no se ofrece, vuelve a la remera."""
+        genero = self.spec.get("genero", "nobinario")
+        combo = self._combos["ropa"]
+        combo.blockSignals(True)
+        combo.clear()
+        for k, v in avatar3d.OPCIONES["ropa"].items():
+            para = avatar3d.ROPA_GENERO.get(k)
+            if genero == "nobinario" or para is None or para == genero:
+                combo.addItem(v, k)
+        if combo.findData(self.spec.get("ropa")) < 0:
+            self.spec["ropa"] = "remera"
+        combo.setCurrentIndex(max(0, combo.findData(self.spec.get("ropa", "remera"))))
+        combo.blockSignals(False)
+
     def _cambiar(self, clave: str, valor):
         if valor is None:
             self.spec.pop(clave, None)
         else:
             self.spec[clave] = valor
+        if clave == "genero":
+            self._filtrar_ropa()
         self.vista.poner(self.spec)
         self.lbl_guardado.setText("Sin guardar")
         self._actualizar_foto()
@@ -481,10 +513,18 @@ class VentanaAvatar(QWidget):
             self.spec[clave] = random.choice(colores)
             self._muestras[clave]._marcar(self.spec[clave])
         for clave, combo in self._combos.items():
+            if clave in ("ropa", "bandera"):      # la ropa depende del género y la bandera no se sortea
+                continue
             combo.blockSignals(True)
             combo.setCurrentIndex(random.randrange(combo.count()))
             combo.blockSignals(False)
             self.spec[clave] = combo.currentData()
+        self._filtrar_ropa()
+        combo = self._combos["ropa"]
+        combo.blockSignals(True)
+        combo.setCurrentIndex(random.randrange(combo.count()))
+        combo.blockSignals(False)
+        self.spec["ropa"] = combo.currentData()
         self.vista.poner(self.spec)
         self.lbl_guardado.setText("Sin guardar")
 

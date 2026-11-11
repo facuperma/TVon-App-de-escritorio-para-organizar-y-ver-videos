@@ -14,32 +14,53 @@ from PySide6.QtCore import QPointF, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import QImage, QPainter, QPixmap
 from PySide6.QtWidgets import QSizePolicy, QWidget
 
-NOMBRE = "Protagonista"   # cómo se llama el avatar en la app («Armá tu Protagonista»)
+NOMBRE = "BiriBiri"   # cómo se llama el avatar en la app («Armá tu BiriBiri»)
 
-# Cada opción: clave -> {valor: texto}. El primer valor es el predeterminado.
+# Cada opción: clave -> {valor: texto}. El primer valor es el predeterminado (salvo el género: ver más abajo).
 OPCIONES = {
+    "genero": {"hombre": "Hombre", "mujer": "Mujer", "nobinario": "No binario"},
     "peinado": {"corto": "Corto", "flequillo": "Flequillo", "largo": "Largo", "colita": "Colita", "trenzas": "Trenzas",
                 "rulos": "Rulos", "afro": "Afro", "cresta": "Cresta", "rodete": "Rodete", "pelado": "Pelado"},
-    "boca": {"sonrisa": "Sonrisa", "seria": "Seria", "sorpresa": "¡Sorpresa!", "lengua": "Sacando la lengua"},
+    "mirada": {"normal": "Normales", "grandes": "Grandes y asombrados", "feliz": "Felices (^ ^)", "guino": "Guiño",
+               "enojados": "Enojados", "tristes": "Tristes", "entrecerrados": "Entrecerrados",
+               "dormidos": "Cerrados (durmiendo)", "enamorado": "Enamorado (corazones)"},
+    "cejas": {"normales": "Normales", "finas": "Finitas", "arqueadas": "Finitas y arqueadas", "pobladas": "Pobladas",
+              "peludas": "Peludas", "unidas": "Unidas", "enojadas": "Enojadas", "tristes": "Tristes",
+              "levantada": "Una levantada", "ninguna": "Sin cejas"},
+    "boca": {"sonrisa": "Sonrisa", "dientes": "Sonrisa con dientes", "risa": "Carcajada", "abierta": "Boca abierta",
+             "sorpresa": "¡Sorpresa!", "seria": "Seria", "triste": "Triste", "picara": "Sonrisa pícara",
+             "lengua": "Sacando la lengua"},
     "barba": {"ninguna": "Sin barba", "bigote": "Bigote", "candado": "Candado", "barba": "Barba"},
     "cuerpo": {"normal": "Normal", "flaco": "Flaco", "robusto": "Robusto"},
     "ropa": {"remera": "Remera", "boca": "Camiseta de Boca", "buzo": "Buzo con capucha", "campera": "Campera",
-             "vestido": "Vestido"},
+             "camisa": "Camisa", "traje": "Traje con corbata", "musculosa": "Musculosa",
+             "sweater": "Sweater de cuello alto", "peto": "Peto de jardinero",
+             "vestido": "Vestido", "vestido_largo": "Vestido largo", "pollera": "Remera y pollera",
+             "blusa": "Blusa con moño"},
     "estampa": {"lisa": "Lisa", "rayas": "Rayas", "logo": "Logo en el pecho"},
     "cabeza": {"ninguno": "Nada", "gorra": "Gorra", "gorro": "Gorro con pompón", "sombrero": "Sombrero",
-               "galera": "Galera de cine", "corona": "Corona"},
-    "lentes": {"ninguno": "Nada", "anteojos": "Anteojos", "lentes3d": "Lentes 3D de cine", "sol": "Lentes de sol",
-               "antifaz": "Antifaz"},
+               "paja": "Sombrero de paja", "galera": "Galera de cine", "corona": "Corona", "kipa": "Kipá"},
+    "lentes": {"ninguno": "Nada", "anteojos": "Anteojos redondos", "cuadrados": "Anteojos cuadrados",
+               "aviador": "Aviador", "gatuno": "Gatunos", "corazones": "Corazones", "sol": "Lentes de sol",
+               "lentes3d": "Lentes 3D", "antifaz": "Antifaz"},
     "extra": {"ninguno": "Nada", "pochoclos": "Balde de pochoclos", "gaseosa": "Gaseosa", "claqueta": "Claqueta",
               "auriculares": "Auriculares", "bufanda": "Bufanda", "capa": "Capa de superhéroe"},
+    "bandera": {"ninguna": "Sin bandera", "ar": "Argentina", "uy": "Uruguay", "cl": "Chile", "py": "Paraguay",
+                "bo": "Bolivia", "pe": "Perú", "ec": "Ecuador", "co": "Colombia", "ve": "Venezuela", "br": "Brasil",
+                "mx": "México", "cu": "Cuba", "es": "España", "pt": "Portugal", "fr": "Francia", "it": "Italia",
+                "de": "Alemania", "gb": "Reino Unido", "ru": "Rusia", "us": "Estados Unidos", "ca": "Canadá",
+                "il": "Israel", "cn": "China", "jp": "Japón"},
 }
-COLORES = ("piel", "pelo", "ojos", "remera", "estampa_color", "pantalon", "zapatillas", "accesorio_color")
+# Qué prendas se ofrecen según el género (las que no figuran son para cualquiera; «no binario» ve todas)
+ROPA_GENERO = {"traje": "hombre", "vestido": "mujer", "vestido_largo": "mujer", "pollera": "mujer", "blusa": "mujer"}
+COLORES = ("piel", "pelo", "ojos", "remera", "estampa_color", "pantalon", "zapatillas", "accesorio_color", "lentes_color")
 PREDETERMINADO = {
     "piel": "#e8b896", "pelo": "#3b2a1e", "ojos": "#2b1d14",
     "remera": "#2f7fd1", "estampa_color": "#f2f2f2", "pantalon": "#2b3a55", "zapatillas": "#f2f2f2",
-    "accesorio_color": "#d4513d",
+    "accesorio_color": "#d4513d", "lentes_color": "#151515",
     **{clave: next(iter(valores)) for clave, valores in OPCIONES.items()},
 }
+PREDETERMINADO["genero"] = "nobinario"   # los que ya tenían su muñequito siguen igual (cuerpo neutro)
 # Compatibilidad: antes había un solo «accesorio»
 _ACCESORIO_VIEJO = {"gorra": ("cabeza", "gorra"), "anteojos": ("lentes", "anteojos"), "lentes3d": ("lentes", "lentes3d"),
                     "auriculares": ("extra", "auriculares"), "pochoclos": ("extra", "pochoclos")}

@@ -45,7 +45,7 @@ class TarjetaProtagonista(QFrame):
         self.setAttribute(Qt.WA_TransparentForMouseEvents)
         self.setStyleSheet("#tarjetaProtagonista { background: rgba(14, 22, 38, 235); border: 1px solid #34486f; "
                            "border-radius: 14px; } #tarjetaProtagonista QLabel { background: transparent; }")
-        self.vista = vista3d.crear(None, "cuerpo", parent=self)
+        self.vista = vista3d.crear(None, "cuerpo", parent=self, fondo=True)
         self.vista.setFixedSize(self.ANCHO - 24, self.ALTO_VISTA)
         self.vista.setAttribute(Qt.WA_TransparentForMouseEvents)
         self.nombre = QLabel(alignment=Qt.AlignCenter, wordWrap=True)

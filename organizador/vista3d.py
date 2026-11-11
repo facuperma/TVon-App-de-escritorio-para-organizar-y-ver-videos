@@ -42,6 +42,20 @@ Item {
     property bool liviano: false
     property real cuerpoK: 0.88
     property real cabezaK: 1.2
+    // La bandera de fondo (archivo PNG) flameando detrás: solo si la vista pide fondo
+    property string bandera: ""
+    property bool fondo: false
+    readonly property real distFondo: raiz.busto ? 4.9 : 7.3
+    readonly property real visAlto: 2 * raiz.distFondo * Math.tan((raiz.busto ? 13.6 : 11.6) * Math.PI / 360)
+    readonly property real anchoBandera: Math.min(raiz.visAlto * 0.62 * 1.5, raiz.visAlto * (raiz.width / Math.max(1, raiz.height)) * 1.0)
+    readonly property real altoBandera: raiz.anchoBandera / 1.5
+    readonly property int tiras: 44
+    function onda(k) { return 0.06 * (0.18 + 0.82 * k) * Math.sin(k * 8.0 - raiz.tiempo * 3.4) }
+    function giroTira(k) {
+        var a = 0.06 * (0.18 + 0.82 * k)
+        var pendiente = (0.06 * 0.82 * Math.sin(k * 8.0 - raiz.tiempo * 3.4) + a * 8.0 * Math.cos(k * 8.0 - raiz.tiempo * 3.4)) / raiz.anchoBandera
+        return -Math.atan(pendiente) * 180 / Math.PI
+    }
     property vector3d escala: Qt.vector3d(1, 1, 1)
     property real tiempo: 0
     property int cargadas: 0
@@ -69,6 +83,40 @@ Item {
                            shadowFactor: 25; shadowMapQuality: Light.ShadowMapQualityHigh; shadowBias: 0.4 }
         DirectionalLight { eulerRotation.x: -10; eulerRotation.y: 150; brightness: 0.9; color: "#bcd6ff" }
         DirectionalLight { eulerRotation.x: 20; eulerRotation.y: 20; brightness: 0.35 }
+
+        // La bandera, hecha de tiras angostas que suben y bajan en ola (con la luz, cada tira se ve más clara o más oscura)
+        Node {
+            visible: raiz.fondo && raiz.bandera !== ""
+            position: Qt.vector3d(0, raiz.busto ? 0.9 : 0.66, -0.7)
+            Repeater3D {
+                model: raiz.tiras
+                Node {
+                    property real k: index / (raiz.tiras - 1)
+                    x: (k - 0.5) * raiz.anchoBandera
+                    z: raiz.onda(k)
+                    eulerRotation.y: raiz.giroTira(k)
+                    Model {
+                        source: "#Rectangle"
+                        scale: Qt.vector3d(raiz.anchoBandera / (raiz.tiras - 1) / 100 * 1.2, raiz.altoBandera / 100, 1)
+                        materials: PrincipledMaterial {
+                            cullMode: Material.NoCulling
+                            roughness: 0.9
+                            baseColorMap: tela
+                            emissiveMap: tela
+                            emissiveFactor: Qt.vector3d(0.45, 0.45, 0.45)
+                            Texture {
+                                id: tela
+                                source: raiz.bandera
+                                tilingModeHorizontal: Texture.ClampToEdge
+                                tilingModeVertical: Texture.ClampToEdge
+                                scaleU: 1.0 / raiz.tiras
+                                positionU: index / raiz.tiras
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         // Sombra de apoyo, debajo de los pies
         Model {
@@ -223,7 +271,7 @@ def _clase():
         listo = Signal()
 
         def __init__(self, spec: dict | None = None, encuadre: str = "cuerpo", arrastrable: bool = False,
-                     quieto: bool = False, parent=None):
+                     quieto: bool = False, parent=None, fondo: bool = False):
             super().__init__(parent)
             global _constructor
             if _constructor is None:
@@ -243,6 +291,7 @@ def _clase():
                 raiz.setProperty("busto", encuadre == "busto")
                 raiz.setProperty("arrastrable", arrastrable)
                 raiz.setProperty("quieto", quieto)
+                raiz.setProperty("fondo", fondo)
                 QObject.connect(raiz, SIGNAL("listo()"), self._avisar_listo)
             self.poner(spec or avatar3d.PREDETERMINADO)
 
@@ -253,7 +302,20 @@ def _clase():
             from .protagonista3d import ESCALA
             s = avatar3d.normalizar(spec)
             self._escala = ESCALA.get(s["cuerpo"], ESCALA["normal"])
+            self._poner_bandera(s["bandera"])
             self._constructor.pedir(id(self), s)
+
+        def _poner_bandera(self, codigo: str):
+            """La bandera de fondo (si la vista la muestra): el dibujo de ese país, en la escena."""
+            try:
+                raiz = self.rootObject()
+            except RuntimeError:
+                return
+            if raiz is None or not raiz.property("fondo"):
+                return
+            from . import banderas
+            archivo = banderas.ruta(codigo, CARPETA) if codigo != "ninguna" else None
+            raiz.setProperty("bandera", QUrl.fromLocalFile(str(archivo)).toString() if archivo else "")
 
         def _hecho(self, vista_id: int, carpeta: str):
             if vista_id != id(self):
@@ -291,14 +353,14 @@ _Protagonista3D = None
 ultimo_error = ""   # por qué no se pudo usar Qt Quick 3D (para diagnosticar)
 
 
-def crear(spec: dict | None = None, encuadre: str = "cuerpo", arrastrable: bool = False, parent=None):
+def crear(spec: dict | None = None, encuadre: str = "cuerpo", arrastrable: bool = False, parent=None, fondo: bool = False):
     """El Protagonista nuevo (Qt Quick 3D) o, si no se puede, el anterior. Los dos tienen poner(spec) y tocado."""
     global _Protagonista3D, ultimo_error
     if disponible():
         try:
             if _Protagonista3D is None:
                 _Protagonista3D = _clase()
-            vista = _Protagonista3D(spec, encuadre, arrastrable, parent=parent)
+            vista = _Protagonista3D(spec, encuadre, arrastrable, parent=parent, fondo=fondo)
             if vista.rootObject() is not None:
                 return vista
             ultimo_error = " | ".join(e.toString() for e in vista.errors()) or "sin escena"
