@@ -300,6 +300,8 @@ class LogoAnimado(QWidget):
     def hideEvent(self, e):
         super().hideEvent(e)
         self._reloj.stop()
+        if getattr(self, "_reloj_nada", None) is not None:
+            self._reloj_nada.stop()
 
     def _tic(self):
         if self.window().isMinimized():
@@ -404,7 +406,7 @@ class Bienvenida(QWidget):
             return
         if self._prota is None:
             from . import vista3d
-            self._prota = vista3d.crear(spec, "cuerpo", parent=self)
+            self._prota = vista3d.crear(spec, "cuerpo", parent=self, con_pose=False)
             self._prota.setAttribute(Qt.WA_TransparentForMouseEvents)
             self._prota.setFixedSize(self.ANCHO_PROTA, self.ALTO_PROTA)
         else:
@@ -418,12 +420,61 @@ class Bienvenida(QWidget):
             self._logo_quieto()
         self._acomodar()
 
+    # --- BiriBiri nadando por detrás del logo ---------------------------------------------------------------
+
+    ANCHO_NADA, ALTO_NADA = 340, 215
+
+    def poner_nadador(self, spec: dict | None):
+        """spec = cómo es; None = que no nade. Cruza la pantalla de lado a lado, por abajo, detrás del logo y del texto."""
+        self._nada_activo = spec is not None
+        if spec is None:
+            if getattr(self, "_nada", None) is not None:
+                self._nada.hide()
+            if getattr(self, "_reloj_nada", None) is not None:
+                self._reloj_nada.stop()
+            return
+        if getattr(self, "_nada", None) is None:
+            from . import vista3d
+            self._nada = vista3d.crear(spec, "cuerpo", parent=self, con_pose=True, lugar="nadando")
+            self._nada.setAttribute(Qt.WA_TransparentForMouseEvents)
+            self._nada.setFixedSize(self.ANCHO_NADA, self.ALTO_NADA)
+            self._nada.pose(liviano=True, vaiven=0.0, sombra=False)
+            self._nada_x = -self.ANCHO_NADA
+            self._reloj_nada = QTimer(self, interval=33, timeout=self._nadar)
+            self._t_nada = time.perf_counter()
+        else:
+            self._nada.poner(spec)
+        if self.isVisible():
+            self._reloj_nada.start()
+        self._nadar()
+
+    def _nadar(self):
+        nada = getattr(self, "_nada", None)
+        if nada is None or not getattr(self, "_nada_activo", True):
+            return
+        cabe = self.height() >= 300 and self.width() >= 360
+        nada.setVisible(cabe)
+        if not cabe:
+            return
+        ahora = time.perf_counter()
+        dt, self._t_nada = min(0.1, ahora - self._t_nada), ahora
+        self._nada_x += 55 * dt
+        if self._nada_x > self.width():
+            self._nada_x = -self.ANCHO_NADA
+        y = self.height() * 0.62 + 18 * math.sin(self._nada_x / 70.0)
+        nada.move(round(self._nada_x), round(min(y, self.height() - self.ALTO_NADA)))
+        nada.lower()
+        self.logo.raise_()
+        self.texto.raise_()
+
     def _arrancar(self):
         self._ultimo = time.perf_counter()
         self._reloj.start()
 
     def showEvent(self, e):
         super().showEvent(e)
+        if getattr(self, "_nada", None) is not None and getattr(self, "_nada_activo", True):
+            self._reloj_nada.start()
         if self._spec is not None and getattr(self, "_animar", True):
             self._arrancar()
 

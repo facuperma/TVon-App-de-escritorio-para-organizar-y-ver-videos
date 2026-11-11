@@ -28,6 +28,40 @@ Item {
     property bool busto: false
     property bool quieto: false
     property real giroMano: 0
+    // Poses (ver poses.py): desplazamiento y giro del cuerpo, giro de cada brazo y pierna (en grados) y de la cabeza, más lo que se mueve solo
+    property real pX: 0
+    property real pY: 0
+    property real pZ: 0
+    property real rX: 0
+    property real rY: 0
+    property real rZ: 0
+    property real aiX: 0
+    property real aiY: 0
+    property real aiZ: 0
+    property real adX: 0
+    property real adY: 0
+    property real adZ: 0
+    property real liX: 0
+    property real liY: 0
+    property real liZ: 0
+    property real ldX: 0
+    property real ldY: 0
+    property real ldZ: 0
+    property real cabX: 0
+    property real cabY: 0
+    property real cabZ: 0
+    property real esc: 1
+    property real reposo: 1      // 1 = respira y mueve los brazos apenas; 0 = quieto en la pose
+    property real ampBx: 0       // brazos que van y vienen (grados)
+    property real ondaI: 0       // brazo izquierdo que saluda / se agita
+    property real ondaD: 0
+    property real giroB: 0       // brazos que giran como molinos (nadar)
+    property real ampP: 0        // piernas que van y vienen
+    property real ampPz: 0       // piernas que patean para los costados
+    property real ampS: 0        // saltitos
+    property real ritmo: 6
+    function anima(fase) { return raiz.ampBx * Math.sin(raiz.tiempo * raiz.ritmo + fase) + raiz.giroB * (raiz.tiempo * raiz.ritmo * 57.29578 + fase * 57.29578) }
+    property real giroVert: 0     // arrastrando hacia arriba o abajo el muñeco da vueltas también de frente (360° en las dos direcciones)
     // Poses (la escena del logo): inclinación del cuerpo, brazo derecho extendido para empujar (0 a 1), hacia dónde mira
     // la cabeza y cuánto se balancea solo (0 = quieto en su lugar)
     property real inclinacion: 0
@@ -87,7 +121,9 @@ Item {
         // La bandera, hecha de tiras angostas que suben y bajan en ola (con la luz, cada tira se ve más clara o más oscura)
         Node {
             visible: raiz.fondo && raiz.bandera !== ""
-            position: Qt.vector3d(0, raiz.busto ? 0.9 : 0.66, -0.7)
+            position: Qt.vector3d(raiz.anchoBandera * 0.08, raiz.busto ? 1.0 : 0.78, -0.7)
+            eulerRotation.z: 16       // en diagonal, subiendo hacia un costado
+            eulerRotation.y: -32      // de costado, para que se vea bien
             Repeater3D {
                 model: raiz.tiras
                 Node {
@@ -130,17 +166,37 @@ Item {
             id: pivote
             y: 0.5
             eulerRotation.z: raiz.vuelo
+            eulerRotation.x: raiz.giroVert
         Node {
             id: cuerpo
-            scale: raiz.escala
-            eulerRotation.y: (raiz.quieto ? -16 : 15 * Math.sin(raiz.tiempo * 0.35) * raiz.vaiven) + raiz.giroMano
-            eulerRotation.z: raiz.inclinacion
-            y: -0.5 + (raiz.quieto ? 0 : 0.006 * Math.abs(Math.sin(raiz.tiempo * 1.1)))
+            scale: Qt.vector3d(raiz.escala.x * raiz.esc, raiz.escala.y * raiz.esc, raiz.escala.z * raiz.esc)
+            eulerRotation.x: raiz.rX
+            eulerRotation.y: (raiz.quieto ? -16 : 15 * Math.sin(raiz.tiempo * 0.35) * raiz.vaiven) + raiz.giroMano + raiz.rY
+            eulerRotation.z: raiz.inclinacion + raiz.rZ
+            x: raiz.pX
+            z: raiz.pZ
+            y: -0.5 + raiz.pY + (raiz.quieto ? 0 : 0.006 * Math.abs(Math.sin(raiz.tiempo * 1.1))) + raiz.ampS * Math.abs(Math.sin(raiz.tiempo * raiz.ritmo))
             // Cuerpo más chico y cabeza más grande (cabezón): la altura total queda casi igual
             Node {
                 id: tronco
                 scale: Qt.vector3d(raiz.cuerpoK, raiz.cuerpoK, raiz.cuerpoK)
                 RuntimeLoader { source: raiz.url("piernas"); onStatusChanged: if (status === RuntimeLoader.Success) raiz.cuenta() }
+                Node {
+                    position: Qt.vector3d(-0.07, 0.42, 0)
+                    eulerRotation.x: raiz.liX + raiz.ampP * Math.sin(raiz.tiempo * raiz.ritmo)
+                    eulerRotation.y: raiz.liY
+                    eulerRotation.z: raiz.liZ - raiz.ampPz * Math.abs(Math.sin(raiz.tiempo * raiz.ritmo))
+                    RuntimeLoader { source: raiz.url("pierna_i"); position: Qt.vector3d(0.07, -0.42, 0)
+                                    onStatusChanged: if (status === RuntimeLoader.Success) raiz.cuenta() }
+                }
+                Node {
+                    position: Qt.vector3d(0.07, 0.42, 0)
+                    eulerRotation.x: raiz.ldX - raiz.ampP * Math.sin(raiz.tiempo * raiz.ritmo)
+                    eulerRotation.y: raiz.ldY
+                    eulerRotation.z: raiz.ldZ + raiz.ampPz * Math.abs(Math.cos(raiz.tiempo * raiz.ritmo))
+                    RuntimeLoader { source: raiz.url("pierna_d"); position: Qt.vector3d(-0.07, -0.42, 0)
+                                    onStatusChanged: if (status === RuntimeLoader.Success) raiz.cuenta() }
+                }
                 Node {
                     // Respirar: el torso se infla apenas
                     y: 0.43; scale.y: 1 + 0.012 * Math.sin(raiz.tiempo * 2.2); scale.x: 1 + 0.006 * Math.sin(raiz.tiempo * 2.2)
@@ -148,15 +204,17 @@ Item {
                 }
                 Node {
                     position: Qt.vector3d(-0.155, 0.585, 0)
-                    eulerRotation.z: (-4 - 2 * Math.sin(raiz.tiempo * 1.1)) * (1 - raiz.manos)
-                    eulerRotation.x: 4 * Math.sin(raiz.tiempo * 0.8) * (1 - raiz.manos) - raiz.manos * 98
+                    eulerRotation.z: (-4 - 2 * Math.sin(raiz.tiempo * 1.1)) * (1 - raiz.manos) * raiz.reposo + raiz.aiZ - raiz.ondaI * Math.sin(raiz.tiempo * raiz.ritmo)
+                    eulerRotation.y: raiz.aiY
+                    eulerRotation.x: 4 * Math.sin(raiz.tiempo * 0.8) * (1 - raiz.manos) * raiz.reposo - raiz.manos * 98 + raiz.aiX + raiz.anima(0)
                     RuntimeLoader { source: raiz.url("brazo_i"); position: Qt.vector3d(0.155, -0.585, 0)
                                     onStatusChanged: if (status === RuntimeLoader.Success) raiz.cuenta() }
                 }
                 Node {
                     position: Qt.vector3d(0.155, 0.585, 0)
-                    eulerRotation.z: (4 + 2 * Math.sin(raiz.tiempo * 1.1 + 1)) * (1 - raiz.manos) + raiz.empuje * 80
-                    eulerRotation.x: -4 * Math.sin(raiz.tiempo * 0.8) * (1 - raiz.manos) - raiz.empuje * 35 - raiz.manos * 98
+                    eulerRotation.z: (4 + 2 * Math.sin(raiz.tiempo * 1.1 + 1)) * (1 - raiz.manos) * raiz.reposo + raiz.empuje * 80 + raiz.adZ + raiz.ondaD * Math.sin(raiz.tiempo * raiz.ritmo)
+                    eulerRotation.y: raiz.adY
+                    eulerRotation.x: -4 * Math.sin(raiz.tiempo * 0.8) * (1 - raiz.manos) * raiz.reposo - raiz.empuje * 35 - raiz.manos * 98 + raiz.adX - raiz.anima(3.14159)
                     RuntimeLoader { source: raiz.url("brazo_d"); position: Qt.vector3d(-0.155, -0.585, 0)
                                     onStatusChanged: if (status === RuntimeLoader.Success) raiz.cuenta() }
                 }
@@ -165,24 +223,31 @@ Item {
                 // La cabeza (más grande) mira para los costados y se inclina un poco; gira sobre el cuello
                 position: Qt.vector3d(0, 0.64 * raiz.cuerpoK, 0)
                 scale: Qt.vector3d(raiz.cabezaK, raiz.cabezaK, raiz.cabezaK)
-                eulerRotation.y: (raiz.quieto ? 0 : 11 * Math.sin(raiz.tiempo * 0.55) * raiz.vaiven) + raiz.mira
-                eulerRotation.z: raiz.quieto ? 3 : 3 * Math.sin(raiz.tiempo * 0.9)
-                eulerRotation.x: raiz.quieto ? 0 : -3 + 3 * Math.sin(raiz.tiempo * 0.7)
+                eulerRotation.y: (raiz.quieto ? 0 : 11 * Math.sin(raiz.tiempo * 0.55) * raiz.vaiven) + raiz.mira + raiz.cabY
+                eulerRotation.z: (raiz.quieto ? 3 : 3 * Math.sin(raiz.tiempo * 0.9)) + raiz.cabZ
+                eulerRotation.x: (raiz.quieto ? 0 : -3 + 3 * Math.sin(raiz.tiempo * 0.7)) + raiz.cabX
                 RuntimeLoader { source: raiz.url("cabeza"); position: Qt.vector3d(0, -0.64, 0)
                                 onStatusChanged: if (status === RuntimeLoader.Success) raiz.cuenta() }
             }
         }
         }
     }
-    function cuenta() { raiz.cargadas += 1; if (raiz.cargadas >= 5) raiz.listo() }
+    function cuenta() { raiz.cargadas += 1; if (raiz.cargadas >= 7) raiz.listo() }
     onCarpetaChanged: raiz.cargadas = 0
 
     MouseArea {
         anchors.fill: parent
         cursorShape: raiz.arrastrable ? (pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor) : Qt.PointingHandCursor
         property real ultimo: 0
-        onPressed: function(e) { ultimo = e.x }
-        onPositionChanged: function(e) { if (raiz.arrastrable) { raiz.giroMano += (e.x - ultimo) * 0.7; ultimo = e.x } }
+        property real ultimoY: 0
+        onPressed: function(e) { ultimo = e.x; ultimoY = e.y }
+        onPositionChanged: function(e) {
+            if (raiz.arrastrable) {
+                raiz.giroMano += (e.x - ultimo) * 0.7; ultimo = e.x
+                raiz.giroVert += (e.y - ultimoY) * 0.7; ultimoY = e.y
+            }
+        }
+        onDoubleClicked: if (raiz.arrastrable) { raiz.giroMano = 0; raiz.giroVert = 0 }
         onClicked: if (!raiz.arrastrable) puente.tocar()
     }
 }
@@ -271,8 +336,10 @@ def _clase():
         listo = Signal()
 
         def __init__(self, spec: dict | None = None, encuadre: str = "cuerpo", arrastrable: bool = False,
-                     quieto: bool = False, parent=None, fondo: bool = False):
+                     quieto: bool = False, parent=None, fondo: bool = False, con_pose: bool = True, lugar: str | None = None):
             super().__init__(parent)
+            self._con_pose = con_pose and encuadre != "busto"   # el busto del botón no hace poses
+            self._lugar = lugar
             global _constructor
             if _constructor is None:
                 _constructor = _Constructor()
@@ -303,6 +370,9 @@ def _clase():
             s = avatar3d.normalizar(spec)
             self._escala = ESCALA.get(s["cuerpo"], ESCALA["normal"])
             self._poner_bandera(s["bandera"])
+            if self._con_pose:
+                from . import poses
+                self.pose(**poses.ajustes(s["pose"], self._lugar))
             self._constructor.pedir(id(self), s)
 
         def _poner_bandera(self, codigo: str):
@@ -353,14 +423,15 @@ _Protagonista3D = None
 ultimo_error = ""   # por qué no se pudo usar Qt Quick 3D (para diagnosticar)
 
 
-def crear(spec: dict | None = None, encuadre: str = "cuerpo", arrastrable: bool = False, parent=None, fondo: bool = False):
+def crear(spec: dict | None = None, encuadre: str = "cuerpo", arrastrable: bool = False, parent=None, fondo: bool = False,
+          con_pose: bool = True, lugar: str | None = None):
     """El Protagonista nuevo (Qt Quick 3D) o, si no se puede, el anterior. Los dos tienen poner(spec) y tocado."""
     global _Protagonista3D, ultimo_error
     if disponible():
         try:
             if _Protagonista3D is None:
                 _Protagonista3D = _clase()
-            vista = _Protagonista3D(spec, encuadre, arrastrable, parent=parent, fondo=fondo)
+            vista = _Protagonista3D(spec, encuadre, arrastrable, parent=parent, fondo=fondo, con_pose=con_pose, lugar=lugar)
             if vista.rootObject() is not None:
                 return vista
             ultimo_error = " | ".join(e.toString() for e in vista.errors()) or "sin escena"

@@ -10,6 +10,8 @@ import re
 import threading
 
 import numpy as np
+
+from . import poses
 from PySide6.QtCore import QPointF, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import QImage, QPainter, QPixmap
 from PySide6.QtWidgets import QSizePolicy, QWidget
@@ -49,7 +51,9 @@ OPCIONES = {
                 "bo": "Bolivia", "pe": "Perú", "ec": "Ecuador", "co": "Colombia", "ve": "Venezuela", "br": "Brasil",
                 "mx": "México", "cu": "Cuba", "es": "España", "pt": "Portugal", "fr": "Francia", "it": "Italia",
                 "de": "Alemania", "gb": "Reino Unido", "ru": "Rusia", "us": "Estados Unidos", "ca": "Canadá",
-                "il": "Israel", "cn": "China", "jp": "Japón"},
+                "ps": "Palestina", "cn": "China", "jp": "Japón"},
+    "pose": poses.etiquetas(),      # cómo está parado el muñequito (se arma aparte: no cambia el modelo)
+    "lugar": poses.LUGARES,         # en qué otro lugar del reproductor aparece
 }
 # Qué prendas se ofrecen según el género (las que no figuran son para cualquiera; «no binario» ve todas)
 ROPA_GENERO = {"traje": "hombre", "vestido": "mujer", "vestido_largo": "mujer", "pollera": "mujer", "blusa": "mujer"}

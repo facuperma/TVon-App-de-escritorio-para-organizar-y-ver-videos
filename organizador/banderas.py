@@ -212,17 +212,9 @@ def _ca(p):
     _hoja(p, ANCHO / 2, ALTO / 2, 130, "#d80621")
 
 
-def _il(p):
-    _franjas_h(p, ["#ffffff"])
-    _rect(p, 0, ALTO * 0.09, ANCHO, ALTO * 0.12, "#0038b8")
-    _rect(p, 0, ALTO * 0.79, ANCHO, ALTO * 0.12, "#0038b8")
-    p.setPen(QPen(QColor("#0038b8"), 11))
-    p.setBrush(Qt.NoBrush)
-    r = 88
-    for giro in (0, 180):
-        a = [(ANCHO / 2 + r * math.cos(math.radians(-90 + giro + k * 120)), ALTO / 2 + r * math.sin(math.radians(-90 + giro + k * 120)))
-             for k in range(3)]
-        p.drawPolygon(QPolygonF([QPointF(x, y) for x, y in a]))
+def _ps(p):
+    _franjas_h(p, ["#000000", "#ffffff", "#007a3d"])
+    _poligono(p, [(0, 0), (ANCHO * 0.34, ALTO / 2), (0, ALTO)], "#ce1126")
 
 
 def _cn(p):
@@ -239,7 +231,7 @@ def _jp(p):
 
 DIBUJOS = {"ar": _ar, "uy": _uy, "cl": _cl, "py": _py, "bo": _bo, "pe": _pe, "ec": _ec, "co": _co, "ve": _ve, "br": _br,
            "mx": _mx, "cu": _cu, "es": _es, "pt": _pt, "fr": _fr, "it": _it, "de": _de, "gb": _gb, "ru": _ru, "us": _us,
-           "ca": _ca, "il": _il, "cn": _cn, "jp": _jp}
+           "ca": _ca, "ps": _ps, "cn": _cn, "jp": _jp}
 
 
 def ruta(codigo: str, carpeta: Path) -> Path | None:

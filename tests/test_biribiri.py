@@ -8,7 +8,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication
 
-from organizador import avatar3d, banderas, protagonista3d
+from organizador import avatar3d, banderas, poses, protagonista3d
 
 _app = QApplication.instance() or QApplication([])
 
@@ -61,6 +61,22 @@ class PruebaBiriBiri(unittest.TestCase):
                 archivo = banderas.ruta(codigo, Path(tmp))
                 self.assertTrue(archivo and archivo.exists() and archivo.stat().st_size > 500, codigo)
             self.assertIsNone(banderas.ruta("xx", Path(tmp)))
+
+    def test_poses_y_lugares(self):
+        for nombre in poses.POSES:
+            datos = poses.ajustes(nombre)
+            self.assertEqual(set(datos), set(poses.BASE), nombre)     # solo ajustes que la escena conoce
+        for lugar, pose in poses.POSE_DEL_LUGAR.items():
+            self.assertIn(lugar, poses.LUGARES)
+            self.assertIn(pose, poses.POSES)
+        s = avatar3d.normalizar({"pose": "celebrando", "lugar": "lista"})
+        self.assertEqual((s["pose"], s["lugar"]), ("celebrando", "lista"))
+        self.assertEqual(avatar3d.normalizar({"pose": "xx"})["pose"], "normal")
+        self.assertEqual(protagonista3d.clave({"pose": "t", "lugar": "visor"}), protagonista3d.clave({}))   # no cambia el modelo
+
+    def test_la_palestina_reemplaza_a_israel(self):
+        self.assertIn("ps", avatar3d.OPCIONES["bandera"])
+        self.assertNotIn("il", avatar3d.OPCIONES["bandera"])
 
 
 if __name__ == "__main__":

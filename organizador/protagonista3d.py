@@ -16,7 +16,7 @@ import numpy as np
 from . import avatar3d
 from .modelado import cortar, curva, elipsoide, esfera, capsula, caja_redonda, guardar_glb, malla, restar, unir
 
-VERSION = 17 # subir si cambia la forma: así se rearman los que están en caché
+VERSION = 21 # subir si cambia la forma: así se rearman los que están en caché
 PASO = 0.0045
 
 # Puntos de articulación (para animar): hombros, cuello, cadera
@@ -155,7 +155,7 @@ def _cabeza_sdf(p, con_foto=False):
     return d
 
 
-RADIO_FOTO, RADIO_FOTO_X, ELEVA_FOTO = 0.122, 0.138, 0.034   # alto, ancho (apenas más ancho que alto) y cuánto sale
+RADIO_FOTO, RADIO_FOTO_X, ELEVA_FOTO = 0.13, 0.13, 0.03   # redonda como una escotilla; ELEVA = cuánto se abomba el vidrio
 SALIDA_FOTO = ELEVA_FOTO + 0.004   # lo que hay que adelantar lo que va sobre la cara (lentes) cuando hay foto
 
 
@@ -163,9 +163,8 @@ def _hondo_foto(p):
     """La cara se abulta hacia adelante en el centro del cuadro de la foto, como una lente: parejo en el borde y lo más
     alto en el medio (ahí va la foto). Alrededor, un reborde finito."""
     r2 = (p[..., 0] / RADIO_FOTO_X) ** 2 + ((p[..., 1] - 0.8) / RADIO_FOTO) ** 2
-    domo = ELEVA_FOTO * np.clip(1 - r2, 0, 1) ** 1.15
-    reborde = 0.0024 * np.exp(-(((np.sqrt(r2) - 1.05) / 0.07) ** 2))
-    return -(domo + reborde) * (p[..., 2] > 0.04)
+    domo = ELEVA_FOTO * np.clip(1 - r2, 0, 1) ** 0.75
+    return -domo * (p[..., 2] > 0.04)
 
 
 def _linea_pelo(p):
@@ -438,13 +437,13 @@ def _brazo(p, lado):
     return unir(mano, esfera(p, (lado * 0.152, 0.585, 0), 0.046), 0.03)     # el hombro, que se ve sin mangas
 
 
-def _piernas(p, s):
-    d = None
-    for x in (-0.07, 0.07):
-        pierna = capsula(p, (x, 0.08, 0.0), (x * 1.05, 0.42, 0.0), 0.05, 0.058)
-        d = pierna if d is None else unir(d, pierna, 0.0)
-    cadera = elipsoide(p, (0, 0.42, 0), (_medidas(s)[0] * 1.02, 0.07, _medidas(s)[0] * _medidas(s)[2]))
-    return unir(d, cadera, 0.035)
+def _cadera(p, s):
+    """La cadera sola (queda con el cuerpo); cada pierna es otra pieza que gira desde la cadera."""
+    return elipsoide(p, (0, 0.42, 0), (_medidas(s)[0] * 1.02, 0.07, _medidas(s)[0] * _medidas(s)[2]))
+
+
+def _pierna(p, x):
+    return capsula(p, (x, 0.08, 0.0), (x * 1.05, 0.42, 0.0), 0.05, 0.058)
 
 
 def _zapatillas(p, x):
@@ -471,17 +470,17 @@ def _armar(s: dict, foto_jpg: bytes | None) -> dict[str, list]:
     m_pelo = {"color": _c(pelo), "rugosidad": 0.55}
     m_tela = lambda col, r=0.82: {"color": _c(col), "rugosidad": r}  # noqa: E731
     con_foto = foto_jpg is not None
-    partes: dict[str, list] = {"cabeza": [], "torso": [], "brazo_i": [], "brazo_d": [], "piernas": []}
+    partes: dict[str, list] = {"cabeza": [], "torso": [], "brazo_i": [], "brazo_d": [], "piernas": [], "pierna_i": [], "pierna_d": []}
     caja_cabeza = ((-0.38, 0.44, -0.46), (0.38, 1.3, 0.34))   # ancha: ningún pelo ni sombrero se corta en el borde
 
     # Cabeza
-    partes["cabeza"].append(("piel", lambda p: unir(unir(_cabeza_sdf(p, con_foto),
+    _piel = (lambda p: unir(unir(_cabeza_sdf(p, con_foto),
                                                          elipsoide(p, (-0.195, 0.8, 0.0), (0.03, 0.048, 0.036)), 0.015),
                                                     elipsoide(p, (0.195, 0.8, 0.0), (0.03, 0.048, 0.036)), 0.015)
-                             if con_foto else unir(unir(unir(_cabeza_sdf(p), elipsoide(p, (0, 0.79, 0.178), (0.026, 0.021, 0.02)), 0.02),
+             if con_foto else unir(unir(unir(_cabeza_sdf(p), elipsoide(p, (0, 0.79, 0.178), (0.026, 0.021, 0.02)), 0.02),
                                                         elipsoide(p, (-0.195, 0.8, 0.0), (0.03, 0.048, 0.036)), 0.015),
-                                                   elipsoide(p, (0.195, 0.8, 0.0), (0.03, 0.048, 0.036)), 0.015),
-                             ((-0.25, 0.6, -0.22), (0.25, 1.05, 0.25)), m_piel))
+                                                   elipsoide(p, (0.195, 0.8, 0.0), (0.03, 0.048, 0.036)), 0.015))
+    partes["cabeza"].append(("piel", _piel if con_foto else _piel_con_boca(_piel, s), ((-0.25, 0.6, -0.22), (0.25, 1.05, 0.25)), m_piel))
     if not con_foto:
         _rasgos(partes["cabeza"], s, m_tela)
     if (pelo_sdf := _pelo_funcion(s)) is not None:
@@ -503,6 +502,10 @@ def _armar(s: dict, foto_jpg: bytes | None) -> dict[str, list]:
     _sombreros(partes["cabeza"], s, ca, detalle)
     _lentes(partes["cabeza"], s, ca, con_foto)
     if con_foto:
+        # Marco de escotilla alrededor del vidrio abombado: un aro grueso y parejo, del color del accesorio
+        rm = RADIO_FOTO_X + 0.012
+        partes["cabeza"].append(("marco", _calco(lambda p: np.abs(np.hypot(p[..., 0], p[..., 1] - 0.8) - rm) - 0.0125, 0.022),
+                                 ((-0.17, 0.62, 0.05), (0.17, 0.98, 0.26)), {"color": _c(ca), "rugosidad": 0.3, "metal": 0.6}))
         partes["cabeza"].append(("foto", "foto", None, {"color": (1, 1, 1), "rugosidad": 0.6, "textura": foto_jpg, "dos_caras": True}))
 
     # Torso: cuello, ropa, estampa
@@ -556,18 +559,18 @@ def _armar(s: dict, foto_jpg: bytes | None) -> dict[str, list]:
                                    caja, m_tela(avatar3d.BOCA_ORO)))
     _extras_mano(partes["brazo_d"], s, ca)
 
-    # Piernas, cadera y zapatillas
+    # Cadera (con el cuerpo) y cada pierna con su zapatilla
     caja_piernas = ((-0.2, -0.01, -0.12), (0.2, 0.5, 0.16))
     pantalon = s["pantalon"]
-    if s["ropa"] in FALDA_PIEL:
-        partes["piernas"].append(("piernas", lambda p: _piernas(p, s), caja_piernas, m_piel))
-    else:
-        partes["piernas"].append(("pantalon", lambda p: _piernas(p, s), caja_piernas, m_tela(pantalon)))
+    m_pierna = m_piel if s["ropa"] in FALDA_PIEL else m_tela(pantalon)
+    partes["piernas"].append(("pantalon", lambda p: _cadera(p, s), caja_piernas, m_pierna))
     zapa = s["zapatillas"]
-    partes["piernas"].append(("zapatillas", lambda p: unir(_zapatillas(p, -0.07), _zapatillas(p, 0.07)), caja_piernas,
-                              m_tela(zapa, 0.6)))
     suela = "#d9dce1" if avatar3d._rgb(zapa)[0] > 0.8 else "#f2f2f2"
-    partes["piernas"].append(("suela", lambda p: unir(_suela(p, -0.07), _suela(p, 0.07)), caja_piernas, m_tela(suela, 0.7)))
+    for nombre, x in (("pierna_i", -0.07), ("pierna_d", 0.07)):
+        caja_p = ((x - 0.09, -0.01, -0.12), (x + 0.09, 0.5, 0.16))
+        partes[nombre].append(("pantalon", lambda p, x=x: _pierna(p, x), caja_p, m_pierna))
+        partes[nombre].append(("zapatillas", lambda p, x=x: _zapatillas(p, x), caja_p, m_tela(zapa, 0.6)))
+        partes[nombre].append(("suela", lambda p, x=x: _suela(p, x), caja_p, m_tela(suela, 0.7)))
     return partes
 
 
@@ -723,15 +726,51 @@ def _cejas(p, tipo):
     return d
 
 
+PROF_BOCA = 0.05    # hondura de la boca abierta
+
+
+def _forma_boca(b):
+    """Boca abierta: (contorno 2D, lengua (cx, cy, a, b) o None, dientes (ancho, y) o None). Es un hueco que entra en la cara."""
+    if b == "sorpresa":
+        return (lambda p: _elipse2d(p, 0.0, 0.724, 0.022, 0.029)), (0.0, 0.708, 0.014, 0.011), None
+    if b in ("dientes", "risa"):
+        ancho, alto, corte = (0.054, 0.039, 0.741) if b == "risa" else (0.046, 0.031, 0.739)
+        cy = 0.722 if b == "risa" else 0.725
+        return ((lambda p: np.maximum(_elipse2d(p, 0.0, cy, ancho, alto), p[..., 1] - corte)),
+                (0.0, cy - 0.014, ancho * 0.55, alto * 0.42), (ancho * 0.88, corte - 0.0075))
+    if b == "abierta":
+        return (lambda p: _elipse2d(p, 0.0, 0.722, 0.031, 0.038)), (0.0, 0.703, 0.021, 0.013), (0.022, 0.746)
+    return None
+
+
+def _hueco_boca(b, extra=0.0):    # extra > 0: un hueco apenas más grande y más hondo
+    """Volumen que se le saca a la cara para la boca abierta: entra PROF_BOCA y se cierra hacia el fondo, como una taza."""
+    fb = _forma_boca(b)
+    if fb is None:
+        return None
+    forma = fb[0]
+
+    def f(p):
+        prof = -_cabeza_sdf(p)                       # cuánto bajo la piel está el punto (negativo = afuera)
+        return np.maximum(np.maximum(forma(p) - extra + 0.55 * np.clip(prof, 0, None), prof - PROF_BOCA - extra), 0.08 - p[..., 2])
+    return f
+
+
+def _surco(ctrl, r, extra=0.0):
+    return lambda p: _tubo_cara(p, ctrl, r + extra, r + extra, dz=0.0015)
+
+
 def _boca(lista, s, tela):
     b = s["boca"]
     labio = tela("#6b2a24", 0.5)
     hueco = tela("#3b1114", 0.5)
     dientes = tela("#f7f4ea", 0.35)
     lengua = tela("#e8707a", 0.4)
+    caja = ((-0.08, 0.66, 0.05), (0.08, 0.78, 0.23))
 
     def linea(ctrl, r=0.0085):
-        lista.append(("boca", lambda p: _tubo_cara(p, ctrl, r, r, dz=0.003), CAJA_BOCA, labio))
+        # Surco: el labio queda hundido en la cara (la piel lleva el mismo trazo recortado, ver _piel_con_boca)
+        lista.append(("boca", lambda p: _tubo_cara(p, ctrl, r, r, dz=-0.0035), CAJA_BOCA, labio))
 
     if b == "sonrisa":
         linea([(-0.042, 0.742), (0.0, 0.70), (0.042, 0.742)])
@@ -744,31 +783,42 @@ def _boca(lista, s, tela):
     elif b == "lengua":
         linea([(-0.042, 0.742), (0.0, 0.70), (0.042, 0.742)])
         lista.append(("lengua", _calco(lambda p: _elipse2d(p, 0.004, 0.706, 0.019, 0.024), 0.009), CAJA_BOCA, lengua))
-    elif b == "sorpresa":
-        lista.append(("boca", _calco(lambda p: _elipse2d(p, 0.0, 0.724, 0.022, 0.029), 0.005), CAJA_BOCA, hueco))
-        lista.append(("lengua", _calco(lambda p: np.maximum(_elipse2d(p, 0.0, 0.712, 0.014, 0.01),
-                                                            _elipse2d(p, 0.0, 0.724, 0.022, 0.029)), 0.007), CAJA_BOCA, lengua))
-    elif b in ("dientes", "risa"):
-        grande = b == "risa"
-        ancho, alto, corte = (0.054, 0.039, 0.741) if grande else (0.046, 0.031, 0.739)
-        cy = 0.722 if grande else 0.725
+    else:
+        fb = _forma_boca(b)
+        if fb is None:
+            return
+        _, tl, td = fb
+        hueco_f, hueco_g = _hueco_boca(b, 0.0), _hueco_boca(b, 0.004)
+        # Forro oscuro: la pared del hueco (entre el hueco justo y uno apenas más grande), siempre dentro de la cabeza
+        lista.append(("boca", lambda p: np.maximum(np.maximum(hueco_g(p), -hueco_f(p)), _cabeza_sdf(p) + 0.0015),
+                      caja, hueco))
+        # Lengua: en el fondo del hueco
+        lista.append(("lengua", lambda p: np.maximum(np.maximum(_hueco_boca(b, -0.002)(p), _elipse2d(p, *tl)),
+                                                     -(-_cabeza_sdf(p) - PROF_BOCA * 0.45)), caja, lengua))
+        if td is not None:
+            medio, ydi = td
+            # Dientes de arriba: una tablita apenas metida bajo el labio de arriba
+            lista.append(("dientes", lambda p: np.maximum(np.maximum(_hueco_boca(b, -0.002)(p),
+                                                                      _caja2d(p[..., 0], p[..., 1] - ydi, medio, 0.0078, 0.003)),
+                                                          np.maximum(_cabeza_sdf(p) + 0.003, -(_cabeza_sdf(p) + 0.016))),
+                          caja, dientes))
 
-        def d_boca(p):
-            return np.maximum(_elipse2d(p, 0.0, cy, ancho, alto), p[..., 1] - corte)
-        lista.append(("boca", _calco(d_boca, 0.005), CAJA_BOCA, hueco))
-        lista.append(("lengua", _calco(lambda p: np.maximum(_elipse2d(p, 0.0, cy - 0.016, ancho * 0.55, alto * 0.45), d_boca(p)),
-                                       0.0075), CAJA_BOCA, lengua))
-        medio = ancho * 0.88
-        lista.append(("dientes", _calco(lambda p: np.maximum(_caja2d(p[..., 0], p[..., 1] - (corte - 0.0075), medio, 0.0078, 0.003),
-                                                             d_boca(p)), 0.0085), CAJA_BOCA, dientes))
-    elif b == "abierta":
-        def d_boca(p):
-            return _elipse2d(p, 0.0, 0.722, 0.031, 0.038)
-        lista.append(("boca", _calco(d_boca, 0.005), CAJA_BOCA, hueco))
-        lista.append(("lengua", _calco(lambda p: np.maximum(_elipse2d(p, 0.0, 0.702, 0.021, 0.013), d_boca(p)), 0.0075),
-                      CAJA_BOCA, lengua))
-        lista.append(("dientes", _calco(lambda p: np.maximum(_caja2d(p[..., 0], p[..., 1] - 0.746, 0.022, 0.0065, 0.003),
-                                                             d_boca(p)), 0.0085), CAJA_BOCA, dientes))
+
+def _piel_con_boca(d_fn, s):
+    """La piel con la boca ya hundida: hueco para las abiertas, surco para las de una línea."""
+    b = s["boca"]
+    hueco = _hueco_boca(b, 0.004)
+    if hueco is not None:
+        return lambda p: restar(d_fn(p), hueco(p))
+    surcos = {"sonrisa": ([(-0.042, 0.742), (0.0, 0.70), (0.042, 0.742)], 0.0085),
+              "picara": ([(-0.034, 0.728), (0.004, 0.72), (0.046, 0.748)], 0.0085),
+              "triste": ([(-0.036, 0.716), (0.0, 0.752), (0.036, 0.716)], 0.0085),
+              "seria": ([(-0.032, 0.728), (0.0, 0.726), (0.032, 0.728)], 0.007),
+              "lengua": ([(-0.042, 0.742), (0.0, 0.70), (0.042, 0.742)], 0.0085)}
+    if b in surcos:
+        ctrl, r = surcos[b]
+        return lambda p: restar(d_fn(p), _tubo_cara(p, ctrl, r + 0.002, r + 0.002, dz=0.0015), 0.0)
+    return d_fn
 
 
 def _pelo_funcion(s):
@@ -1071,6 +1121,8 @@ FORMA = {
     "brazo_i": ("ropa", "cuerpo"),
     "brazo_d": ("ropa", "cuerpo", "extra"),
     "piernas": ("ropa", "cuerpo", "genero"),
+    "pierna_i": ("ropa", "cuerpo", "genero"),
+    "pierna_d": ("ropa", "cuerpo", "genero"),
 }
 
 
@@ -1078,7 +1130,7 @@ FORMA = {
 FINURA = {"brillo": 0.6, "ojos": 0.6, "cejas": 0.6, "trazos": 0.6, "pestanas": 0.6, "boca": 0.5, "lengua": 0.5,
           "dientes": 0.5, "esclera": 0.5, "corazones": 0.5}
 # La bandera de fondo no cambia el muñequito (la dibuja la escena aparte): no cuenta para armarlo
-SOLO_ESCENA = ("bandera",)
+SOLO_ESCENA = ("bandera", "pose", "lugar")
 
 
 def clave(spec: dict) -> str:

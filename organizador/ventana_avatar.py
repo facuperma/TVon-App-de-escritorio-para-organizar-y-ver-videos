@@ -336,7 +336,7 @@ class VentanaAvatar(QWidget):
         self._miniaturas.lista.connect(self._miniatura_lista)
         izquierda = QVBoxLayout()
         izquierda.addWidget(self.vista, 1)
-        izquierda.addWidget(QLabel("Arrastralo para girarlo", objectName="pista", alignment=Qt.AlignCenter))
+        izquierda.addWidget(QLabel("Arrastralo para girarlo en cualquier dirección (doble clic: vuelve)", objectName="pista", alignment=Qt.AlignCenter))
 
         self.pestanas = QTabWidget()
         self.pestanas.addTab(self._armar_editor(), "🎬 BiriBiri")
@@ -419,6 +419,13 @@ class VentanaAvatar(QWidget):
         form.addRow(QLabel("La bandera de tu país flamea detrás de tu BiriBiri (en esta ventana y en la tarjeta que aparece "
                            "al pasar el mouse por su botón).", objectName="pista", wordWrap=True))
         secciones.addTab(fondo, "🏳 Fondo")
+
+        poses_tab, form = self._seccion()
+        self._combo(form, "pose", "Pose")
+        self._combo(form, "lugar", "Otro lugar donde aparece")
+        form.addRow(QLabel("Con la pose «Normal», en cada lugar toma la que le toca (sentado, acostado, nadando…). Si elegís "
+                           "otra, la usa en todos lados. Podés girarlo arrastrándolo.", objectName="pista", wordWrap=True))
+        secciones.addTab(poses_tab, "🧍 Pose y lugar")
 
         capa.addWidget(secciones, 1)
         self.en_logo = QCheckBox("Que aparezca apoyado en el logo cuando no hay ningún video elegido")
@@ -513,7 +520,7 @@ class VentanaAvatar(QWidget):
             self.spec[clave] = random.choice(colores)
             self._muestras[clave]._marcar(self.spec[clave])
         for clave, combo in self._combos.items():
-            if clave in ("ropa", "bandera"):      # la ropa depende del género y la bandera no se sortea
+            if clave in ("ropa", "bandera", "pose", "lugar"):      # la ropa depende del género; bandera, pose y lugar no se sortean
                 continue
             combo.blockSignals(True)
             combo.setCurrentIndex(random.randrange(combo.count()))

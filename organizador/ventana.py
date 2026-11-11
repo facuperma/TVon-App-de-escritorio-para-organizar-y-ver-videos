@@ -597,6 +597,8 @@ class Ventana(QMainWindow):
             w.setVisible(not completa and (w not in self._paneles or self._paneles[w].isChecked()))
         # La banda del tema (título que corre) tampoco: en pantalla completa se ve solo la película
         self.fila_banda.setVisible(not completa and self._banda_con_tema)
+        if hasattr(self, "_lugares"):
+            QTimer.singleShot(0, self._lugares.reposicionar)
         if completa:
             if not self._modo_fullscreen:
                 self._estaba_maximizada = self.isMaximized()
@@ -1579,6 +1581,13 @@ class Ventana(QMainWindow):
         visor = getattr(self, "visor", None)
         if visor is not None:
             visor.vacio.poner_protagonista(social.avatar if social.en_logo else None, social.animacion)
+            # Nadando detrás del logo, o en otro lugar del reproductor (sentado bajo la lista, acostado sobre el buscador…)
+            nada = social.avatar.get("lugar") == "nadando"
+            visor.vacio.poner_nadador(social.avatar if nada else None)
+            if not hasattr(self, "_lugares"):
+                from .lugares import LugaresBiriBiri
+                self._lugares = LugaresBiriBiri(self)
+            self._lugares.poner(social.avatar)
         tarjeta = getattr(self, "_tarjeta_prota", None)
         if tarjeta is not None and tarjeta.isVisible():
             self._mostrar_tarjeta_protagonista(True)
