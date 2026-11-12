@@ -369,7 +369,7 @@ class Bienvenida(QWidget):
     vuelve caminando (poner_protagonista)."""
 
     PERIODO = 21.0          # segundos que dura una vuelta de la escena
-    ALTO_PROTA, ANCHO_PROTA = 190, 230
+    ALTO_PROTA, ANCHO_PROTA = 240, 270      # holgado: con la cabeza grande, al girar por el aire se cortaba en el borde
 
     def __init__(self, texto: str):
         super().__init__(objectName="vacio")
@@ -525,7 +525,7 @@ class Bienvenida(QWidget):
             cabe = self._spec is not None and self.height() >= 300 and self.width() >= 360
             self._prota.setVisible(cabe)
             # Apoyado en el borde izquierdo del anillo, con los pies a la altura de la base del logo
-            self._base_prota = (centro_x - 80 - self.ANCHO_PROTA / 2,
+            self._base_prota = (centro_x - 92 - self.ANCHO_PROTA / 2,
                                 arriba + self.logo.height() / 2 + 82 - self.ALTO_PROTA * 0.96)
         self._mover(0.0, (0.0, 0.0))
 
@@ -542,7 +542,7 @@ class Bienvenida(QWidget):
         """Apoyado de costado en el logo (de espaldas a él), mirando para el que mira, con una respiración suave."""
         respira = math.sin(t * 1.4)
         return dict(giroMano=-68, mira=64 + 5 * math.sin(t * 0.5), inclinacion=-12 + 1.2 * respira, empuje=0.12,
-                    manos=0.0, vuelo=0.0, sombra=True)
+                    manos=0.0, vuelo=0.0, sombra=True, esc=0.78)      # esc: más chico dentro de la vista, para que entre al girar
 
     def _tic(self):
         if self.window().isMinimized() or self._prota is None or self._spec is None:
@@ -576,14 +576,14 @@ class Bienvenida(QWidget):
             tirones = avance + 0.045 * math.sin(k * 34) * (1 - abs(2 * k - 1) * 0.3)
             d_logo = 50 * max(0.0, tirones)
             esfuerzo = 1.6 * math.sin(t * 17) * (0.4 + 0.6 * math.sin(math.pi * k))
-            pose.update(giroMano=82, mira=-12, inclinacion=-24 + esfuerzo + 3 * math.sin(k * 34), empuje=0.0, manos=1.0)
+            pose.update(giroMano=82, mira=-12, inclinacion=-16 + esfuerzo + 3 * math.sin(k * 34), empuje=0.0, manos=1.0)
             d_x = -6 + 0.82 * d_logo + 2.0 * math.sin(t * 17)
             giro_logo = 4 * math.sin(k * 34) * k
             escala = 1.0 - 0.03 * math.sin(math.pi * k)
         elif u < 12.1:                                      # 5) el logo se frena, tiembla, se está cargando…
             k = (u - 11.6) / 0.5
             d_logo = 50 - 6 * k + 2.5 * math.sin(t * 60)
-            pose.update(giroMano=82, mira=-12, inclinacion=-24 + 6 * k, empuje=0.0, manos=1.0 - 0.2 * k)
+            pose.update(giroMano=82, mira=-12, inclinacion=-16 + 5 * k, empuje=0.0, manos=1.0 - 0.2 * k)
             d_x = -6 + 0.82 * 50 - 6 * k
             escala = 1.0 - 0.10 * k
             giro_logo = 3 * math.sin(t * 60)

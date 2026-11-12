@@ -16,7 +16,7 @@ import numpy as np
 from . import avatar3d, mascotas
 from .modelado import cortar, curva, elipsoide, esfera, capsula, caja_redonda, guardar_glb, malla, restar, unir
 
-VERSION = 23 # subir si cambia la forma: así se rearman los que están en caché
+VERSION = 26 # subir si cambia la forma: así se rearman los que están en caché
 PASO = 0.0045
 
 # Puntos de articulación (para animar): hombros, cuello, cadera
@@ -161,16 +161,46 @@ FONDO_FOTO = 0.118                  # hasta dónde entra el hueco (z del fondo, 
 SALIDA_FOTO = 0.0                   # lo que hay que adelantar lo que va sobre la cara (lentes): nada, la cara no cambia por fuera
 
 
-def _ahoge(p):
-    """El mechón que se para en la coronilla y se enrula: la marca de BiriBiri."""
-    ruta = [(0.0, 1.0, 0.01), (-0.004, 1.05, 0.02), (0.012, 1.095, 0.024), (0.045, 1.115, 0.022), (0.07, 1.098, 0.018),
-            (0.066, 1.07, 0.014), (0.04, 1.064, 0.012)]
+def _bigote(p, estilo):
+    """Bigote que sigue la curva de la cara: normal, fino o manubrio (con las puntas para arriba)."""
     d = None
-    for i in range(len(ruta) - 1):
-        r0, r1 = 0.0125 - 0.0014 * i, 0.0125 - 0.0014 * (i + 1)
-        c = capsula(p, ruta[i], ruta[i + 1], r0, r1)
-        d = c if d is None else unir(d, c, 0.006)
+    for lado in (-1, 1):
+        if estilo == "fino":
+            ruta, r0, r1 = [(0.0, 0.756), (lado * 0.03, 0.759), (lado * 0.064, 0.748)], 0.0062, 0.0042
+        elif estilo == "manubrio":
+            ruta, r0, r1 = [(0.0, 0.757), (lado * 0.036, 0.75), (lado * 0.07, 0.738), (lado * 0.08, 0.764)], 0.0125, 0.0055
+        else:
+            ruta, r0, r1 = [(0.0, 0.758), (lado * 0.032, 0.766), (lado * 0.066, 0.744)], 0.0135, 0.0065
+        m = _tubo_cara(p, ruta, r0, r1, dz=0.004, n=11)
+        d = m if d is None else unir(d, m, 0.008)
     return d
+
+
+def _barba(p, estilo, con_foto=False):
+    """Barbas pegadas a la cara: un manto fino sobre la mandíbula (sigue la forma de la cabeza, sin bloques), con un hueco
+    para la boca; y las chicas (perilla, candado, chivita) como parches bajo el labio."""
+    if estilo in ("bigote", "bigote_fino", "manubrio"):
+        return _bigote(p, {"bigote": "normal", "bigote_fino": "fino", "manubrio": "manubrio"}[estilo])
+    piel = _cabeza_sdf(p)
+    if estilo == "perilla":
+        parche = cortar(piel - 0.011, elipsoide(p, (0, 0.672, 0.17), (0.022, 0.024, 0.05)), 0.012)
+        return unir(parche, _bigote(p, "fino"), 0.008)
+    if estilo in ("candado", "chivita"):
+        parche = cortar(piel - 0.016, elipsoide(p, (0, 0.668, 0.13), (0.056, 0.034, 0.07)), 0.02)
+        d = unir(parche, _bigote(p, "normal"), 0.012)
+        if estilo == "chivita":                       # termina en punta
+            d = unir(d, curva(p, [(0, 0.67, 0.145), (0, 0.625, 0.158), (0, 0.585, 0.15)], 0.034, 0.009), 0.03)
+        return d
+    # Barba completa: corta (de tres días), normal o larga
+    esp = {"barba_corta": 0.007, "barba": 0.02, "barba_larga": 0.023}[estilo]
+    limite = 0.675 if con_foto else 0.795
+    zona = cortar(elipsoide(p, (0, 0.7, 0.03), (0.205, 0.15, 0.2)), plano(p, (0, 1, 0), limite), 0.03)
+    manto = cortar(piel - esp, zona, 0.025)
+    if estilo == "barba_larga":
+        manto = unir(manto, elipsoide(p, (0, 0.6, 0.1), (0.108, 0.11, 0.075)), 0.06)
+        manto = unir(manto, curva(p, [(0, 0.62, 0.12), (0, 0.5, 0.12), (0, 0.4, 0.1)], 0.075, 0.02), 0.05)
+    manto = restar(manto, elipsoide(p, (0, 0.728, 0.19), (0.07, 0.044, 0.09)), 0.02)       # la boca queda a la vista
+    return unir(manto, _bigote(p, "normal"), 0.014) if estilo != "barba_corta" else unir(manto, _bigote(p, "fino"), 0.01)
 
 
 def _linea_pelo(p):
@@ -227,10 +257,21 @@ def _pelo(p, s):
     elif est == "rulos":
         d = _rulos(p, d, 0.205, 0.045, 70)
     elif est == "afro":
-        base = elipsoide(p, (0, 0.87, -0.03), (0.24, 0.23, 0.225))
-        base = restar(base, elipsoide(p, (0, 0.77, 0.2), (0.17, 0.15, 0.14)), 0.03)
-        d = unir(d, cortar(base, _linea_pelo(p) - 0.02, 0.04), 0.03)
-        d = _rulos(p, d, 0.255, 0.05, 150, centro=(0, 0.87, -0.03), limite=-0.035)
+        # Una nube redonda y suave: una base grande y bolas grandes que se funden entre sí (sin rulitos sueltos ni surcos)
+        centro = (0.0, 0.875, -0.03)
+        base = elipsoide(p, centro, (0.248, 0.238, 0.228))
+        base = restar(base, elipsoide(p, (0, 0.765, 0.215), (0.178, 0.16, 0.15)), 0.06)
+        d = unir(d, cortar(base, _linea_pelo(p) - 0.025, 0.06), 0.05)
+        c = np.asarray(centro, np.float32)
+        dorado = math.pi * (3 - math.sqrt(5))
+        for i in range(22):
+            y = 1 - 2 * (i + 0.5) / 22
+            r = math.sqrt(1 - y * y)
+            ang = dorado * i
+            punto = c + 0.185 * np.array([r * math.cos(ang), y, r * math.sin(ang)], np.float32)
+            if float(_linea_pelo(punto[None])[0]) > -0.04:
+                continue
+            d = unir(d, esfera(p, punto, 0.08), 0.07)
     elif est == "cresta":
         d = _casco(p, 0.006)
         for i, z in enumerate((0.15, 0.08, 0.0, -0.08, -0.15)):
@@ -491,22 +532,9 @@ def _armar(s: dict, foto_jpg: bytes | None) -> dict[str, list]:
         _rasgos(partes["cabeza"], s, m_tela)
     if (pelo_sdf := _pelo_funcion(s)) is not None:
         partes["cabeza"].append(("pelo", pelo_sdf, caja_cabeza, m_pelo))
-        if s["cabeza"] == "ninguno" and s["peinado"] in ("corto", "flequillo", "largo", "colita", "trenzas", "rulos"):
-            partes["cabeza"].append(("ahoge", _ahoge, ((-0.12, 0.98, -0.1), (0.14, 1.2, 0.1)), m_pelo))
     b = s["barba"]
     if b != "ninguna":
-        def barba(p, b=b):
-            bigote = unir(curva(p, [(-0.06, 0.748, 0.162), (-0.03, 0.758, 0.178), (0, 0.752, 0.183)], 0.013, 0.009),
-                          curva(p, [(0.06, 0.748, 0.162), (0.03, 0.758, 0.178), (0, 0.752, 0.183)], 0.013, 0.009), 0.01)
-            if b == "bigote":
-                return bigote
-            if b == "candado":
-                return unir(bigote, elipsoide(p, (0, 0.685, 0.13), (0.045, 0.035, 0.045)), 0.02)
-            mandibula = cortar(elipsoide(p, (0, 0.74, 0.03), (0.175, 0.13, 0.165)), plano(p, (0, 1, 0), 0.79), 0.02)
-            mandibula = restar(mandibula, _cabeza_sdf(p) + 0.006, 0.0)
-            mandibula = restar(mandibula, elipsoide(p, (0, 0.73, 0.18), (0.045, 0.022, 0.05)), 0.01)
-            return unir(mandibula, bigote, 0.015)
-        partes["cabeza"].append(("barba", barba, ((-0.22, 0.58, -0.1), (0.22, 0.85, 0.24)), m_pelo))
+        partes["cabeza"].append(("barba", lambda p, b=b: _barba(p, b, con_foto), ((-0.23, 0.55, -0.1), (0.23, 0.86, 0.26)), m_pelo))
     _sombreros(partes["cabeza"], s, ca, detalle)
     _lentes(partes["cabeza"], s, ca, con_foto)
     if con_foto:
@@ -1117,11 +1145,12 @@ FORMA = {
 
 
 # Qué tan fina es la grilla de cada pieza chica (1 = la normal): las calcomanías de la cara necesitan mucho más
-FINURA = {"m_cuerpo": 0.8, "m_cabeza": 0.7, "m_cola": 0.7, "m_orejas": 0.7, "m_manchas": 0.6, "m_mascara": 0.6, "m_ojos": 0.5,
+FINURA = {"m_cuerpo": 0.8, "m_cabeza": 0.7, "m_cola": 0.7, "m_orejas": 0.7, "m_manchas": 0.6, "m_mascara": 0.6, "m_ojos": 0.5, "m_boca": 0.45, "m_rubor": 0.6,
           "m_pupilas": 0.5, "m_brillo": 0.5, "m_nariz": 0.5, "m_lengua": 0.5, "m_bigotes": 0.4, "brillo": 0.6, "ojos": 0.6, "cejas": 0.6, "trazos": 0.6, "pestanas": 0.6, "boca": 0.5, "lengua": 0.5,
           "dientes": 0.5, "esclera": 0.5, "corazones": 0.5}
 # La bandera de fondo no cambia el muñequito (la dibuja la escena aparte): no cuenta para armarlo
-SOLO_ESCENA = ("bandera", "pose", "lugar", "interaccion")
+SOLO_ESCENA = ("bandera", "bandera_x", "bandera_y", "bandera_tam", "bandera_giro", "bandera_costado", "pose", "lugar",
+               "interaccion")
 
 
 def clave(spec: dict) -> str:

@@ -100,6 +100,13 @@ class PruebaBiriBiri(unittest.TestCase):
         self.assertEqual((s["mascota"], s["interaccion"]), ("pug", "plato"))
         self.assertEqual(avatar3d.normalizar({"mascota": "dragon"})["mascota"], "ninguna")
 
+    def test_bandera_acomodable_y_barbas(self):
+        s = avatar3d.normalizar({"bandera_x": 500, "bandera_tam": 10, "bandera_giro": "x"})
+        self.assertEqual((s["bandera_x"], s["bandera_tam"], s["bandera_giro"]), (100, 40, 16))     # tope, piso y valor de partida
+        self.assertEqual(protagonista3d.clave({"bandera_x": 30}), protagonista3d.clave({}))        # no cambia el modelo
+        for barba in avatar3d.OPCIONES["barba"]:
+            self.assertEqual(avatar3d.normalizar({"barba": barba})["barba"], barba)
+
 
 if __name__ == "__main__":
     unittest.main()

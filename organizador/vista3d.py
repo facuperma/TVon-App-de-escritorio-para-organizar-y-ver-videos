@@ -83,6 +83,14 @@ Item {
     property string texto: ""
     readonly property real zoomM: (raiz.conMascota && !raiz.busto) ? 1.45 : 1.0
     function anima(fase) { return raiz.ampBx * Math.sin(raiz.tiempo * raiz.ritmo + fase) + raiz.giroB * (raiz.tiempo * raiz.ritmo * 57.29578 + fase * 57.29578) }
+    property real bandX: 0       // la bandera de fondo, acomodable (en porcentaje; ver avatar3d.NUMEROS)
+    property real bandY: 0
+    property real bandTam: 100
+    property real bandGiro: 16
+    property real bandCostado: -32
+    property real zoomU: 1       // zoom con la rueda del mouse (solo en el editor)
+    property real panX: 0        // mover la vista (clic derecho y arrastrar)
+    property real panY: 0
     property real giroVert: 0     // arrastrando hacia arriba o abajo el muñeco da vueltas también de frente (360° en las dos direcciones)
     // Poses (la escena del logo): inclinación del cuerpo, brazo derecho extendido para empujar (0 a 1), hacia dónde mira
     // la cabeza y cuánto se balancea solo (0 = quieto en su lugar)
@@ -134,7 +142,7 @@ Item {
         PerspectiveCamera {
             id: camara
             // Con margen para que entren los gorros, la galera y los rulos del afro
-            position: raiz.busto ? Qt.vector3d(0, 0.88, 4.2) : Qt.vector3d(raiz.conMascota ? 0.14 : 0, 0.74, 6.6 * raiz.zoomM)
+            position: raiz.busto ? Qt.vector3d(0, 0.88, 4.2) : Qt.vector3d((raiz.conMascota ? 0.14 : 0) + raiz.panX, (raiz.conMascota ? 0.74 : 0.62) + raiz.panY, 6.6 * raiz.zoomM / raiz.zoomU)
             fieldOfView: raiz.busto ? 13.6 : 11.6
             clipNear: 0.1
         }
@@ -146,9 +154,11 @@ Item {
         // La bandera, hecha de tiras angostas que suben y bajan en ola (con la luz, cada tira se ve más clara o más oscura)
         Node {
             visible: raiz.fondo && raiz.bandera !== ""
-            position: Qt.vector3d(raiz.anchoBandera * 0.08, raiz.busto ? 1.0 : 0.78, -0.7)
-            eulerRotation.z: 16       // en diagonal, subiendo hacia un costado
-            eulerRotation.y: -32      // de costado, para que se vea bien
+            position: Qt.vector3d(raiz.anchoBandera * 0.08 + raiz.bandX / 100 * raiz.visAlto * 0.5,
+                                  (raiz.busto ? 1.0 : 0.78) + raiz.bandY / 100 * raiz.visAlto * 0.4, -0.7)
+            scale: Qt.vector3d(raiz.bandTam / 100, raiz.bandTam / 100, raiz.bandTam / 100)
+            eulerRotation.z: raiz.bandGiro        // en diagonal, subiendo hacia un costado
+            eulerRotation.y: raiz.bandCostado     // de costado, para que se vea bien
             Repeater3D {
                 model: raiz.tiras
                 Node {
@@ -351,14 +361,26 @@ Item {
         cursorShape: raiz.arrastrable ? (pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor) : Qt.PointingHandCursor
         property real ultimo: 0
         property real ultimoY: 0
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
         onPressed: function(e) { ultimo = e.x; ultimoY = e.y }
         onPositionChanged: function(e) {
-            if (raiz.arrastrable) {
-                raiz.giroMano += (e.x - ultimo) * 0.7; ultimo = e.x
-                raiz.giroVert += (e.y - ultimoY) * 0.7; ultimoY = e.y
+            if (!raiz.arrastrable) return
+            if (pressedButtons & Qt.RightButton) {
+                // Mover la vista: lo que se arrastra sigue al mouse
+                var porPixel = 2 * 6.6 * raiz.zoomM / raiz.zoomU * Math.tan(11.6 * Math.PI / 360) / Math.max(1, raiz.height)
+                raiz.panX -= (e.x - ultimo) * porPixel
+                raiz.panY += (e.y - ultimoY) * porPixel
+            } else {
+                raiz.giroMano += (e.x - ultimo) * 0.7
+                raiz.giroVert += (e.y - ultimoY) * 0.7
             }
+            ultimo = e.x; ultimoY = e.y
         }
-        onDoubleClicked: if (raiz.arrastrable) { raiz.giroMano = 0; raiz.giroVert = 0 }
+        onWheel: function(w) {
+            if (raiz.arrastrable)
+                raiz.zoomU = Math.max(0.4, Math.min(4.0, raiz.zoomU * (w.angleDelta.y > 0 ? 1.1 : 1 / 1.1)))
+        }
+        onDoubleClicked: if (raiz.arrastrable) { raiz.giroMano = 0; raiz.giroVert = 0; raiz.zoomU = 1; raiz.panX = 0; raiz.panY = 0 }
         onClicked: if (!raiz.arrastrable) puente.tocar()
     }
 }
@@ -481,6 +503,8 @@ def _clase():
             s = avatar3d.normalizar(spec)
             self._escala = ESCALA.get(s["cuerpo"], ESCALA["normal"])
             self._poner_bandera(s["bandera"])
+            self.pose(bandX=s["bandera_x"], bandY=s["bandera_y"], bandTam=s["bandera_tam"], bandGiro=s["bandera_giro"],
+                      bandCostado=s["bandera_costado"])
             if self._con_pose:
                 from . import mascotas, poses
                 animal = mascotas.tipo(s["mascota"])

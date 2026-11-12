@@ -48,7 +48,7 @@ def _forma(raza: str) -> dict:
     g = dict(H=0.11, rx=0.105, ry=0.095, L=0.16, hr=0.105, snx=0.048, sny=0.038, snz=0.06, pata=0.027, cola_largo=0.12,
              orejas="caidas")
     if not perro:
-        g.update(H=0.1, rx=0.085, ry=0.08, L=0.13, hr=0.105, snx=0.03, sny=0.022, snz=0.026, pata=0.022, cola_largo=0.2,
+        g.update(H=0.095, rx=0.095, ry=0.09, L=0.12, hr=0.124, snx=0.036, sny=0.028, snz=0.04, pata=0.024, cola_largo=0.17,
                  orejas="puntas")
     if raza == "salchicha":
         g.update(H=0.055, rx=0.082, ry=0.075, L=0.27, hr=0.095, snx=0.04, sny=0.034, snz=0.085, pata=0.026, cola_largo=0.14)
@@ -59,7 +59,7 @@ def _forma(raza: str) -> dict:
     elif raza == "caniche":
         g.update(H=0.12, rx=0.09, ry=0.085, hr=0.095, snx=0.036, sny=0.032, snz=0.07, pata=0.022)
     elif raza == "persa":
-        g.update(rx=0.1, ry=0.09, hr=0.115, snx=0.034, sny=0.024, snz=0.016, cola_largo=0.17)
+        g.update(rx=0.105, ry=0.095, hr=0.13, snx=0.036, sny=0.026, snz=0.02, cola_largo=0.16)
     g["cy"] = g["H"] + g["ry"] * 0.7
     g["cuello"] = (0.0, g["cy"] + g["ry"] * 0.55, g["L"] * 0.62)
     g["cabeza"] = (0.0, g["cuello"][1] + 0.07, g["cuello"][2] + 0.05)
@@ -172,7 +172,7 @@ def armar(raza: str, c1: str, c2: str, col, osc) -> dict[str, list]:
                                                                 forma_c(p)), caja_cuerpo, sec))
 
     # ---------------- Cabeza
-    sn_c = (hc[0], hc[1] - hr * 0.3, hc[2] + hr * 0.78)
+    sn_c = (hc[0], hc[1] - hr * 0.3, hc[2] + hr * (0.78 if perro else 0.9))
 
     def cabeza(p):
         d = esfera(p, hc, hr)
@@ -184,7 +184,38 @@ def armar(raza: str, c1: str, c2: str, col, osc) -> dict[str, list]:
             d = unir(d, esfera(p, (hc[0], hc[1] - 0.02, hc[2] - 0.02), hr * 1.1), 0.04)
         return d
 
+    def _z_cara(x, y):
+        """Hasta dónde llega la cara (hocico o cabeza) hacia adelante en (x, y)."""
+        zs = sn_c[2] + g["snz"] * math.sqrt(max(0.0, 1 - (x / g["snx"]) ** 2 - ((y - sn_c[1]) / g["sny"]) ** 2))
+        zc = hc[2] + math.sqrt(max(0.0, hr * hr - x * x - (y - hc[1]) ** 2))
+        return max(zs, zc)
+
+    def _ruta_boca(r_extra=0.0, hondo=0.0):
+        y0 = sn_c[1] - 0.004
+        trazos = [[(0.0, y0), (0.0, y0 - 0.011)],
+                  [(0.0, y0 - 0.011), (-0.011, y0 - 0.022), (-0.024, y0 - 0.013)],
+                  [(0.0, y0 - 0.011), (0.011, y0 - 0.022), (0.024, y0 - 0.013)]]
+        return trazos, r_extra, hondo
+
+    def surco(p, radio, hondo):
+        d = None
+        for tr in _ruta_boca()[0]:
+            pts = [(x, y, _z_cara(x, y) - hondo) for x, y in ([tr[0]] + [((a[0] + b[0]) / 2, (a[1] + b[1]) / 2) for a, b in zip(tr, tr[1:])] + [tr[-1]])]
+            for a, b in zip(pts, pts[1:]):
+                c = capsula(p, a, b, radio)
+                d = c if d is None else np.minimum(d, c)
+        return d
+
+    cabeza_base = cabeza
+    if not perro:
+        cabeza = lambda p: restar(cabeza_base(p), surco(p, 0.0042, 0.0012))      # noqa: E731
+
     piezas_cab = [("m_cabeza", cabeza, caja_cab, pelaje)]
+    if not perro:
+        piezas_cab.append(("m_boca", lambda p: surco(p, 0.0027, 0.0035), caja_cara, {"color": col("#6a2f3a"), "rugosidad": 0.5}))
+        piezas_cab.append(("m_rubor", lambda p: unir(elipsoide(p, (-hr * 0.78, hc[1] - hr * 0.2, hc[2] + hr * 0.5), (0.026, 0.016, 0.014)),
+                                                      elipsoide(p, (hr * 0.78, hc[1] - hr * 0.2, hc[2] + hr * 0.5), (0.026, 0.016, 0.014))),
+                           caja_cab, {"color": col("#ee9aa6"), "rugosidad": 0.8}))
     if raza in ("husky", "pug", "siames"):
         # Antifaz / hocico: pegado a la cabeza
         if raza == "husky":
@@ -223,24 +254,26 @@ def armar(raza: str, c1: str, c2: str, col, osc) -> dict[str, list]:
                             (hc[0] + sx * hr * 1.15, hc[1] + hr * 0.7 - largo, hc[2] - 0.01), 0.032, 0.024)
             else:
                 alto = 0.085 if raza != "persa" else 0.06
-                o = capsula(p, (hc[0] + sx * hr * 0.62, hc[1] + hr * 0.82, hc[2] - 0.005),
-                            (hc[0] + sx * hr * 0.82, hc[1] + hr * 0.82 + alto, hc[2] - 0.01), 0.048, 0.006)
+                o = capsula(p, (hc[0] + sx * hr * 0.6, hc[1] + hr * 0.8, hc[2] - 0.005),
+                            (hc[0] + sx * hr * 0.8, hc[1] + hr * 0.8 + alto, hc[2] - 0.01), 0.052, 0.016)
             d = o if d is None else np.minimum(d, o)
         return d
 
     piezas_cab.append(("m_orejas", orejas, caja_cab, sec if orejas_sec else pelaje))
     # Ojos, brillitos, nariz
-    sep = hr * 0.45
+    sep = hr * (0.45 if perro else 0.5)
     ey, ez = hc[1] + hr * 0.2, hc[2] + hr * 0.84
-    re = 0.021 if perro else 0.024
+    re = 0.021 if perro else 0.03
     piezas_cab.append(("m_ojos", lambda p: unir(esfera(p, (-sep, ey, ez), re), esfera(p, (sep, ey, ez), re)), caja_cara,
                        oscuro if perro else ojo))
     if not perro:
-        piezas_cab.append(("m_pupilas", lambda p: unir(elipsoide(p, (-sep, ey, ez + re * 0.8), (0.0045, 0.017, 0.006)),
-                                                       elipsoide(p, (sep, ey, ez + re * 0.8), (0.0045, 0.017, 0.006))),
+        piezas_cab.append(("m_pupilas", lambda p: unir(elipsoide(p, (-sep, ey, ez + re * 0.9), (re * 0.3, re * 0.72, re * 0.14)),
+                                                       elipsoide(p, (sep, ey, ez + re * 0.9), (re * 0.3, re * 0.72, re * 0.14))),
                            caja_cara, oscuro))
-    piezas_cab.append(("m_brillo", lambda p: unir(esfera(p, (-sep + 0.007, ey + 0.009, ez + 0.011), 0.0068),
-                                                  esfera(p, (sep + 0.007, ey + 0.009, ez + 0.011), 0.0068)), caja_cara, blanco))
+    rb = 0.0068 if perro else 0.0105
+    hx, hy, hz = re * 0.34, re * 0.44, re * 0.82         # el brillito: arriba a la derecha, sobre la superficie del ojo
+    piezas_cab.append(("m_brillo", lambda p: unir(esfera(p, (-sep + hx, ey + hy, ez + hz), rb), esfera(p, (sep + hx, ey + hy, ez + hz), rb)),
+                       caja_cara, blanco))
     nz = sn_c[2] + g["snz"] * 0.85
     piezas_cab.append(("m_nariz", lambda p: elipsoide(p, (0, sn_c[1] + g["sny"] * 0.55, nz), (0.022 if perro else 0.013, 0.016 if perro else 0.01, 0.017 if perro else 0.01)),
                        caja_cara, nariz))

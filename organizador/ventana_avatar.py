@@ -340,7 +340,7 @@ class VentanaAvatar(QWidget):
         self._miniaturas.lista.connect(self._miniatura_lista)
         izquierda = QVBoxLayout()
         izquierda.addWidget(self.vista, 1)
-        izquierda.addWidget(QLabel("Arrastralo para girarlo en cualquier dirección (doble clic: vuelve)", objectName="pista", alignment=Qt.AlignCenter))
+        izquierda.addWidget(QLabel("Arrastralo para girarlo · rueda: zoom · clic derecho y arrastrar: mover · doble clic: vuelve", objectName="pista", alignment=Qt.AlignCenter, wordWrap=True))
 
         self.pestanas = QTabWidget()
         self.pestanas.addTab(self._armar_editor(), "🎬 BiriBiri")
@@ -361,6 +361,7 @@ class VentanaAvatar(QWidget):
         capa = QVBoxLayout(hoja)
         self._muestras = {}
         self._combos = {}
+        self._deslizadores = {}
         fila_nombre = QHBoxLayout()
         self.nombre = QLineEdit(self.estado.nombre, maxLength=24, placeholderText="Ponele un nombre a tu BiriBiri")
         self.nombre.setToolTip("Este nombre reemplaza a «Armá tu BiriBiri» arriba a la derecha")
@@ -426,6 +427,18 @@ class VentanaAvatar(QWidget):
         self._combo(form, "bandera", "Bandera de fondo")
         form.addRow(QLabel("La bandera de tu país flamea detrás de tu BiriBiri (en esta ventana y en la tarjeta que aparece "
                            "al pasar el mouse por su botón).", objectName="pista", wordWrap=True))
+        for clave, texto in (("bandera_x", "Izquierda ↔ derecha"), ("bandera_y", "Abajo ↔ arriba"), ("bandera_tam", "Tamaño"),
+                             ("bandera_giro", "Inclinación"), ("bandera_costado", "Girada de costado")):
+            minimo, maximo, _ = avatar3d.NUMEROS[clave]
+            deslizador = QSlider(Qt.Horizontal)
+            deslizador.setRange(minimo, maximo)
+            deslizador.setValue(int(self.spec.get(clave, avatar3d.NUMEROS[clave][2])))
+            deslizador.valueChanged.connect(lambda v, clave=clave: self._cambiar(clave, int(v)))
+            self._deslizadores[clave] = deslizador
+            form.addRow(texto, deslizador)
+        restablecer = QPushButton("Dejar la bandera como estaba")
+        restablecer.clicked.connect(self._restablecer_bandera)
+        form.addRow(restablecer)
         secciones.addTab(fondo, "🏳 Fondo")
 
         poses_tab, form = self._seccion()
@@ -507,6 +520,10 @@ class VentanaAvatar(QWidget):
             self.spec["ropa"] = "remera"
         combo.setCurrentIndex(max(0, combo.findData(self.spec.get("ropa", "remera"))))
         combo.blockSignals(False)
+
+    def _restablecer_bandera(self):
+        for clave, deslizador in self._deslizadores.items():
+            deslizador.setValue(avatar3d.NUMEROS[clave][2])     # cada uno avisa su cambio
 
     def _cambiar(self, clave: str, valor):
         if valor is None:

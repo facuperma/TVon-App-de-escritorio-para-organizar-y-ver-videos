@@ -32,7 +32,9 @@ OPCIONES = {
     "boca": {"sonrisa": "Sonrisa", "dientes": "Sonrisa con dientes", "risa": "Carcajada", "abierta": "Boca abierta",
              "sorpresa": "¡Sorpresa!", "seria": "Seria", "triste": "Triste", "picara": "Sonrisa pícara",
              "lengua": "Sacando la lengua"},
-    "barba": {"ninguna": "Sin barba", "bigote": "Bigote", "candado": "Candado", "barba": "Barba"},
+    "barba": {"ninguna": "Sin barba", "bigote": "Bigote", "bigote_fino": "Bigote fino", "manubrio": "Bigote manubrio",
+              "perilla": "Perilla", "candado": "Candado", "chivita": "Chivita", "barba_corta": "Barba corta",
+              "barba": "Barba completa", "barba_larga": "Barba larga"},
     "cuerpo": {"normal": "Normal", "flaco": "Flaco", "robusto": "Robusto"},
     "ropa": {"remera": "Remera", "boca": "Camiseta de Boca", "buzo": "Buzo con capucha", "campera": "Campera",
              "camisa": "Camisa", "traje": "Traje con corbata", "musculosa": "Musculosa",
@@ -61,12 +63,16 @@ OPCIONES = {
 ROPA_GENERO = {"traje": "hombre", "vestido": "mujer", "vestido_largo": "mujer", "pollera": "mujer", "blusa": "mujer"}
 COLORES = ("piel", "pelo", "ojos", "remera", "estampa_color", "pantalon", "zapatillas", "accesorio_color", "lentes_color",
            "mascota_color", "mascota_color2")
+# Valores numéricos (mínimo, máximo, de partida): cómo se acomoda la bandera de fondo
+NUMEROS = {"bandera_x": (-100, 100, 0), "bandera_y": (-100, 100, 0), "bandera_tam": (40, 220, 100),
+           "bandera_giro": (-60, 60, 16), "bandera_costado": (-80, 80, -32)}
 PREDETERMINADO = {
     "piel": "#e8b896", "pelo": "#3b2a1e", "ojos": "#2b1d14",
     "remera": "#2f7fd1", "estampa_color": "#f2f2f2", "pantalon": "#2b3a55", "zapatillas": "#f2f2f2",
     "accesorio_color": "#d4513d", "lentes_color": "#151515", "mascota_color": "#e0b060", "mascota_color2": "#c99a4a",
     **{clave: next(iter(valores)) for clave, valores in OPCIONES.items()},
 }
+PREDETERMINADO.update({k: v[2] for k, v in NUMEROS.items()})
 PREDETERMINADO["genero"] = "nobinario"   # los que ya tenían su muñequito siguen igual (cuerpo neutro)
 # Compatibilidad: antes había un solo «accesorio»
 _ACCESORIO_VIEJO = {"gorra": ("cabeza", "gorra"), "anteojos": ("lentes", "anteojos"), "lentes3d": ("lentes", "lentes3d"),
@@ -96,6 +102,10 @@ def normalizar(spec) -> dict:
     for clave, valores in OPCIONES.items():
         if spec.get(clave) in valores:
             limpio[clave] = spec[clave]
+    for clave, (minimo, maximo, _por_defecto) in NUMEROS.items():
+        valor = spec.get(clave)
+        if isinstance(valor, (int, float)) and not isinstance(valor, bool):
+            limpio[clave] = int(max(minimo, min(maximo, round(valor))))
     foto = spec.get("foto")
     if isinstance(foto, str) and len(foto) <= FOTO_MAXIMO and _FOTO.fullmatch(foto):
         limpio["foto"] = foto
