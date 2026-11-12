@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 )
 
 from . import avatar3d, social, vista3d
+from . import mascotas
 from .tareas import en_segundo_plano
 
 PALETAS = {
@@ -25,10 +26,13 @@ PALETAS = {
     "pantalon": ("#2b3a55", "#1d1d1f", "#5b4636", "#3c6e9e", "#7a7f87"),
     "zapatillas": ("#f2f2f2", "#1d1d1f", "#d4513d", "#2f7fd1"),
     "accesorio_color": ("#d4513d", "#2f7fd1", "#1d1d1f", "#e0a21a", "#2e9f6b", "#f2f2f2"),
+    "mascota_color": tuple(mascotas.PALETA_PELAJE),
+    "mascota_color2": tuple(mascotas.PALETA_SECUNDARIO),
     "lentes_color": ("#151515", "#f4f4f4", "#d4513d", "#2f7fd1", "#e0a21a", "#2e9f6b", "#8a5cd1", "#e8707a", "#7a7f87"),
 }
 NOMBRES = {"piel": "Piel", "pelo": "Pelo", "ojos": "Ojos", "remera": "Ropa", "estampa_color": "Detalles", "pantalon": "Pantalón",
-           "zapatillas": "Zapatillas", "accesorio_color": "Color de los accesorios", "lentes_color": "Borde de los lentes"}
+           "zapatillas": "Zapatillas", "accesorio_color": "Color de los accesorios", "lentes_color": "Borde de los lentes",
+           "mascota_color": "Pelaje", "mascota_color2": "Color secundario (orejas, manchas…)"}
 
 
 class EstadoSocial(QObject):
@@ -367,6 +371,10 @@ class VentanaAvatar(QWidget):
         capa.addLayout(fila_nombre)
         secciones = QTabWidget()
         secciones.setDocumentMode(True)
+        secciones.tabBar().setUsesScrollButtons(True)
+        secciones.tabBar().setExpanding(False)
+        secciones.tabBar().setElideMode(Qt.ElideNone)
+        secciones.tabBar().setStyleSheet("QTabBar::tab { padding: 7px 8px; margin: 0px 1px; }")
 
         # Cara: la foto (opcional), la piel y los gestos
         cara, form = self._seccion()
@@ -412,7 +420,7 @@ class VentanaAvatar(QWidget):
         self._fila_color(form, "lentes_color")
         self._combo(form, "extra", "Para la función")
         self._fila_color(form, "accesorio_color")
-        secciones.addTab(extras, "🎩 Accesorios")
+        secciones.addTab(extras, "🎩 Extras")
 
         fondo, form = self._seccion()
         self._combo(form, "bandera", "Bandera de fondo")
@@ -425,7 +433,17 @@ class VentanaAvatar(QWidget):
         self._combo(form, "lugar", "Otro lugar donde aparece")
         form.addRow(QLabel("Con la pose «Normal», en cada lugar toma la que le toca (sentado, acostado, nadando…). Si elegís "
                            "otra, la usa en todos lados. Podés girarlo arrastrándolo.", objectName="pista", wordWrap=True))
-        secciones.addTab(poses_tab, "🧍 Pose y lugar")
+        secciones.addTab(poses_tab, "🧍 Pose")
+
+        mascota_tab, form = self._seccion()
+        self._combo(form, "mascota", "Mascota")
+        self._fila_color(form, "mascota_color")
+        self._fila_color(form, "mascota_color2")
+        self._combo(form, "interaccion", "Qué hacen juntos")
+        form.addRow(QLabel("Un perro o un gato (de distintas razas y colores) parado al lado de tu BiriBiri. Al cambiar de raza "
+                           "se pone sus colores de siempre y después los podés cambiar. Con una interacción, tu BiriBiri deja la "
+                           "pose elegida para hacerle mimos, darle un premio o llenarle el plato.", objectName="pista", wordWrap=True))
+        secciones.addTab(mascota_tab, "🐾 Mascota")
 
         capa.addWidget(secciones, 1)
         self.en_logo = QCheckBox("Que aparezca apoyado en el logo cuando no hay ningún video elegido")
@@ -497,6 +515,10 @@ class VentanaAvatar(QWidget):
             self.spec[clave] = valor
         if clave == "genero":
             self._filtrar_ropa()
+        if clave == "mascota" and valor in mascotas.RAZAS:      # cada raza con sus colores de siempre
+            for k, c in zip(("mascota_color", "mascota_color2"), mascotas.colores(valor)):
+                self.spec[k] = c
+                self._muestras[k]._marcar(c)
         self.vista.poner(self.spec)
         self.lbl_guardado.setText("Sin guardar")
         self._actualizar_foto()
@@ -517,10 +539,12 @@ class VentanaAvatar(QWidget):
 
     def _al_azar(self):
         for clave, colores in PALETAS.items():
+            if clave.startswith("mascota"):         # la mascota no se sortea
+                continue
             self.spec[clave] = random.choice(colores)
             self._muestras[clave]._marcar(self.spec[clave])
         for clave, combo in self._combos.items():
-            if clave in ("ropa", "bandera", "pose", "lugar"):      # la ropa depende del género; bandera, pose y lugar no se sortean
+            if clave in ("ropa", "bandera", "pose", "lugar", "mascota", "interaccion"):      # la ropa depende del género; bandera, pose y lugar no se sortean
                 continue
             combo.blockSignals(True)
             combo.setCurrentIndex(random.randrange(combo.count()))

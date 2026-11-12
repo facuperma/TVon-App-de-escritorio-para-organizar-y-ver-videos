@@ -10,13 +10,13 @@ Aplicación de escritorio para bajar, organizar y ver películas, series y video
 
 ## Descargar
 
-**[⬇ TorrentVision-Setup-1.10.27.exe](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-Setup-1.10.27.exe)** (91 MB): para la PC (Windows 10/11, 64 bits). No pide Python ni permisos de administrador. Como no está firmado, Windows puede decir «Windows protegió su PC»: **Más información → Ejecutar de todas formas**.
+**[⬇ TorrentVision-Setup-1.10.28.exe](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-Setup-1.10.28.exe)** (91 MB): para la PC (Windows 10/11, 64 bits). No pide Python ni permisos de administrador. Como no está firmado, Windows puede decir «Windows protegió su PC»: **Más información → Ejecutar de todas formas**.
 
 **[⬇ TorrentVision-Android-1.1.29.apk](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-Android-1.1.29.apk)** (3 MB): app para el celular (Android 8 o más nuevo).
 
 También desde la **[página de TorrentVision](https://facuperma.github.io/TVon-App-de-escritorio-para-organizar-y-ver-videos/#bajar)** (en la compu muestra un QR para bajar la app).
 
-**¿Es el original?** El botón **🔒 Bajar verificado** de esa página compara la huella SHA-256 con la de [`instalador/SHA256.txt`](instalador/SHA256.txt). A mano: `Get-FileHash TorrentVision-Setup-1.10.27.exe` en PowerShell.
+**¿Es el original?** El botón **🔒 Bajar verificado** de esa página compara la huella SHA-256 con la de [`instalador/SHA256.txt`](instalador/SHA256.txt). A mano: `Get-FileHash TorrentVision-Setup-1.10.28.exe` en PowerShell.
 
 La biblioteca y la configuración se guardan en `%LOCALAPPDATA%\TVon`.
 
@@ -51,6 +51,7 @@ Arriba a la derecha está **tu BiriBiri**: un muñequito 3D (Qt Quick 3D) que ar
 - **Aspecto:** género (hombre, mujer, no binario), 9 ojos, 10 cejas, 9 bocas (las abiertas son un hueco real con lengua y dientes), 13 prendas, 8 lentes con color de borde, peinados, sombrero de paja, kipá y la **bandera de tu país flameando de fondo** en diagonal.
 - **Poses:** normal, en T, celebrando, brazos cruzados, manos en la cintura, corriendo, acostado haciéndose el lindo, sentado con las piernas cruzadas, haciendo la vertical, saludando, volando, nadando, bailando, patada de karate y dormido. Se gira arrastrándolo, en cualquier dirección (doble clic: vuelve).
 - **Otros lugares:** además de apoyado en el logo, puede **nadar detrás del logo**, estar **sentado debajo de la lista**, **acostado arriba del buscador**, **saludando en la esquina del reproductor** o **parado sobre la barra de abajo** (pestaña *🧍 Pose y lugar*).
+- **Mascota:** un perro (labrador, salchicha, pug, husky, dálmata, caniche) o un gato (atigrado, siamés, negro, naranja, persa, manchado), con el color que quieras, parado a su lado. Juntos pueden hacerse mimos, darse un premio (hueso o pescadito), llenar el plato o jugar a la pelota (pestaña *🐾 Mascota*).
 - **Cuenta y amigos:** sin correo (usuario, contraseña y código de recuperación); cada película suma 10 puntos y cada capítulo 2. Por ahora las cuentas son locales; el servidor para usarlo entre casas está en [`servidor_social/`](servidor_social/LEEME.md). No se manda qué viste, solo una huella de cada título.
 
 ## 📱 La app del celular (ON)

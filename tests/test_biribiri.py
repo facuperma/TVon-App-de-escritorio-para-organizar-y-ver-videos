@@ -8,7 +8,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication
 
-from organizador import avatar3d, banderas, poses, protagonista3d
+from organizador import avatar3d, banderas, mascotas, poses, protagonista3d
 
 _app = QApplication.instance() or QApplication([])
 
@@ -77,6 +77,28 @@ class PruebaBiriBiri(unittest.TestCase):
     def test_la_palestina_reemplaza_a_israel(self):
         self.assertIn("ps", avatar3d.OPCIONES["bandera"])
         self.assertNotIn("il", avatar3d.OPCIONES["bandera"])
+
+    def test_cada_mascota_se_arma(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for raza in mascotas.RAZAS:
+                c1, c2 = mascotas.colores(raza)
+                spec = {"mascota": raza, "mascota_color": c1, "mascota_color2": c2}
+                carpeta = protagonista3d.construir(spec, Path(tmp), paso=0.02)
+                for parte in ("mascota", "mascota_cabeza", "mascota_cola"):
+                    self.assertTrue((carpeta / f"{parte}.glb").exists(), (raza, parte))
+            sin = protagonista3d.construir({}, Path(tmp), paso=0.02)
+            self.assertFalse((sin / "mascota.glb").exists())
+
+    def test_interacciones(self):
+        for nombre in poses.INTERACCIONES:
+            bb, pet = poses.interaccion(nombre, "perro")
+            self.assertEqual(set(pet), set(poses.MASCOTA_BASE))
+            self.assertTrue(set(bb) <= set(poses.BASE), nombre)
+        self.assertEqual(poses.interaccion("premio", "gato")[1]["comida"], "pescado")
+        self.assertEqual(poses.interaccion("pelota", "perro")[1]["texto"], "¡Guau!")
+        s = avatar3d.normalizar({"mascota": "pug", "interaccion": "plato"})
+        self.assertEqual((s["mascota"], s["interaccion"]), ("pug", "plato"))
+        self.assertEqual(avatar3d.normalizar({"mascota": "dragon"})["mascota"], "ninguna")
 
 
 if __name__ == "__main__":

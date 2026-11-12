@@ -427,6 +427,8 @@ class Bienvenida(QWidget):
     def poner_nadador(self, spec: dict | None):
         """spec = cómo es; None = que no nade. Cruza la pantalla de lado a lado, por abajo, detrás del logo y del texto."""
         self._nada_activo = spec is not None
+        if spec is not None:
+            spec = {**spec, "mascota": "ninguna", "interaccion": "ninguna"}
         if spec is None:
             if getattr(self, "_nada", None) is not None:
                 self._nada.hide()
@@ -444,6 +446,15 @@ class Bienvenida(QWidget):
             self._t_nada = time.perf_counter()
         else:
             self._nada.poner(spec)
+        # Cruza la pantalla solo si la pose es de nadar o volar; con cualquier otra (la que elegiste) hace su animación
+        # en el lugar, abajo a la izquierda
+        from . import avatar3d, poses
+        pose = poses.resolver(avatar3d.normalizar(spec)["pose"], "nadando")
+        self._nada_cruza = pose in ("nadando", "volando")
+        if poses.es_horizontal(pose):
+            self._nada.setFixedSize(self.ANCHO_NADA, self.ALTO_NADA)
+        else:
+            self._nada.setFixedSize(190, 240)
         if self.isVisible():
             self._reloj_nada.start()
         self._nadar()
@@ -456,13 +467,20 @@ class Bienvenida(QWidget):
         nada.setVisible(cabe)
         if not cabe:
             return
+        if not getattr(self, "_nada_cruza", True):
+            ancho, alto = nada.width(), nada.height()
+            nada.move(round(self.width() * 0.14), round(self.height() - alto - 14))
+            nada.lower()
+            self.logo.raise_()
+            self.texto.raise_()
+            return
         ahora = time.perf_counter()
         dt, self._t_nada = min(0.1, ahora - self._t_nada), ahora
         self._nada_x += 55 * dt
         if self._nada_x > self.width():
             self._nada_x = -self.ANCHO_NADA
         y = self.height() * 0.62 + 18 * math.sin(self._nada_x / 70.0)
-        nada.move(round(self._nada_x), round(min(y, self.height() - self.ALTO_NADA)))
+        nada.move(round(self._nada_x), round(min(y, self.height() - nada.height())))
         nada.lower()
         self.logo.raise_()
         self.texto.raise_()

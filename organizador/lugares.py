@@ -7,8 +7,10 @@ from PySide6.QtCore import QEvent, QObject, QTimer, Qt
 
 from . import avatar3d, poses, vista3d
 
-# Tamaño de la vista de cada lugar (ancho, alto)
-TAMANOS = {"lista": (170, 150), "buscador": (240, 120), "visor": (150, 200), "estado": (120, 160)}
+# Tamaño de la vista de cada lugar (ancho, alto): una alta para las poses de pie o sentado y una ancha para las
+# acostadas o en el aire (nadando, volando)
+TAMANOS = {"lista": (170, 150), "buscador": (150, 190), "visor": (150, 200), "estado": (120, 160)}
+TAMANOS_ANCHOS = {"lista": (240, 120), "buscador": (240, 120), "visor": (240, 130), "estado": (220, 110)}
 
 
 class LugaresBiriBiri(QObject):
@@ -32,6 +34,8 @@ class LugaresBiriBiri(QObject):
         """spec = cómo es BiriBiri (con su lugar elegido). None = que no aparezca."""
         s = avatar3d.normalizar(spec) if spec is not None else None
         lugar = s["lugar"] if s else "ninguno"
+        if s is not None:
+            s = {**s, "mascota": "ninguna", "interaccion": "ninguna"}      # la mascota va solo con el muñequito del editor
         if lugar not in TAMANOS:
             lugar = "ninguno"
         self._spec = s
@@ -45,12 +49,16 @@ class LugaresBiriBiri(QObject):
                 self._vista.deleteLater()
             self._vista = vista3d.crear(s, "cuerpo", parent=self.v, con_pose=True, lugar=lugar)
             self._vista.setAttribute(Qt.WA_TransparentForMouseEvents)
-            self._vista.setFixedSize(*TAMANOS[lugar])
             self._vista.pose(liviano=False, vaiven=0.0, sombra=False)
         else:
             self._vista.poner(s)
         self._lugar = lugar
+        self._horizontal = poses.es_horizontal(poses.resolver(s["pose"], lugar))   # la pose elegida manda, no el lugar
+        self._vista.setFixedSize(*self._tamano(lugar))
         self.reposicionar()
+
+    def _tamano(self, lugar: str) -> tuple[int, int]:
+        return (TAMANOS_ANCHOS if getattr(self, "_horizontal", False) else TAMANOS)[lugar]
 
     def eventFilter(self, obj, e):
         if self._vista is not None and e.type() in (QEvent.Resize, QEvent.Move, QEvent.Show, QEvent.Hide):
@@ -63,7 +71,7 @@ class LugaresBiriBiri(QObject):
             return
         v = self.v
         ancla = self._anclas().get(lugar)
-        w, h = TAMANOS[lugar]
+        w, h = self._tamano(lugar)
         visible = (ancla is not None and ancla.isVisible() and not getattr(v, "_video_completo", False)
                    and v.isVisible() and not v.isMinimized())
         if not visible:

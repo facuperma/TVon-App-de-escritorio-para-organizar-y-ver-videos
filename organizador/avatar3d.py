@@ -11,7 +11,7 @@ import threading
 
 import numpy as np
 
-from . import poses
+from . import mascotas, poses
 from PySide6.QtCore import QPointF, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import QImage, QPainter, QPixmap
 from PySide6.QtWidgets import QSizePolicy, QWidget
@@ -54,14 +54,17 @@ OPCIONES = {
                 "ps": "Palestina", "cn": "China", "jp": "Japón"},
     "pose": poses.etiquetas(),      # cómo está parado el muñequito (se arma aparte: no cambia el modelo)
     "lugar": poses.LUGARES,         # en qué otro lugar del reproductor aparece
+    "mascota": mascotas.ETIQUETAS,                  # el perro o gato que está parado a su lado
+    "interaccion": poses.ETIQUETAS_INTERACCION,     # qué hacen juntos (mimos, comida…)
 }
 # Qué prendas se ofrecen según el género (las que no figuran son para cualquiera; «no binario» ve todas)
 ROPA_GENERO = {"traje": "hombre", "vestido": "mujer", "vestido_largo": "mujer", "pollera": "mujer", "blusa": "mujer"}
-COLORES = ("piel", "pelo", "ojos", "remera", "estampa_color", "pantalon", "zapatillas", "accesorio_color", "lentes_color")
+COLORES = ("piel", "pelo", "ojos", "remera", "estampa_color", "pantalon", "zapatillas", "accesorio_color", "lentes_color",
+           "mascota_color", "mascota_color2")
 PREDETERMINADO = {
     "piel": "#e8b896", "pelo": "#3b2a1e", "ojos": "#2b1d14",
     "remera": "#2f7fd1", "estampa_color": "#f2f2f2", "pantalon": "#2b3a55", "zapatillas": "#f2f2f2",
-    "accesorio_color": "#d4513d", "lentes_color": "#151515",
+    "accesorio_color": "#d4513d", "lentes_color": "#151515", "mascota_color": "#e0b060", "mascota_color2": "#c99a4a",
     **{clave: next(iter(valores)) for clave, valores in OPCIONES.items()},
 }
 PREDETERMINADO["genero"] = "nobinario"   # los que ya tenían su muñequito siguen igual (cuerpo neutro)

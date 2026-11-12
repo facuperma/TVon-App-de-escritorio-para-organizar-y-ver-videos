@@ -60,6 +60,28 @@ Item {
     property real ampPz: 0       // piernas que patean para los costados
     property real ampS: 0        // saltitos
     property real ritmo: 6
+    // La mascota (perro o gato) parada al lado: dónde giran su cuello y su cola, cómo mueve la cabeza y la cola, y lo que
+    // aparece cuando hacen algo juntos (comida, plato, corazones, un «¡Ñam!»)
+    property bool conMascota: false
+    property real cuelloY: 0.27
+    property real cuelloZ: 0.13
+    property real colaY: 0.26
+    property real colaZ: -0.17
+    property real petCabX: 0
+    property real petCabZ: 0
+    property real petCola: 22
+    property real petRitmo: 7
+    property real petSalto: 0
+    property real petRotY: -28
+    property real petPos: 0.33
+    property real petZ: 0.06
+    property real petEsc: 1
+    property string comida: ""
+    property bool plato: false
+    property bool granos: false
+    property bool corazones: false
+    property string texto: ""
+    readonly property real zoomM: (raiz.conMascota && !raiz.busto) ? 1.45 : 1.0
     function anima(fase) { return raiz.ampBx * Math.sin(raiz.tiempo * raiz.ritmo + fase) + raiz.giroB * (raiz.tiempo * raiz.ritmo * 57.29578 + fase * 57.29578) }
     property real giroVert: 0     // arrastrando hacia arriba o abajo el muñeco da vueltas también de frente (360° en las dos direcciones)
     // Poses (la escena del logo): inclinación del cuerpo, brazo derecho extendido para empujar (0 a 1), hacia dónde mira
@@ -74,12 +96,12 @@ Item {
     property real vaiven: 1
     // Escena liviana (la del logo, que se anima todo el tiempo): sin sombras ni oclusión, para llegar a 30 cuadros/s
     property bool liviano: false
-    property real cuerpoK: 0.88
-    property real cabezaK: 1.2
+    property real cuerpoK: 0.74      // cabezón y regordete: más tierno
+    property real cabezaK: 1.45
     // La bandera de fondo (archivo PNG) flameando detrás: solo si la vista pide fondo
     property string bandera: ""
     property bool fondo: false
-    readonly property real distFondo: raiz.busto ? 4.9 : 7.3
+    readonly property real distFondo: raiz.busto ? 4.9 : 6.6 * raiz.zoomM + 0.7
     readonly property real visAlto: 2 * raiz.distFondo * Math.tan((raiz.busto ? 13.6 : 11.6) * Math.PI / 360)
     readonly property real anchoBandera: Math.min(raiz.visAlto * 0.62 * 1.5, raiz.visAlto * (raiz.width / Math.max(1, raiz.height)) * 1.0)
     readonly property real altoBandera: raiz.anchoBandera / 1.5
@@ -99,7 +121,9 @@ Item {
     function url(parte) { return raiz.carpeta === "" ? "" : raiz.carpeta + "/" + parte + ".glb" }
 
     View3D {
+        id: vista
         anchors.fill: parent
+        camera: camara
         environment: SceneEnvironment {
             backgroundMode: SceneEnvironment.Transparent
             antialiasingMode: SceneEnvironment.MSAA
@@ -108,8 +132,9 @@ Item {
             tonemapMode: SceneEnvironment.TonemapModeFilmic
         }
         PerspectiveCamera {
+            id: camara
             // Con margen para que entren los gorros, la galera y los rulos del afro
-            position: raiz.busto ? Qt.vector3d(0, 0.88, 4.2) : Qt.vector3d(0, 0.62, 6.6)
+            position: raiz.busto ? Qt.vector3d(0, 0.88, 4.2) : Qt.vector3d(raiz.conMascota ? 0.14 : 0, 0.74, 6.6 * raiz.zoomM)
             fieldOfView: raiz.busto ? 13.6 : 11.6
             clipNear: 0.1
         }
@@ -154,6 +179,50 @@ Item {
             }
         }
 
+        // La mascota: cuerpo, cabeza (gira en el cuello) y cola (gira en la base)
+        Node {
+            visible: raiz.conMascota && raiz.carpeta !== ""
+            position: Qt.vector3d(raiz.petPos, raiz.petSalto * Math.abs(Math.sin(raiz.tiempo * raiz.petRitmo * 0.6)), raiz.petZ)
+            eulerRotation.y: raiz.petRotY
+            scale: Qt.vector3d(raiz.petEsc, raiz.petEsc, raiz.petEsc)
+            RuntimeLoader { source: raiz.conMascota ? raiz.url("mascota") : "" }
+            Node {
+                position: Qt.vector3d(0, raiz.cuelloY, raiz.cuelloZ)
+                eulerRotation.x: raiz.petCabX + (raiz.quieto ? 0 : 3 * Math.sin(raiz.tiempo * 1.3))
+                eulerRotation.z: raiz.petCabZ
+                RuntimeLoader { source: raiz.conMascota ? raiz.url("mascota_cabeza") : ""; position: Qt.vector3d(0, -raiz.cuelloY, -raiz.cuelloZ) }
+            }
+            Node {
+                position: Qt.vector3d(0, raiz.colaY, raiz.colaZ)
+                eulerRotation.y: raiz.petCola * Math.sin(raiz.tiempo * raiz.petRitmo)
+                RuntimeLoader { source: raiz.conMascota ? raiz.url("mascota_cola") : ""; position: Qt.vector3d(0, -raiz.colaY, -raiz.colaZ) }
+            }
+        }
+        Model {
+            visible: !raiz.busto && raiz.conMascota && raiz.carpeta !== "" && raiz.sombra
+            source: "#Cylinder"; scale: Qt.vector3d(0.0026, 0.0001, 0.0017); position: Qt.vector3d(raiz.petPos, 0.001, raiz.petZ)
+            materials: PrincipledMaterial { baseColor: "black"; opacity: 0.25; alphaMode: PrincipledMaterial.Blend
+                                            lighting: PrincipledMaterial.NoLighting }
+        }
+        // El plato de comida, delante de la mascota, y los granitos que caen de la mano
+        Node {
+            visible: raiz.conMascota && raiz.plato
+            position: Qt.vector3d(raiz.petPos - 0.05, 0, raiz.petZ + 0.24)
+            Model { source: "#Cylinder"; position: Qt.vector3d(0, 0.014, 0); scale: Qt.vector3d(0.0015, 0.0003, 0.0015)
+                    materials: PrincipledMaterial { baseColor: "#d4513d"; roughness: 0.4 } }
+            Model { source: "#Cylinder"; position: Qt.vector3d(0, 0.03, 0); scale: Qt.vector3d(0.0011, 0.00012, 0.0011)
+                    materials: PrincipledMaterial { baseColor: "#8a5a34"; roughness: 0.9 } }
+        }
+        Repeater3D {
+            model: (raiz.conMascota && raiz.granos) ? 5 : 0
+            Model {
+                property real fase: (raiz.tiempo * 1.3 + index / 5) % 1
+                source: "#Sphere"; scale: Qt.vector3d(0.00009, 0.00009, 0.00009)
+                position: Qt.vector3d(0.27 + 0.03 * fase + 0.008 * index, 0.33 - 0.29 * fase * fase - 0.0 * index, 0.1 + 0.18 * fase)
+                materials: PrincipledMaterial { baseColor: "#8a5a34"; roughness: 0.9 }
+            }
+        }
+
         // Sombra de apoyo, debajo de los pies
         Model {
             visible: !raiz.busto && raiz.carpeta !== "" && raiz.sombra
@@ -175,7 +244,7 @@ Item {
             eulerRotation.z: raiz.inclinacion + raiz.rZ
             x: raiz.pX
             z: raiz.pZ
-            y: -0.5 + raiz.pY + (raiz.quieto ? 0 : 0.006 * Math.abs(Math.sin(raiz.tiempo * 1.1))) + raiz.ampS * Math.abs(Math.sin(raiz.tiempo * raiz.ritmo))
+            y: -0.5 + raiz.pY + (raiz.quieto ? 0 : 0.012 * Math.abs(Math.sin(raiz.tiempo * 1.1))) + raiz.ampS * Math.abs(Math.sin(raiz.tiempo * raiz.ritmo))
             // Cuerpo más chico y cabeza más grande (cabezón): la altura total queda casi igual
             Node {
                 id: tronco
@@ -199,7 +268,7 @@ Item {
                 }
                 Node {
                     // Respirar: el torso se infla apenas
-                    y: 0.43; scale.y: 1 + 0.012 * Math.sin(raiz.tiempo * 2.2); scale.x: 1 + 0.006 * Math.sin(raiz.tiempo * 2.2)
+                    y: 0.43; scale.y: 1 + 0.022 * Math.sin(raiz.tiempo * 2.2); scale.x: 1 - 0.011 * Math.sin(raiz.tiempo * 2.2)
                     RuntimeLoader { source: raiz.url("torso"); y: -0.43; onStatusChanged: if (status === RuntimeLoader.Success) raiz.cuenta() }
                 }
                 Node {
@@ -217,6 +286,30 @@ Item {
                     eulerRotation.x: -4 * Math.sin(raiz.tiempo * 0.8) * (1 - raiz.manos) * raiz.reposo - raiz.empuje * 35 - raiz.manos * 98 + raiz.adX - raiz.anima(3.14159)
                     RuntimeLoader { source: raiz.url("brazo_d"); position: Qt.vector3d(-0.155, -0.585, 0)
                                     onStatusChanged: if (status === RuntimeLoader.Success) raiz.cuenta() }
+                    Node {
+                        position: Qt.vector3d(0.07, -0.275, 0.035)      // más allá de la mano: así no queda adentro del puño
+                        Node {      // un hueso
+                            visible: raiz.comida === "hueso"
+                            Model { source: "#Cylinder"; scale: Qt.vector3d(0.0003, 0.0014, 0.0003)
+                                    materials: PrincipledMaterial { baseColor: "#f4efe2"; roughness: 0.6 } }
+                            Repeater3D { model: 4
+                                Model { source: "#Sphere"; scale: Qt.vector3d(0.00042, 0.00042, 0.00042)
+                                        position: Qt.vector3d(index < 2 ? -0.014 : 0.014, index % 2 === 0 ? 0.07 : -0.07, 0)
+                                        materials: PrincipledMaterial { baseColor: "#f4efe2"; roughness: 0.6 } } }
+                        }
+                        Node {      // un pescadito
+                            visible: raiz.comida === "pescado"
+                            Model { source: "#Sphere"; scale: Qt.vector3d(0.0004, 0.001, 0.00022)
+                                    materials: PrincipledMaterial { baseColor: "#7aa7c7"; roughness: 0.4; metalness: 0.3 } }
+                            Model { source: "#Cone"; position: Qt.vector3d(0, -0.09, 0); eulerRotation.x: 180; scale: Qt.vector3d(0.00036, 0.0005, 0.00012)
+                                    materials: PrincipledMaterial { baseColor: "#6492b3"; roughness: 0.4 } }
+                        }
+                        Model {     // una pelota
+                            visible: raiz.comida === "pelota"
+                            source: "#Sphere"; scale: Qt.vector3d(0.0008, 0.0008, 0.0008)
+                            materials: PrincipledMaterial { baseColor: "#e0432f"; roughness: 0.35 }
+                        }
+                    }
                 }
             }
             Node {
@@ -224,13 +317,31 @@ Item {
                 position: Qt.vector3d(0, 0.64 * raiz.cuerpoK, 0)
                 scale: Qt.vector3d(raiz.cabezaK, raiz.cabezaK, raiz.cabezaK)
                 eulerRotation.y: (raiz.quieto ? 0 : 11 * Math.sin(raiz.tiempo * 0.55) * raiz.vaiven) + raiz.mira + raiz.cabY
-                eulerRotation.z: (raiz.quieto ? 3 : 3 * Math.sin(raiz.tiempo * 0.9)) + raiz.cabZ
+                eulerRotation.z: (raiz.quieto ? 3 : 5 * Math.sin(raiz.tiempo * 0.9)) + raiz.cabZ
                 eulerRotation.x: (raiz.quieto ? 0 : -3 + 3 * Math.sin(raiz.tiempo * 0.7)) + raiz.cabX
                 RuntimeLoader { source: raiz.url("cabeza"); position: Qt.vector3d(0, -0.64, 0)
                                 onStatusChanged: if (status === RuntimeLoader.Success) raiz.cuenta() }
             }
         }
         }
+    }
+    readonly property var petCabeza: { raiz.tiempo; return vista.mapFrom3DScene(Qt.vector3d(raiz.petPos, 0.46, raiz.petZ)) }
+    Repeater {
+        model: (raiz.conMascota && raiz.corazones) ? 3 : 0
+        Text {
+            property real fase: (raiz.tiempo * 0.6 + index / 3) % 1
+            text: "♥"; color: "#ff4d79"; font.bold: true; font.pixelSize: Math.max(14, raiz.height * 0.075)
+            x: raiz.petCabeza.x - width / 2 + (index - 1) * raiz.height * 0.04 + 5 * Math.sin(fase * 12.5)
+            y: raiz.petCabeza.y - fase * raiz.height * 0.14 - raiz.height * 0.02
+            opacity: 1 - fase
+        }
+    }
+    Text {
+        visible: raiz.conMascota && raiz.texto !== ""
+        text: raiz.texto; color: "#e8503a"; font.bold: true; font.pixelSize: Math.max(13, raiz.height * 0.06)
+        style: Text.Outline; styleColor: "white"
+        x: raiz.petCabeza.x - width / 2 + raiz.width * 0.03
+        y: raiz.petCabeza.y - raiz.height * 0.09 - 3 * Math.abs(Math.sin(raiz.tiempo * raiz.petRitmo * 0.6)) * raiz.height * 0.03
     }
     function cuenta() { raiz.cargadas += 1; if (raiz.cargadas >= 7) raiz.listo() }
     onCarpetaChanged: raiz.cargadas = 0
@@ -371,8 +482,16 @@ def _clase():
             self._escala = ESCALA.get(s["cuerpo"], ESCALA["normal"])
             self._poner_bandera(s["bandera"])
             if self._con_pose:
-                from . import poses
-                self.pose(**poses.ajustes(s["pose"], self._lugar))
+                from . import mascotas, poses
+                animal = mascotas.tipo(s["mascota"])
+                ajustes = poses.ajustes(s["pose"], self._lugar)
+                bb, pet = poses.interaccion(s["interaccion"], animal) if animal else ({}, dict(poses.MASCOTA_BASE))
+                if animal and s["interaccion"] != "ninguna":
+                    ajustes = {**poses.ajustes("normal"), **bb}      # lo que hacen juntos manda sobre la pose elegida
+                self.pose(**ajustes)
+                self.pose(conMascota=bool(animal), **pet, **(mascotas.pivotes(s["mascota"]) if animal else {}))
+            else:
+                self.pose(conMascota=False)
             self._constructor.pedir(id(self), s)
 
         def _poner_bandera(self, codigo: str):
@@ -411,7 +530,7 @@ def _clase():
                 return
             if raiz is not None:
                 for clave, valor in valores.items():
-                    raiz.setProperty(clave, valor if isinstance(valor, bool) else float(valor))
+                    raiz.setProperty(clave, valor if isinstance(valor, (bool, str)) else float(valor))
 
         def imagen(self) -> QPixmap:
             return QPixmap.fromImage(self.grabFramebuffer())

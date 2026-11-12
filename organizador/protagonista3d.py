@@ -13,10 +13,10 @@ from pathlib import Path
 
 import numpy as np
 
-from . import avatar3d
+from . import avatar3d, mascotas
 from .modelado import cortar, curva, elipsoide, esfera, capsula, caja_redonda, guardar_glb, malla, restar, unir
 
-VERSION = 21 # subir si cambia la forma: así se rearman los que están en caché
+VERSION = 23 # subir si cambia la forma: así se rearman los que están en caché
 PASO = 0.0045
 
 # Puntos de articulación (para animar): hombros, cuello, cadera
@@ -150,21 +150,27 @@ def _cabeza_sdf(p, con_foto=False):
     cachetes = elipsoide(p, (0, 0.77, 0.03), (0.155, 0.11, 0.14))
     d = unir(cabeza, cachetes, 0.06)
     if con_foto:
-        # La cara sale hacia adelante en el centro (como una lente): la foto va pegada a esa curva
-        d = d + _hondo_foto(p)
+        # El hueco de la cara: un cilindro hacia adentro con el fondo en z = FONDO_FOTO y el borde apenas redondeado
+        tubo = np.linalg.norm(p[..., :2] - np.array([0.0, 0.8], np.float32), axis=-1) - RADIO_FOTO
+        d = restar(d, cortar(tubo, FONDO_FOTO - p[..., 2]), 0.008)
     return d
 
 
-RADIO_FOTO, RADIO_FOTO_X, ELEVA_FOTO = 0.13, 0.13, 0.03   # redonda como una escotilla; ELEVA = cuánto se abomba el vidrio
-SALIDA_FOTO = ELEVA_FOTO + 0.004   # lo que hay que adelantar lo que va sobre la cara (lentes) cuando hay foto
+RADIO_FOTO = RADIO_FOTO_X = 0.122   # la foto va adentro de la cara, en una ventana redonda
+FONDO_FOTO = 0.118                  # hasta dónde entra el hueco (z del fondo, donde está la foto)
+SALIDA_FOTO = 0.0                   # lo que hay que adelantar lo que va sobre la cara (lentes): nada, la cara no cambia por fuera
 
 
-def _hondo_foto(p):
-    """La cara se abulta hacia adelante en el centro del cuadro de la foto, como una lente: parejo en el borde y lo más
-    alto en el medio (ahí va la foto). Alrededor, un reborde finito."""
-    r2 = (p[..., 0] / RADIO_FOTO_X) ** 2 + ((p[..., 1] - 0.8) / RADIO_FOTO) ** 2
-    domo = ELEVA_FOTO * np.clip(1 - r2, 0, 1) ** 0.75
-    return -domo * (p[..., 2] > 0.04)
+def _ahoge(p):
+    """El mechón que se para en la coronilla y se enrula: la marca de BiriBiri."""
+    ruta = [(0.0, 1.0, 0.01), (-0.004, 1.05, 0.02), (0.012, 1.095, 0.024), (0.045, 1.115, 0.022), (0.07, 1.098, 0.018),
+            (0.066, 1.07, 0.014), (0.04, 1.064, 0.012)]
+    d = None
+    for i in range(len(ruta) - 1):
+        r0, r1 = 0.0125 - 0.0014 * i, 0.0125 - 0.0014 * (i + 1)
+        c = capsula(p, ruta[i], ruta[i + 1], r0, r1)
+        d = c if d is None else unir(d, c, 0.006)
+    return d
 
 
 def _linea_pelo(p):
@@ -485,6 +491,8 @@ def _armar(s: dict, foto_jpg: bytes | None) -> dict[str, list]:
         _rasgos(partes["cabeza"], s, m_tela)
     if (pelo_sdf := _pelo_funcion(s)) is not None:
         partes["cabeza"].append(("pelo", pelo_sdf, caja_cabeza, m_pelo))
+        if s["cabeza"] == "ninguno" and s["peinado"] in ("corto", "flequillo", "largo", "colita", "trenzas", "rulos"):
+            partes["cabeza"].append(("ahoge", _ahoge, ((-0.12, 0.98, -0.1), (0.14, 1.2, 0.1)), m_pelo))
     b = s["barba"]
     if b != "ninguna":
         def barba(p, b=b):
@@ -502,10 +510,6 @@ def _armar(s: dict, foto_jpg: bytes | None) -> dict[str, list]:
     _sombreros(partes["cabeza"], s, ca, detalle)
     _lentes(partes["cabeza"], s, ca, con_foto)
     if con_foto:
-        # Marco de escotilla alrededor del vidrio abombado: un aro grueso y parejo, del color del accesorio
-        rm = RADIO_FOTO_X + 0.012
-        partes["cabeza"].append(("marco", _calco(lambda p: np.abs(np.hypot(p[..., 0], p[..., 1] - 0.8) - rm) - 0.0125, 0.022),
-                                 ((-0.17, 0.62, 0.05), (0.17, 0.98, 0.26)), {"color": _c(ca), "rugosidad": 0.3, "metal": 0.6}))
         partes["cabeza"].append(("foto", "foto", None, {"color": (1, 1, 1), "rugosidad": 0.6, "textura": foto_jpg, "dos_caras": True}))
 
     # Torso: cuello, ropa, estampa
@@ -571,6 +575,9 @@ def _armar(s: dict, foto_jpg: bytes | None) -> dict[str, list]:
         partes[nombre].append(("pantalon", lambda p, x=x: _pierna(p, x), caja_p, m_pierna))
         partes[nombre].append(("zapatillas", lambda p, x=x: _zapatillas(p, x), caja_p, m_tela(zapa, 0.6)))
         partes[nombre].append(("suela", lambda p, x=x: _suela(p, x), caja_p, m_tela(suela, 0.7)))
+    # La mascota (perro o gato), si tiene: cuerpo, cabeza y cola, cada una en su pieza
+    if s["mascota"] != "ninguna":
+        partes.update(mascotas.armar(s["mascota"], s["mascota_color"], s["mascota_color2"], _c, _oscuro))
     return partes
 
 
@@ -580,7 +587,7 @@ CAJA_OJOS = ((-0.15, 0.77, 0.10), (0.15, 0.93, 0.22))
 CAJA_BOCA = ((-0.08, 0.66, 0.10), (0.08, 0.78, 0.22))
 
 
-def _bola_ojo(p, cx, cy=0.83, a=0.03, b=0.04):
+def _bola_ojo(p, cx, cy=0.824, a=0.037, b=0.049):
     return elipsoide(p, (cx, cy, 0.16), (a, b, 0.018))
 
 
@@ -629,7 +636,8 @@ def _rasgos(lista, s, tela):
     # --- ojos
     if mirada == "normal":
         lista.append(("ojos", lambda p: unir(_bola_ojo(p, -0.068), _bola_ojo(p, 0.068)), CAJA_OJOS, iris))
-        lista.append(("brillo", brillos(((-0.058, 0.846, 0.174), 0.009), ((0.078, 0.846, 0.174), 0.009)), CAJA_OJOS, blanco))
+        lista.append(("brillo", brillos(((-0.058, 0.846, 0.178), 0.0125), ((0.078, 0.846, 0.178), 0.0125),
+                                        ((-0.079, 0.806, 0.18), 0.0055), ((0.057, 0.806, 0.18), 0.0055)), CAJA_OJOS, blanco))
     elif mirada == "grandes":
         esclera = _calco(lambda p: np.minimum(_elipse2d(p, -0.068, 0.83, 0.042, 0.056), _elipse2d(p, 0.068, 0.83, 0.042, 0.056)), 0.004)
         lista.append(("esclera", esclera, CAJA_OJOS, blanco))
@@ -670,10 +678,10 @@ def _rasgos(lista, s, tela):
     # --- boca
     _boca(lista, s, tela)
 
-    rubor = lambda p: unir(elipsoide(p, (-0.115, 0.77, 0.135), (0.032, 0.018, 0.012)),  # noqa: E731
-                           elipsoide(p, (0.115, 0.77, 0.135), (0.032, 0.018, 0.012)))
+    rubor = lambda p: unir(elipsoide(p, (-0.118, 0.765, 0.135), (0.04, 0.023, 0.014)),  # noqa: E731
+                           elipsoide(p, (0.118, 0.765, 0.135), (0.04, 0.023, 0.014)))
     lista.append(("rubor", rubor, ((-0.16, 0.74, 0.11), (0.16, 0.8, 0.16)),
-                  {"color": _c(_mezclar(piel, "#ff8a8a", 0.35)), "rugosidad": 0.7}))
+                  {"color": _c(_mezclar(piel, "#ff6f8a", 0.55)), "rugosidad": 0.7}))
 
 
 def _bezier2d(ctrl, t):
@@ -1068,48 +1076,27 @@ def _ojo(jpg: bytes) -> bytes:
         return jpg
 
 
-def _disco_foto(vidrio=False):
-    """La foto, pegada a la curva hacia adentro de la cara (vidrio=False), o el vidrio que la tapa al ras de la
-    cara (vidrio=True). Cada punto se ubica sobre la superficie buscándola de adelante hacia atrás."""
-    anillos, lados = 16, 72
-    margen = 0.004 if not vidrio else 0.0
-    rx, ry = RADIO_FOTO_X - margen, RADIO_FOTO - margen
-    achicar = RADIO_FOTO / RADIO_FOTO_X     # la foto no se estira: a lo ancho se ve solo el centro
-    xy, uv = [(0.0, 0.8)], [(0.5, 0.5)]
+def _disco_foto():
+    """La foto: un disco plano en el fondo del hueco de la cara (como una ventana en la cabeza)."""
+    anillos, lados = 14, 72
+    radio = RADIO_FOTO - 0.003
+    vert, uv = [(0.0, 0.8, FONDO_FOTO + 0.002)], [(0.5, 0.5)]
     for a in range(1, anillos + 1):
         r = a / anillos
         for j in range(lados):
             ang = 2 * math.pi * j / lados
             u, v = r * math.cos(ang), r * math.sin(ang)
-            xy.append((u * rx, 0.8 + v * ry))
-            uv.append((0.5 + u * achicar / 2, 1 - (v + 1) / 2))
-    xy = np.array(xy, np.float32)
-    superficie = (lambda q: _cabeza_sdf(q)) if vidrio else (lambda q: _cabeza_sdf(q, True))
-
-    def en(z):
-        return np.concatenate([xy, z[:, None]], axis=1).astype(np.float32)
-
-    # Bisección en z: adelante (0.3) está afuera, atrás (0.0) adentro
-    lejos, cerca = np.full(len(xy), 0.3, np.float32), np.zeros(len(xy), np.float32)
-    for _ in range(32):
-        medio = (lejos + cerca) / 2
-        afuera = superficie(en(medio)) > 0
-        lejos = np.where(afuera, medio, lejos)
-        cerca = np.where(afuera, cerca, medio)
-    vert = en((lejos + cerca) / 2)
-    # Normal = gradiente de la superficie (así la luz muestra la curva)
-    h = 0.002
-    normal = np.stack([superficie(vert + np.array(e, np.float32) * h) - superficie(vert - np.array(e, np.float32) * h)
-                       for e in ((1, 0, 0), (0, 1, 0), (0, 0, 1))], axis=1)
-    normal /= np.maximum(np.linalg.norm(normal, axis=1, keepdims=True), 1e-6)
-    vert = vert + normal * (0.0025 if not vidrio else 0.0015)
+            vert.append((u * radio, 0.8 + v * radio, FONDO_FOTO + 0.002))
+            uv.append(((u + 1) / 2, 1 - (v + 1) / 2))
     tris = [(0, 1 + j, 1 + (j + 1) % lados) for j in range(lados)]
     for a in range(anillos - 1):
         b0, b1 = 1 + a * lados, 1 + (a + 1) * lados
         for j in range(lados):
             j2 = (j + 1) % lados
             tris += [(b0 + j, b1 + j, b1 + j2), (b0 + j, b1 + j2, b0 + j2)]
-    return vert.astype(np.float32), normal.astype(np.float32), np.array(tris, np.uint32), np.array(uv, np.float32)
+    vert = np.array(vert, np.float32)
+    normal = np.tile(np.array([0, 0, 1], np.float32), (len(vert), 1))
+    return vert, normal, np.array(tris, np.uint32), np.array(uv, np.float32)
 
 
 # --- Armar y guardar ------------------------------------------------------------------------------------------
@@ -1123,14 +1110,18 @@ FORMA = {
     "piernas": ("ropa", "cuerpo", "genero"),
     "pierna_i": ("ropa", "cuerpo", "genero"),
     "pierna_d": ("ropa", "cuerpo", "genero"),
+    "mascota": ("mascota",),
+    "mascota_cabeza": ("mascota",),
+    "mascota_cola": ("mascota",),
 }
 
 
 # Qué tan fina es la grilla de cada pieza chica (1 = la normal): las calcomanías de la cara necesitan mucho más
-FINURA = {"brillo": 0.6, "ojos": 0.6, "cejas": 0.6, "trazos": 0.6, "pestanas": 0.6, "boca": 0.5, "lengua": 0.5,
+FINURA = {"m_cuerpo": 0.8, "m_cabeza": 0.7, "m_cola": 0.7, "m_orejas": 0.7, "m_manchas": 0.6, "m_mascara": 0.6, "m_ojos": 0.5,
+          "m_pupilas": 0.5, "m_brillo": 0.5, "m_nariz": 0.5, "m_lengua": 0.5, "m_bigotes": 0.4, "brillo": 0.6, "ojos": 0.6, "cejas": 0.6, "trazos": 0.6, "pestanas": 0.6, "boca": 0.5, "lengua": 0.5,
           "dientes": 0.5, "esclera": 0.5, "corazones": 0.5}
 # La bandera de fondo no cambia el muñequito (la dibuja la escena aparte): no cuenta para armarlo
-SOLO_ESCENA = ("bandera", "pose", "lugar")
+SOLO_ESCENA = ("bandera", "pose", "lugar", "interaccion")
 
 
 def clave(spec: dict) -> str:
