@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
 from .aviso import AvisoFlotante
 from .banda_retro import BandaRetro
 from .limpieza import limpiar_origen
-from . import fuentes
+from . import diseno, fuentes
 from .temas import estilo, tema as buscar_tema
 from .ventana_apariencia import VentanaApariencia
 from .db import CATEGORIA_DOMINIO_PUBLICO, CATEGORIA_FAVORITOS, EXT_IMAGEN, EXT_VIDEO, Biblioteca, orden_natural
@@ -330,7 +330,8 @@ class Ventana(QMainWindow):
         capa_der.addWidget(self.visor, 1)
         capa_der.addWidget(self.detalles)
 
-        divisor = QSplitter()
+        self.divisor = divisor = QSplitter()
+        self.der = der
         for w in (izq, centro, der):
             divisor.addWidget(w)
         divisor.setSizes([230, 430, 740])
@@ -350,6 +351,7 @@ class Ventana(QMainWindow):
         self._atajos()
         self._crear_on()
         self.aplicar_tema(self.bib.config("tema"), self.bib.config("tema_animado") != "0", guardar=False)
+        QTimer.singleShot(0, self._aplicar_disposicion)
         self.cargar_filtros()
         self._mostrar_detalles(None)
         self.gestor.iniciar()
@@ -370,7 +372,7 @@ class Ventana(QMainWindow):
         barra.addAction(acc_archivos)
         barra.addAction(acc_carpeta)
         barra.addSeparator()
-        barra.addAction("🎞 Dominio público", self._abrir_dominio_publico)
+        acc_dominio = barra.addAction("🎞 Dominio público", self._abrir_dominio_publico)
         self.acc_torrents = barra.addAction("🧲 Torrents", self._abrir_torrents)
         self.acc_torrents.setToolTip("Descargar películas con un link magnet o un archivo .torrent")
         acc_letterboxd = barra.addAction("🎬 Letterboxd", self._abrir_letterboxd)
@@ -379,10 +381,19 @@ class Ventana(QMainWindow):
         self.acc_on.setToolTip("Manejar TorrentVision desde el celular")
         barra.addSeparator()
         # Accesos a páginas externas: se abren en el navegador
+        externas = []
         for texto, url in (("🌐 Películas", "https://ext.to/"), ("🌐 Subtítulos", "https://subdivx.com/")):
             accion = barra.addAction(texto, lambda u=url: QDesktopServices.openUrl(QUrl(u)))
             accion.setToolTip(f"Abrir {url} en el navegador")
+            externas.append(accion)
         barra.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        # Las acciones por nombre, para que el menú de desarrollador las ordene, esconda y renombre
+        self._acciones_barra = {"archivos": acc_archivos, "carpeta": acc_carpeta, "dominio": acc_dominio,
+                                "torrents": self.acc_torrents, "letterboxd": acc_letterboxd, "on": self.acc_on,
+                                "peliculas": externas[0], "subtitulos": externas[1]}
+        self._textos_barra = {k: a.text() for k, a in self._acciones_barra.items()}
+        for accion in self._acciones_barra.values():
+            accion.setParent(self)          # que sean de la ventana: al rearmar la barra no se borran
 
         # La banda de los temas retro: la pantallita con el título que corre y su animación
         self.addToolBarBreak()
@@ -413,6 +424,9 @@ class Ventana(QMainWindow):
         vista.addAction("Buscar\tCtrl+F", self._enfocar_buscador)
         vista.addSeparator()
         vista.addAction("🎨 Apariencia y temas…", self._abrir_apariencia)
+        vista.addAction("🛠 Modo desarrollador\tCtrl+2, 3", self._abrir_desarrollador)
+        for combinacion in ("Ctrl+2, Ctrl+3", "Ctrl+2, 3"):
+            QShortcut(QKeySequence(combinacion), self, activated=self._abrir_desarrollador)
         vista.addSeparator()
         self._paneles = {}
         for texto, panel in (("Barra de herramientas", self.barra_herramientas),
@@ -600,6 +614,8 @@ class Ventana(QMainWindow):
         self.fila_banda.setVisible(not completa and self._banda_con_tema)
         if hasattr(self, "_lugares"):
             QTimer.singleShot(0, self._lugares.reposicionar)
+        if not completa:
+            QTimer.singleShot(0, self._aplicar_disposicion)        # lo que el diseño esconde sigue escondido
         if completa:
             if not self._modo_fullscreen:
                 self._estaba_maximizada = self.isMaximized()
@@ -1887,9 +1903,13 @@ class Ventana(QMainWindow):
                 visor.posicion_actual(), r.duration())
 
     def aplicar_tema(self, id_tema: str | None, animada: bool, guardar: bool = True):
-        t = buscar_tema(id_tema)
+        if not hasattr(self, "_diseno"):
+            self._diseno = diseno.cargar(self.bib)
+        t = diseno.tema_con(buscar_tema(id_tema), self._diseno)
         fuentes.registrar()
-        QApplication.instance().setStyleSheet(estilo(t))
+        QApplication.instance().setStyleSheet(estilo(t) + diseno.qss(self._diseno))
+        if hasattr(self, "lista"):
+            self.lista.setAlternatingRowColors(t.moderno)       # filas alternadas: se distinguen mejor
         # Los colores de «a medias» y «vista» cambian con el tema (en los claros, más oscuros)
         COLOR_PENDIENTE.setRgb(QColor(t.pendiente).rgb())
         COLOR_VISTA.setRgb(QColor(t.vista).rgb())
@@ -1900,6 +1920,74 @@ class Ventana(QMainWindow):
             self.bib.guardar_config("tema", t.id)
             self.bib.guardar_config("tema_animado", "1" if animada else "0")
             self.cargar_filtros()  # vuelve a pintar la lista con los colores del tema
+
+    # --- Modo desarrollador ------------------------------------------------------------------------------
+
+    def _abrir_desarrollador(self):
+        from .ventana_desarrollador import VentanaDesarrollador
+        if getattr(self, "_ventana_dev", None) is None:
+            self._presets = diseno.presets(self.bib)
+            self._ventana_dev = VentanaDesarrollador(self._diseno, buscar_tema(self.bib.config("tema")), self._presets, self)
+            self._ventana_dev.cambio.connect(self.aplicar_diseno)
+            self._ventana_dev.finished.connect(lambda _r: setattr(self, "_ventana_dev", None))
+        self._ventana_dev.show()
+        self._ventana_dev.raise_()
+        self._ventana_dev.activateWindow()
+
+    def aplicar_diseno(self, d: dict):
+        self._diseno = diseno.normalizar(d)
+        diseno.guardar(self.bib, self._diseno)
+        if getattr(self, "_presets", None) is not None:
+            diseno.guardar_presets(self.bib, self._presets)
+        self.aplicar_tema(self.bib.config("tema"), self.bib.config("tema_animado") != "0", guardar=False)
+        self._aplicar_disposicion()
+
+    def _aplicar_disposicion(self):
+        """La barra de botones, los controles del reproductor, las secciones y las columnas según el diseño."""
+        d = getattr(self, "_diseno", None) or diseno.cargar(self.bib)
+        barra = getattr(self, "barra_herramientas", None)
+        if barra is not None and hasattr(self, "_acciones_barra"):
+            for accion in list(barra.actions()):
+                barra.removeAction(accion)
+            anterior_sep = True
+            for clave in d["barra"]["orden"]:
+                if clave == "|":
+                    if not anterior_sep:
+                        barra.addSeparator()
+                        anterior_sep = True
+                    continue
+                accion = self._acciones_barra[clave]
+                accion.setText(d["barra"]["textos"].get(clave) or self._textos_barra[clave])
+                if clave not in d["barra"]["ocultos"]:
+                    barra.addAction(accion)
+                    anterior_sep = False
+            barra.setToolButtonStyle({"texto": Qt.ToolButtonTextOnly, "icono": Qt.ToolButtonIconOnly,
+                                      "texto_abajo": Qt.ToolButtonTextUnderIcon}.get(d["barra"]["estilo"], Qt.ToolButtonTextBesideIcon))
+        visor = getattr(self, "visor", None)
+        if visor is not None and hasattr(visor, "esconder_controles"):
+            visor.esconder_controles(set(d["controles_ocultos"]))
+        if getattr(self, "_video_completo", False):
+            return
+        ocultas = set(d["secciones_ocultas"])
+        secciones = {"izq": getattr(self, "izq", None), "detalles": getattr(self, "detalles", None),
+                     "buscador": getattr(self, "fila_buscar", None), "estado": self.statusBar(), "barra": barra}
+        for clave, w in secciones.items():
+            if w is None:
+                continue
+            accion = getattr(self, "_paneles", {}).get(w)
+            if accion is not None:
+                accion.setChecked(clave not in ocultas)
+            w.setVisible(clave not in ocultas)
+        if getattr(self, "fila_banda", None) is not None:
+            self.fila_banda.setVisible(self._banda_con_tema and "banda" not in ocultas)
+        divisor = getattr(self, "divisor", None)
+        if divisor is not None:
+            widgets = {"izq": self.izq, "centro": self.centro, "der": self.der}
+            for i, clave in enumerate(d["columnas"]):
+                if divisor.indexOf(widgets[clave]) != i:
+                    divisor.insertWidget(i, widgets[clave])
+            for i in range(divisor.count()):
+                divisor.setCollapsible(i, False)
 
     def _abrir_apariencia(self):
         dialogo = VentanaApariencia(buscar_tema(self.bib.config("tema")).id, self.bib.config("tema_animado") != "0", self)

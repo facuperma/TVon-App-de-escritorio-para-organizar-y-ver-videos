@@ -7,11 +7,14 @@ piso no es programar nada más que su forma."""
 from __future__ import annotations
 
 import json
+import math
 
 # --- La habitación -------------------------------------------------------------------------------------------
 CELDA = 0.3                    # lado de una celda de la grilla (BiriBiri mide 1)
 COLUMNAS, FILAS = 12, 8        # 12 celdas de ancho (x) y 8 de fondo (z): 3,6 × 2,4
+ANCHO, FONDO = COLUMNAS * CELDA, FILAS * CELDA
 ALTO_PARED = 1.7
+SUB = 2                        # la grilla para acomodar es de medias celdas (0,15): más lugares donde poner las cosas
 
 # Monedas que da lo que ves (distinto de los puntos de rango, que cuentan la cuenta y los amigos)
 RECOMPENSA = {"pelicula": 50, "episodio": 10}
@@ -64,13 +67,38 @@ CATALOGO: dict[str, dict] = {
 }
 # Dónde se sienta uno: lugares (x, alto del asiento, z) en el sistema del mueble, que mira hacia +z
 PLAZAS = {"sillon": [(-0.19, 0.28, 0.05), (0.19, 0.28, 0.05)], "silla_gamer": [(0.0, 0.31, 0.02)]}
-CATEGORIAS = ["Sillas y sillones", "Mesas", "Muebles", "Electrodomésticos", "Luces", "Decoración"]
+# Adornos de la pared del fondo: nombre, precio y tamaño (ancho, alto). Se cuelgan donde quieras
+ADORNOS: dict[str, dict] = {
+    "ventana": {"nombre": "Ventana con cortinas", "precio": 80, "tam": (0.78, 0.66)},
+    "cuadro_paisaje": {"nombre": "Cuadro: paisaje", "precio": 45, "tam": (0.52, 0.38)},
+    "cuadro_abstracto": {"nombre": "Cuadro: abstracto", "precio": 45, "tam": (0.4, 0.5)},
+    "poster": {"nombre": "Póster de cine", "precio": 30, "tam": (0.36, 0.52)},
+    "reloj": {"nombre": "Reloj de pared", "precio": 35, "tam": (0.3, 0.3)},
+    "espejo": {"nombre": "Espejo", "precio": 60, "tam": (0.32, 0.5)},
+    "guirnalda": {"nombre": "Guirnalda de luces", "precio": 40, "tam": (0.95, 0.2)},
+}
+CATEGORIAS = ["Sillas y sillones", "Mesas", "Muebles", "Electrodomésticos", "Luces", "Decoración", "Pared"]
 
 
-def celdas_girado(item: str, rot: int) -> tuple[int, int]:
-    """Ancho y fondo en celdas con el mueble girado (rot en grados: 0, 90, 180 o 270)."""
+def precio(item: str) -> int:
+    return (CATALOGO.get(item) or ADORNOS.get(item) or {"precio": 0})["precio"]
+
+
+def nombre(item: str) -> str:
+    return (CATALOGO.get(item) or ADORNOS.get(item) or {"nombre": item})["nombre"]
+
+
+def celdas_girado(item: str, rot: int) -> tuple[float, float]:
+    """Ancho y fondo en celdas con el mueble girado (de a 45°). En diagonal ocupa un cuadrado que lo contiene."""
     w, d = CATALOGO[item]["celdas"]
+    if rot % 90:
+        lado = math.ceil((w + d) * 0.7071 * SUB) / SUB
+        return lado, lado
     return (d, w) if rot % 180 else (w, d)
+
+
+def _medio(v: float) -> float:
+    return round(float(v) * SUB) / SUB
 
 
 def celda_a_mundo(cx: float, cz: float) -> tuple[float, float]:
@@ -86,7 +114,8 @@ def estado_inicial() -> dict:
     return {"piso": "madera", "pared": "blanca", "muebles": [], "inventario": {}, "pisos": ["madera"], "paredes": ["blanca"],
             "monedas": MONEDAS_INICIALES, "cobradas": [], "bb": {"cx": 4.5, "cz": 5.0, "rot": 0},
             "mascota": {"cx": 7.0, "cz": 5.0, "rot": -20},
-            "sentado": {"bb": None, "mascota": None, "falda": False}}
+            "sentado": {"bb": None, "mascota": None, "falda": False}, "adornos": [], "bandera": {"x": 0.0, "y": 1.05},
+            "vida": True}
 
 
 class Casa:
@@ -110,15 +139,20 @@ class Casa:
         d["pared"] = d["pared"] if d.get("pared") in PAREDES else "blanca"
         d["pisos"] = sorted({p for p in d.get("pisos", []) if p in PISOS} | {"madera", d["piso"]})
         d["paredes"] = sorted({p for p in d.get("paredes", []) if p in PAREDES} | {"blanca", d["pared"]})
-        d["inventario"] = {k: int(v) for k, v in d.get("inventario", {}).items() if k in CATALOGO and int(v) > 0}
+        d["inventario"] = {k: int(v) for k, v in d.get("inventario", {}).items() if (k in CATALOGO or k in ADORNOS) and int(v) > 0}
+        d["adornos"] = [{"id": a["id"], "x": max(-1.7, min(1.7, float(a.get("x", 0)))), "y": max(0.2, min(1.55, float(a.get("y", 1))))}
+                        for a in d.get("adornos", []) if isinstance(a, dict) and a.get("id") in ADORNOS]
+        b = d.get("bandera") if isinstance(d.get("bandera"), dict) else {}
+        d["bandera"] = {"x": max(-1.5, min(1.5, float(b.get("x", 0.0)))), "y": max(0.4, min(1.4, float(b.get("y", 1.05))))}
+        d["vida"] = bool(d.get("vida", True))
         d["monedas"] = max(0, int(d.get("monedas", 0)))
         limpios = []
         for m in d.get("muebles", []):
             if isinstance(m, dict) and m.get("id") in CATALOGO:
-                rot = int(m.get("rot", 0)) % 360 // 90 * 90
+                rot = int(m.get("rot", 0)) % 360 // 45 * 45
                 w, p = celdas_girado(m["id"], rot)
-                cx = max(0, min(COLUMNAS - w, int(m.get("cx", 0))))
-                cz = max(0, min(FILAS - p, int(m.get("cz", 0))))
+                cx = max(0.0, min(COLUMNAS - w, _medio(m.get("cx", 0))))
+                cz = max(0.0, min(FILAS - p, _medio(m.get("cz", 0))))
                 color = m.get("color") if m.get("color") in CATALOGO[m["id"]]["colores"] else CATALOGO[m["id"]]["colores"][0]
                 limpios.append({"id": m["id"], "cx": cx, "cz": cz, "rot": rot, "color": color})
         d["muebles"] = limpios
@@ -135,7 +169,23 @@ class Casa:
             d[quien] = {"cx": max(0.0, min(COLUMNAS - 1.0, float(v.get("cx", 4.5)))), "cz": max(0.0, min(FILAS - 1.0, float(v.get("cz", 5.0)))),
                         "rot": int(v.get("rot", 0))}
 
+    @classmethod
+    def ajena(cls, datos: dict) -> "Casa":
+        """La casa de un amigo: se arma con sus datos (revisados) y no se guarda en ningún lado."""
+        nueva = cls.__new__(cls)
+        nueva.bib = None
+        nueva.datos = estado_inicial()
+        nueva.datos.update({k: v for k, v in (datos or {}).items() if k in nueva.datos and k not in ("monedas", "cobradas", "inventario")})
+        nueva._limpiar()
+        return nueva
+
+    def publica(self) -> dict:
+        """Lo que ven los amigos (sin monedas, inventario ni lo cobrado)."""
+        return {k: self.datos[k] for k in ("piso", "pared", "muebles", "adornos", "bandera", "bb", "mascota", "sentado")}
+
     def guardar(self):
+        if self.bib is None:
+            return
         self.bib.guardar_config("casa", json.dumps(self.datos))
 
     # --- Monedas -------------------------------------------------------------------------------------------
@@ -160,10 +210,10 @@ class Casa:
 
     # --- Comprar -------------------------------------------------------------------------------------------
     def comprar_mueble(self, item: str) -> bool:
-        if item not in CATALOGO or self.monedas < CATALOGO[item]["precio"]:
+        if (item not in CATALOGO and item not in ADORNOS) or self.monedas < precio(item):
             return False
-        precio = CATALOGO[item]["precio"]
-        self.datos["monedas"] -= precio
+        costo = precio(item)
+        self.datos["monedas"] -= costo
         self.datos["inventario"][item] = self.datos["inventario"].get(item, 0) + 1
         self.guardar()
         return True
@@ -201,39 +251,45 @@ class Casa:
         return False
 
     # --- Acomodar muebles ----------------------------------------------------------------------------------
+    @staticmethod
+    def _subceldas(item: str, cx: float, cz: float, rot: int) -> set[tuple[int, int]]:
+        w, p = celdas_girado(item, rot)
+        x0, z0 = round(cx * SUB), round(cz * SUB)
+        return {(x0 + a, z0 + b) for a in range(round(w * SUB)) for b in range(round(p * SUB))}
+
     def ocupadas(self, sin: int | None = None) -> set[tuple[int, int]]:
-        """Celdas con algo encima. Las alfombras no ocupan: se puede pisar y poner cosas arriba."""
+        """Medias celdas con algo encima. Las alfombras no ocupan: se puede pisar y poner cosas arriba."""
         celdas = set()
         for i, m in enumerate(self.datos["muebles"]):
             if i == sin or m["id"] == "alfombra":
                 continue
-            w, p = celdas_girado(m["id"], m["rot"])
-            celdas |= {(m["cx"] + a, m["cz"] + b) for a in range(w) for b in range(p)}
+            celdas |= self._subceldas(m["id"], m["cx"], m["cz"], m["rot"])
         return celdas
 
-    def cabe(self, item: str, cx: int, cz: int, rot: int, sin: int | None = None) -> bool:
+    def cabe(self, item: str, cx: float, cz: float, rot: int, sin: int | None = None) -> bool:
         w, p = celdas_girado(item, rot)
-        if cx < 0 or cz < 0 or cx + w > COLUMNAS or cz + p > FILAS:
+        if cx < 0 or cz < 0 or cx + w > COLUMNAS + 1e-6 or cz + p > FILAS + 1e-6:
             return False
         if item == "alfombra":
             return True
-        libres = self.ocupadas(sin)
-        return not any((cx + a, cz + b) in libres for a in range(w) for b in range(p))
+        return not (self._subceldas(item, cx, cz, rot) & self.ocupadas(sin))
 
     def poner_mueble(self, item: str, cx: int, cz: int, rot: int = 0, color: str | None = None) -> int | None:
         """Saca uno del inventario y lo pone. Devuelve su número, o None si no entra o no tenés."""
-        if self.datos["inventario"].get(item, 0) < 1 or not self.cabe(item, cx, cz, rot):
+        cx, cz = _medio(cx), _medio(cz)
+        if item not in CATALOGO or self.datos["inventario"].get(item, 0) < 1 or not self.cabe(item, cx, cz, rot):
             return None
         self.datos["inventario"][item] -= 1
         if self.datos["inventario"][item] <= 0:
             del self.datos["inventario"][item]
         elegido = color if color in CATALOGO[item]["colores"] else CATALOGO[item]["colores"][0]
-        self.datos["muebles"].append({"id": item, "cx": cx, "cz": cz, "rot": rot % 360, "color": elegido})
+        self.datos["muebles"].append({"id": item, "cx": cx, "cz": cz, "rot": rot % 360 // 45 * 45, "color": elegido})
         self.guardar()
         return len(self.datos["muebles"]) - 1
 
     def mover_mueble(self, i: int, cx: int, cz: int) -> bool:
         m = self.datos["muebles"][i]
+        cx, cz = _medio(cx), _medio(cz)
         if not self.cabe(m["id"], cx, cz, m["rot"], sin=i):
             return False
         m["cx"], m["cz"] = cx, cz
@@ -242,9 +298,9 @@ class Casa:
 
     def girar_mueble(self, i: int) -> bool:
         m = self.datos["muebles"][i]
-        rot = (m["rot"] + 90) % 360
+        rot = (m["rot"] + 45) % 360
         w, p = celdas_girado(m["id"], rot)
-        cx, cz = min(m["cx"], COLUMNAS - w), min(m["cz"], FILAS - p)       # si al girar se pasa del borde, se corre
+        cx, cz = max(0.0, min(m["cx"], COLUMNAS - w)), max(0.0, min(m["cz"], FILAS - p))   # si al girar se pasa del borde, se corre
         if not self.cabe(m["id"], cx, cz, rot, sin=i):
             return False
         m.update(rot=rot, cx=cx, cz=cz)
@@ -270,6 +326,38 @@ class Casa:
             elif lugar and lugar[0] > i:
                 lugar[0] -= 1
         self.guardar()
+
+    # --- Adornos de la pared --------------------------------------------------------------------------------
+    def poner_adorno(self, item: str) -> int | None:
+        """Lo cuelga en un lugar libre de la pared del fondo (después se arrastra a donde quieras)."""
+        if item not in ADORNOS or self.datos["inventario"].get(item, 0) < 1:
+            return None
+        self.datos["inventario"][item] -= 1
+        if self.datos["inventario"][item] <= 0:
+            del self.datos["inventario"][item]
+        usados = [a["x"] for a in self.datos["adornos"]]
+        x = min((-0.9 + 0.3 * k for k in range(7)), key=lambda c: -min([abs(c - u) for u in usados] or [9]))   # lejos de las puertas
+        self.datos["adornos"].append({"id": item, "x": round(x, 2), "y": 1.05})
+        self.guardar()
+        return len(self.datos["adornos"]) - 1
+
+    def mover_adorno(self, i: int, x: float, y: float, guardar: bool = True):
+        a = self.datos["adornos"][i]
+        w, h = ADORNOS[a["id"]]["tam"]
+        a["x"] = max(-ANCHO / 2 + w / 2 + 0.03, min(ANCHO / 2 - w / 2 - 0.03, x))
+        a["y"] = max(h / 2 + 0.05, min(ALTO_PARED - h / 2 - 0.05, y))
+        if guardar:
+            self.guardar()
+
+    def guardar_adorno(self, i: int):
+        a = self.datos["adornos"].pop(i)
+        self.datos["inventario"][a["id"]] = self.datos["inventario"].get(a["id"], 0) + 1
+        self.guardar()
+
+    def mover_bandera(self, x: float, y: float, guardar: bool = True):
+        self.datos["bandera"] = {"x": max(-1.5, min(1.5, x)), "y": max(0.4, min(1.4, y))}
+        if guardar:
+            self.guardar()
 
     # --- Sentarse --------------------------------------------------------------------------------------------
     def plazas(self, i: int) -> int:

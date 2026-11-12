@@ -11,6 +11,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtMultimedia import QAudioOutput, QMediaDevices, QMediaMetaData, QMediaPlayer, QVideoSink
 from PySide6.QtWidgets import (
+    QCheckBox,
     QApplication, QFileDialog, QFrame, QHBoxLayout, QLabel, QMenu, QMessageBox, QPushButton,
     QSizePolicy, QSlider, QSpinBox, QStackedWidget, QStyle, QToolButton, QVBoxLayout, QWidget,
 )
@@ -711,19 +712,36 @@ class Visor(QWidget):
         self.menu_cola.aboutToShow.connect(self._armar_menu_cola)
         self.btn_cola.setMenu(self.menu_cola)
 
-        # Botones compactos (estilo en tema.py) para que la barra del video quede más larga.
-        # Sin ancho mínimo: la ventana se puede achicar todo lo que se quiera
+        # Los controles, en dos filas para que no queden apretados: arriba la barra del video con el tiempo; abajo lo
+        # esencial (saltos, play, siguiente, volumen, pantalla completa) y el menú «⋯» con todo lo demás (subtítulos,
+        # Chromecast, apagar al terminar…). Sin ancho mínimo: la ventana se puede achicar todo lo que se quiera
+        self.btn_mas = QToolButton(text="⋯", toolTip="Más opciones: subtítulos, tele, apagar al terminar…",
+                                   popupMode=QToolButton.InstantPopup)
+        self.menu_mas = QMenu(self)
+        self.menu_mas.aboutToShow.connect(self._armar_menu_mas)
+        self.btn_mas.setMenu(self.menu_mas)
+        self._extras: list[QWidget] = []          # botones que suman otros (Chromecast, apagar…): van en el menú «⋯»
         self.controles = QWidget(objectName="controles")
         self.controles.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
-        self._fila_controles = fila = QHBoxLayout(self.controles)
-        fila.setContentsMargins(4, 4, 4, 0)
-        fila.setSpacing(3)
+        dos_filas = QVBoxLayout(self.controles)
+        dos_filas.setContentsMargins(8, 6, 8, 4)
+        dos_filas.setSpacing(4)
+        fila_tiempo = QHBoxLayout()
+        fila_tiempo.setSpacing(10)
+        fila_tiempo.addWidget(self.barra, 1)
+        fila_tiempo.addWidget(self.lbl_tiempo)
+        dos_filas.addLayout(fila_tiempo)
+        self._fila_controles = fila = QHBoxLayout()
+        fila.setSpacing(6)
+        dos_filas.addLayout(fila)
         for w in (self.btn_atras15, self.btn_play, self.btn_adelante15, self.btn_stop, self.btn_siguiente):
             fila.addWidget(w)
-        fila.addWidget(self.barra, 1)
-        for w in (self.lbl_tiempo, self.btn_mute, self.volumen, self.lbl_volumen, self.btn_cola, self.btn_subs,
+        fila.addStretch(1)
+        for w in (self.btn_mute, self.volumen, self.lbl_volumen, self.btn_cola, self.btn_subs, self.btn_mas,
                   self.btn_completa):
             fila.addWidget(w)
+        self.btn_subs.hide()                      # los subtítulos se eligen desde el menú «⋯»
+        self.volumen.setFixedWidth(90)
 
         # Barra de sincronización, visible con un archivo de subtítulos cargado.
         # En palabras («1,5 s antes») en vez de un retraso con signo, que confunde.
@@ -857,9 +875,45 @@ class Visor(QWidget):
     # --- Mostrar archivos ---------------------------------------------------
 
     def agregar_control(self, widget: QWidget):
-        """Suma un botón a la barra de controles, antes del de pantalla completa."""
+        """Suma una opción a los controles: va dentro del menú «⋯» (el botón queda escondido y el menú lo usa)."""
         widget.setFocusPolicy(Qt.NoFocus)
-        self._fila_controles.insertWidget(self._fila_controles.indexOf(self.btn_completa), widget)
+        widget.setParent(self.controles)
+        widget.hide()
+        self._extras.append(widget)
+
+    # Los controles que se pueden esconder desde el menú de desarrollador (nombre: botón)
+    def controles_editables(self) -> dict:
+        return {"atras15": self.btn_atras15, "play": self.btn_play, "adelante15": self.btn_adelante15, "stop": self.btn_stop,
+                "siguiente": self.btn_siguiente, "mute": self.btn_mute, "volumen": self.volumen, "porcentaje": self.lbl_volumen,
+                "mas": self.btn_mas, "completa": self.btn_completa}
+
+    def esconder_controles(self, nombres):
+        for nombre, w in self.controles_editables().items():
+            w.setVisible(nombre not in nombres)
+
+    def _armar_menu_mas(self):
+        m = self.menu_mas
+        m.clear()
+        self.menu_subs.setTitle("💬 Subtítulos")
+        m.addMenu(self.menu_subs)
+        if self.cola:
+            self.menu_cola.setTitle(f"☰ Cola ({len(self.cola)})")
+            m.addMenu(self.menu_cola)
+        m.addSeparator()
+        for w in self._extras:
+            if isinstance(w, QCheckBox):
+                accion = m.addAction(w.text())
+                accion.setCheckable(True)
+                accion.setChecked(w.isChecked())
+                accion.toggled.connect(w.setChecked)
+            else:
+                texto = w.text() if hasattr(w, "text") else ""
+                if w.toolTip() and len(texto) <= 2:
+                    texto = f"{texto}  {w.toolTip()}".strip()
+                accion = m.addAction(texto or w.toolTip())
+                accion.triggered.connect(w.click)
+        m.addSeparator()
+        m.addAction("⛶ Pantalla completa\tF", self.pedir_pantalla_completa)
 
     def mostrar(self, ruta: str | None, tipo: str | None, config_sub: tuple | None = None,
                 posicion_ms: int = 0, aviso_vacio: str = "Elegí un archivo de la lista",

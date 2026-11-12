@@ -236,3 +236,167 @@ def textura(clave: str, dibujo: str, c1: str, c2: str, carpeta) -> Path:
     p.end()
     im.save(str(destino))
     return destino
+
+
+# --- Adornos de pared y la grilla para acomodar ---------------------------------------------------------------
+
+def textura_grilla(carpeta) -> Path:
+    """Un cuadrito transparente con el borde marcado: repetido sobre el piso es la grilla de medias celdas."""
+    from PySide6.QtGui import QColor, QImage, QPainter
+
+    destino = Path(carpeta) / f"grilla_v{VERSION}.png"
+    if destino.exists():
+        return destino
+    Path(carpeta).mkdir(parents=True, exist_ok=True)
+    im = QImage(64, 64, QImage.Format_ARGB32)
+    im.fill(QColor(0, 0, 0, 0))
+    p = QPainter(im)
+    p.fillRect(0, 0, 64, 2, QColor(255, 255, 255, 120))
+    p.fillRect(0, 0, 2, 64, QColor(255, 255, 255, 120))
+    p.end()
+    im.save(str(destino))
+    return destino
+
+
+def textura_adorno(item: str, carpeta) -> Path:
+    """El dibujo de un adorno de pared (PNG con transparencia donde no hay nada)."""
+    from PySide6.QtCore import QPointF, QRectF, Qt
+    from PySide6.QtGui import QBrush, QColor, QFont, QImage, QLinearGradient, QPainter, QPainterPath, QPen, QRadialGradient
+
+    destino = Path(carpeta) / f"adorno_{item}_v{VERSION}.png"
+    if destino.exists():
+        return destino
+    Path(carpeta).mkdir(parents=True, exist_ok=True)
+    w, h = casa.ADORNOS[item]["tam"]
+    W, H = int(512 * w / max(w, h)), int(512 * h / max(w, h))
+    im = QImage(W, H, QImage.Format_ARGB32)
+    im.fill(QColor(0, 0, 0, 0))
+    p = QPainter(im)
+    p.setRenderHint(QPainter.Antialiasing)
+    azar = random.Random(item)
+    if item == "ventana":
+        cielo = QLinearGradient(0, 0, 0, H)
+        cielo.setColorAt(0, QColor("#5aa8e6"))
+        cielo.setColorAt(1, QColor("#cfe9fb"))
+        p.fillRect(QRectF(0, 0, W, H), cielo)
+        p.setBrush(QColor("#ffe27a"))
+        p.setPen(Qt.NoPen)
+        p.drawEllipse(QPointF(W * 0.66, H * 0.28), W * 0.07, W * 0.07)
+        p.setBrush(QColor(255, 255, 255, 230))
+        for cx, cy in ((0.32, 0.3), (0.52, 0.48)):
+            for dx in (-0.05, 0.0, 0.05):
+                p.drawEllipse(QPointF(W * (cx + dx), H * cy), W * 0.06, H * 0.05)
+        p.setBrush(QColor("#6aa84f"))
+        p.drawRect(QRectF(0, H * 0.82, W, H * 0.18))
+        p.setPen(QPen(QColor("#f4f1ea"), W * 0.035))
+        p.setBrush(Qt.NoBrush)
+        p.drawRect(QRectF(W * 0.0175, H * 0.0175, W * 0.965, H * 0.965))
+        p.drawLine(QPointF(W / 2, 0), QPointF(W / 2, H))
+        p.drawLine(QPointF(0, H / 2), QPointF(W, H / 2))
+        p.setPen(Qt.NoPen)
+        for lado in (0, 1):                              # cortinas
+            cortina = QLinearGradient(0, 0, W * 0.16, 0)
+            cortina.setColorAt(0, QColor("#c0504d"))
+            cortina.setColorAt(1, QColor("#e07a6f"))
+            p.setBrush(cortina)
+            p.drawRect(QRectF(0 if lado == 0 else W * 0.84, 0, W * 0.16, H))
+    elif item == "cuadro_paisaje":
+        cielo = QLinearGradient(0, 0, 0, H)
+        cielo.setColorAt(0, QColor("#f7b267"))
+        cielo.setColorAt(1, QColor("#f4845f"))
+        p.fillRect(QRectF(0, 0, W, H), cielo)
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor("#fff1b8"))
+        p.drawEllipse(QPointF(W * 0.5, H * 0.55), W * 0.12, W * 0.12)
+        for color, pico, alto in (("#6d597a", 0.3, 0.45), ("#355070", 0.7, 0.55)):
+            camino = QPainterPath(QPointF(0, H))
+            camino.lineTo(W * pico, H * (1 - alto))
+            camino.lineTo(W, H)
+            p.setBrush(QColor(color))
+            p.drawPath(camino)
+        p.setBrush(QColor("#5fa8d3"))
+        p.drawRect(QRectF(0, H * 0.85, W, H * 0.15))
+    elif item == "cuadro_abstracto":
+        p.fillRect(QRectF(0, 0, W, H), QColor("#f4efe6"))
+        p.setPen(Qt.NoPen)
+        for color in ("#e63946", "#457b9d", "#f1c453", "#2a9d8f", "#1d3557"):
+            p.setBrush(QColor(color))
+            if azar.random() < 0.5:
+                r = W * azar.uniform(0.1, 0.25)
+                p.drawEllipse(QPointF(azar.uniform(0.2, 0.8) * W, azar.uniform(0.2, 0.8) * H), r, r)
+            else:
+                p.drawRect(QRectF(azar.uniform(0, 0.6) * W, azar.uniform(0, 0.6) * H, W * azar.uniform(0.2, 0.4), H * azar.uniform(0.15, 0.35)))
+    elif item == "poster":
+        fondo = QLinearGradient(0, 0, 0, H)
+        fondo.setColorAt(0, QColor("#1b1035"))
+        fondo.setColorAt(1, QColor("#5b1f4f"))
+        p.fillRect(QRectF(0, 0, W, H), fondo)
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor("#ffcf5c"))
+        p.drawEllipse(QPointF(W / 2, H * 0.4), W * 0.28, W * 0.28)
+        p.setBrush(QColor("#1b1035"))
+        for k in range(5):
+            a = math.radians(k * 72)
+            p.drawEllipse(QPointF(W / 2 + W * 0.16 * math.cos(a), H * 0.4 + W * 0.16 * math.sin(a)), W * 0.06, W * 0.06)
+        p.setPen(QColor("#ffffff"))
+        letra = QFont("Inter")
+        letra.setPixelSize(int(W * 0.17))
+        letra.setBold(True)
+        p.setFont(letra)
+        p.drawText(QRectF(0, H * 0.68, W, H * 0.16), Qt.AlignCenter, "CINE")
+        chica = QFont("Inter")
+        chica.setPixelSize(int(W * 0.065))
+        p.setFont(chica)
+        p.drawText(QRectF(0, H * 0.84, W, H * 0.1), Qt.AlignCenter, "TorrentVision presenta")
+    elif item == "reloj":
+        p.setBrush(QColor("#3b2a1e"))
+        p.setPen(Qt.NoPen)
+        p.drawEllipse(QRectF(0, 0, W, H))
+        p.setBrush(QColor("#fbf7ef"))
+        p.drawEllipse(QRectF(W * 0.07, H * 0.07, W * 0.86, H * 0.86))
+        p.setPen(QPen(QColor("#3b2a1e"), W * 0.02))
+        for k in range(12):
+            a = math.radians(k * 30)
+            p.drawLine(QPointF(W / 2 + W * 0.36 * math.sin(a), H / 2 - H * 0.36 * math.cos(a)),
+                       QPointF(W / 2 + W * 0.4 * math.sin(a), H / 2 - H * 0.4 * math.cos(a)))
+        p.setPen(QPen(QColor("#1d1d1f"), W * 0.035, Qt.SolidLine, Qt.RoundCap))
+        p.drawLine(QPointF(W / 2, H / 2), QPointF(W / 2 - W * 0.17, H / 2 - H * 0.1))
+        p.drawLine(QPointF(W / 2, H / 2), QPointF(W / 2 + W * 0.2, H / 2 - H * 0.22))
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor("#c0504d"))
+        p.drawEllipse(QPointF(W / 2, H / 2), W * 0.03, W * 0.03)
+    elif item == "espejo":
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor("#c9a227"))
+        p.drawEllipse(QRectF(0, 0, W, H))
+        vidrio = QRadialGradient(QPointF(W * 0.4, H * 0.35), W * 0.6)
+        vidrio.setColorAt(0, QColor("#f2f6f8"))
+        vidrio.setColorAt(1, QColor("#9fb0bc"))
+        p.setBrush(QBrush(vidrio))
+        p.drawEllipse(QRectF(W * 0.08, H * 0.06, W * 0.84, H * 0.88))
+        p.setBrush(QColor(255, 255, 255, 140))
+        reflejo = QPainterPath()
+        reflejo.moveTo(W * 0.3, H * 0.2)
+        reflejo.lineTo(W * 0.42, H * 0.2)
+        reflejo.lineTo(W * 0.25, H * 0.6)
+        reflejo.lineTo(W * 0.18, H * 0.6)
+        p.drawPath(reflejo)
+    elif item == "guirnalda":
+        p.setPen(QPen(QColor("#2b2b2b"), H * 0.04))
+        puntos = [QPointF(W * k / 40, H * (0.15 + 0.25 * math.sin(k / 40 * math.pi * 3) ** 2)) for k in range(41)]
+        for a, b in zip(puntos, puntos[1:]):
+            p.drawLine(a, b)
+        p.setPen(Qt.NoPen)
+        for k, punto in enumerate(puntos[2::4]):
+            color = ("#ff5d5d", "#ffd23f", "#4ecdc4", "#a06cd5", "#7bd389")[k % 5]
+            centro = punto + QPointF(0, H * 0.2)
+            brillo = QRadialGradient(centro, H * 0.24)
+            brillo.setColorAt(0, QColor(color))
+            brillo.setColorAt(1, QColor(0, 0, 0, 0))
+            p.setBrush(QBrush(brillo))
+            p.drawEllipse(centro, H * 0.24, H * 0.24)
+            p.setBrush(QColor(color))
+            p.drawEllipse(centro, H * 0.1, H * 0.13)
+    p.end()
+    im.save(str(destino))
+    return destino

@@ -35,7 +35,13 @@ MAX_AMIGOS = 200
 MAX_VISTAS_POR_PEDIDO = 5000
 VIGENCIA_SESION = 365 * 24 * 3600
 RANGOS = [(0, "Espectador"), (50, "Cinéfilo"), (150, "Crítico"), (400, "Programador"), (1000, "Archivista")]
-COLORES_AVATAR = ("piel", "pelo", "ojos", "remera", "estampa_color", "pantalon", "zapatillas", "accesorio_color")
+COLORES_AVATAR = ("piel", "pelo", "ojos", "remera", "estampa_color", "pantalon", "zapatillas", "accesorio_color", "lentes_color",
+                  "mascota_color", "mascota_color2")
+# Las opciones de BiriBiri: el servidor guarda cualquier valor corto (TorrentVision revisa que exista al mostrarlo), así
+# las opciones nuevas no necesitan actualizar el servidor
+CLAVES_AVATAR = ("peinado", "boca", "barba", "cuerpo", "ropa", "estampa", "cabeza", "lentes", "extra", "genero", "mirada", "cejas",
+                 "bandera", "pose", "lugar", "mascota", "interaccion")
+NUMEROS_AVATAR = ("bandera_x", "bandera_y", "bandera_tam", "bandera_giro", "bandera_costado")
 # Las mismas opciones que organizador/avatar3d.py (OPCIONES)
 OPCIONES_AVATAR = {
     "peinado": ("corto", "flequillo", "largo", "colita", "trenzas", "rulos", "afro", "cresta", "rodete", "pelado"),
@@ -60,6 +66,8 @@ CREATE TABLE IF NOT EXISTS sesiones (
 CREATE TABLE IF NOT EXISTS vistas (
     usuario INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE, huella TEXT NOT NULL, tipo TEXT NOT NULL,
     puntos INTEGER NOT NULL, dia TEXT NOT NULL, PRIMARY KEY (usuario, huella));
+CREATE TABLE IF NOT EXISTS casas (
+    usuario INTEGER PRIMARY KEY REFERENCES usuarios(id) ON DELETE CASCADE, datos TEXT NOT NULL, actualizada REAL NOT NULL);
 CREATE TABLE IF NOT EXISTS amistades (
     de INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE, a INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
     estado TEXT NOT NULL, PRIMARY KEY (de, a));
@@ -98,9 +106,14 @@ def avatar_valido(datos) -> dict:
         return {}
     limpio = {k: v.lower() for k, v in datos.items()
               if k in COLORES_AVATAR and isinstance(v, str) and re.fullmatch(r"#[0-9a-fA-F]{6}", v)}
-    for clave, valores in OPCIONES_AVATAR.items():
-        if datos.get(clave) in valores:
-            limpio[clave] = datos[clave]
+    for clave in CLAVES_AVATAR:
+        valor = datos.get(clave)
+        if isinstance(valor, str) and re.fullmatch(r"[a-z0-9_]{1,30}", valor):
+            limpio[clave] = valor
+    for clave in NUMEROS_AVATAR:
+        valor = datos.get(clave)
+        if isinstance(valor, (int, float)) and not isinstance(valor, bool) and -1000 <= valor <= 1000:
+            limpio[clave] = int(valor)
     if datos.get("accesorio") in ACCESORIOS:
         limpio["accesorio"] = datos["accesorio"]
     # La foto de la cara: solo un JPEG chico en base64 (se comprueba que sea de verdad un JPEG)
@@ -262,6 +275,34 @@ class Social:
 
     # --- Amigos -----------------------------------------------------------------------------------------------
 
+    # --- La videoteca (la habitación) ----------------------------------------------------------------------
+    CLAVES_CASA = ("piso", "pared", "muebles", "adornos", "bandera", "bb", "mascota", "sentado")
+
+    def guardar_casa(self, usuario: int, casa) -> dict:
+        """Lo que se ve de la habitación (sin monedas ni inventario). La revisa TorrentVision al mostrarla."""
+        if not isinstance(casa, dict):
+            raise Error("Casa inválida")
+        publica = {k: casa[k] for k in self.CLAVES_CASA if k in casa}
+        texto = json.dumps(publica)
+        if len(texto) > 64 * 1024:
+            raise Error("La casa es demasiado grande", 413)
+        with self._con() as con:
+            con.execute("INSERT OR REPLACE INTO casas VALUES (?, ?, ?)", (usuario, texto, time.time()))
+        return {"ok": True}
+
+    def casa_de(self, usuario: int, nombre: str) -> dict:
+        """La videoteca de un amigo (solo si son amigos)."""
+        otro = self._id(nombre)
+        con = self._con()
+        amigos = con.execute("SELECT 1 FROM amistades WHERE de = ? AND a = ? AND estado = 'aceptada'", (usuario, otro)).fetchone()
+        if not amigos and otro != usuario:
+            raise Error("Solo podés visitar la videoteca de tus amigos", 403)
+        fila = con.execute("SELECT datos FROM casas WHERE usuario = ?", (otro,)).fetchone()
+        if not fila:
+            raise Error(f"{nombre} todavía no armó su videoteca", 404)
+        perfil = self.perfil(otro)
+        return {"nombre": perfil["nombre"], "avatar": perfil["avatar"], "casa": json.loads(fila[0])}
+
     def _id(self, nombre: str) -> int:
         fila = self._con().execute("SELECT id FROM usuarios WHERE nombre = ?", (nombre or "",)).fetchone()
         if not fila:
@@ -398,6 +439,10 @@ class _Manejador(BaseHTTPRequestHandler):
                 return self._json(s.pedir_amistad(usuario, str(d.get("nombre", ""))))
             if ruta == "/amigos/responder":
                 return self._json(s.responder(usuario, str(d.get("nombre", "")), bool(d.get("aceptar"))))
+            if ruta == "/casa":
+                return self._json(s.guardar_casa(usuario, d.get("casa")))
+            if ruta == "/casa/ver":
+                return self._json(s.casa_de(usuario, str(d.get("nombre", ""))))
             if ruta == "/amigos/quitar":
                 return self._json(s.quitar(usuario, str(d.get("nombre", ""))))
             if ruta == "/salir":

@@ -99,6 +99,11 @@ Item {
     property color pisoColor: "#c8a070"
     property color paredColor: "#f1ece4"
     property var muebles: []
+    property var adornos: []          // los de la pared del fondo: {tex, x, y, w, h, marco, i}
+    property bool grilla: false       // la cuadrícula del piso, mientras se acomoda algo
+    property string grillaTex: ""
+    property real bandCasaX: 0        // dónde está colgada la bandera en la pared (se arrastra)
+    property real bandCasaY: 1.05
     property real bbX: 0
     property real bbZ: 0
     property real bbRot: 0
@@ -112,19 +117,20 @@ Item {
     readonly property real anchoCasa: 3.6
     readonly property real fondoCasa: 2.4
     readonly property real altoPared: 1.7
-    signal casaEvento(string tipo, real x, real z, int indice)
+    signal casaEvento(string tipo, real x, real z, int indice, real px, real py)
     function bajoMouse(px, py) {
         var hits = vista.pickAll(px, py)
-        var suelo = null, indice = -1, hay = false, mueble = -1
+        var suelo = null, indice = -1, hay = false, mueble = -1, pared = null
         for (var i = 0; i < hits.length; i++) {
             var o = hits[i].objectHit
             if (o.objectName === "suelo") { if (suelo === null) suelo = hits[i].scenePosition }
+            else if (o.objectName === "paredFondo") { if (pared === null) pared = hits[i].scenePosition }
             else if (o.indice !== undefined) {
                 if (!hay) { indice = o.indice; hay = true }
                 if (mueble < 0 && o.indice >= 0) mueble = o.indice
             }
         }
-        return { suelo: suelo, indice: indice, mueble: mueble }
+        return { suelo: suelo, indice: indice, mueble: mueble, pared: pared }
     }
     property real giroVert: 0     // arrastrando hacia arriba o abajo el muñeco da vueltas también de frente (360° en las dos direcciones)
     // Poses (la escena del logo): inclinación del cuerpo, brazo derecho extendido para empujar (0 a 1), hacia dónde mira
@@ -190,7 +196,7 @@ Item {
         // La bandera, hecha de tiras angostas que suben y bajan en ola (con la luz, cada tira se ve más clara o más oscura)
         Node {
             visible: raiz.fondo && raiz.bandera !== ""
-            position: raiz.casa ? Qt.vector3d(raiz.bandX / 100 * 1.3, 1.0 + raiz.bandY / 100 * 0.5, -1.1)
+            position: raiz.casa ? Qt.vector3d(raiz.bandCasaX, raiz.bandCasaY, -1.1)
                                 : Qt.vector3d(raiz.anchoBandera * 0.08 + raiz.bandX / 100 * raiz.visAlto * 0.5,
                                               (raiz.busto ? 1.0 : 0.78) + raiz.bandY / 100 * raiz.visAlto * 0.4, -0.7)
             scale: Qt.vector3d(raiz.bandTam / 100 * (raiz.casa ? 0.6 : 1), raiz.bandTam / 100 * (raiz.casa ? 0.6 : 1), raiz.bandTam / 100)
@@ -242,6 +248,7 @@ Item {
                 }
             }
             Model {      // pared del fondo
+                objectName: "paredFondo"; pickable: true
                 source: "#Rectangle"; position: Qt.vector3d(0, raiz.altoPared / 2, -raiz.fondoCasa / 2)
                 scale: Qt.vector3d(raiz.anchoCasa / 100, raiz.altoPared / 100, 1)
                 materials: PrincipledMaterial {
@@ -268,10 +275,60 @@ Item {
                     Texture { id: texPared3; source: raiz.paredTex; tilingModeHorizontal: Texture.Repeat; tilingModeVertical: Texture.Repeat
                               scaleU: 3; scaleV: 2 } }
             }
-            Model {      // zócalo del fondo
-                source: "#Cube"; position: Qt.vector3d(0, 0.04, -raiz.fondoCasa / 2 + 0.01)
-                scale: Qt.vector3d(raiz.anchoCasa / 100, 0.0008, 0.0002)
-                materials: PrincipledMaterial { baseColor: "#ffffff"; roughness: 0.6 }
+            Repeater3D {     // una puerta a la izquierda y otra a la derecha (en las puntas de la pared del fondo, que se ven)
+                model: [-1, 1]
+                Node {
+                    position: Qt.vector3d(modelData * (raiz.anchoCasa / 2 - 0.36), 0, -raiz.fondoCasa / 2 + 0.012)
+                    Model { source: "#Cube"; position: Qt.vector3d(0, 0.61, 0); scale: Qt.vector3d(0.006, 0.0122, 0.0003)
+                            materials: PrincipledMaterial { baseColor: "#f4f1ea"; roughness: 0.6 } }
+                    Model { source: "#Cube"; position: Qt.vector3d(0, 0.59, 0.006); scale: Qt.vector3d(0.0052, 0.0116, 0.0002)
+                            materials: PrincipledMaterial { baseColor: "#8a5a36"; roughness: 0.55 } }
+                    Repeater3D { model: 2
+                        Model { source: "#Cube"; position: Qt.vector3d(0, index === 0 ? 0.86 : 0.33, 0.0085); scale: Qt.vector3d(0.0038, 0.0034, 0.0001)
+                                materials: PrincipledMaterial { baseColor: "#7a4f2f"; roughness: 0.6 } } }
+                    Model { source: "#Sphere"; position: Qt.vector3d(0.19, 0.58, 0.016); scale: Qt.vector3d(0.00045, 0.00045, 0.00045)
+                            materials: PrincipledMaterial { baseColor: "#d9b44a"; metalness: 0.8; roughness: 0.25 } }
+                }
+            }
+            Model {      // la cuadrícula del piso (medias celdas), mientras se acomoda algo
+                visible: raiz.grilla && raiz.grillaTex !== ""
+                source: "#Rectangle"; eulerRotation.x: -90; position: Qt.vector3d(0, 0.004, 0)
+                scale: Qt.vector3d(raiz.anchoCasa / 100, raiz.fondoCasa / 100, 1)
+                materials: PrincipledMaterial {
+                    baseColorMap: Texture { source: raiz.grillaTex; tilingModeHorizontal: Texture.Repeat; tilingModeVertical: Texture.Repeat
+                                            scaleU: 24; scaleV: 16 }
+                    alphaMode: PrincipledMaterial.Blend; lighting: PrincipledMaterial.NoLighting
+                }
+            }
+            Repeater3D {     // los adornos colgados en la pared del fondo
+                model: raiz.casa ? raiz.adornos : []
+                Node {
+                    property var a: modelData
+                    position: Qt.vector3d(a.x, a.y, -raiz.fondoCasa / 2 + 0.012)
+                    Model {
+                        visible: a.marco
+                        source: "#Cube"; position: Qt.vector3d(0, 0, -0.004)
+                        scale: Qt.vector3d((a.w + 0.05) / 100, (a.h + 0.05) / 100, 0.00018)
+                        materials: PrincipledMaterial { baseColor: "#4a3423"; roughness: 0.5 }
+                    }
+                    Model {
+                        property int indice: a.i
+                        source: "#Rectangle"; pickable: true; position: Qt.vector3d(0, 0, 0.006)
+                        scale: Qt.vector3d(a.w / 100, a.h / 100, 1)
+                        materials: PrincipledMaterial {
+                            baseColorMap: Texture { source: a.tex }
+                            alphaMode: PrincipledMaterial.Blend; roughness: 0.6
+                        }
+                    }
+                }
+            }
+            Model {      // para agarrar la bandera colgada
+                property int indice: -4
+                visible: raiz.casa && raiz.fondo && raiz.bandera !== ""
+                source: "#Rectangle"; pickable: true
+                position: Qt.vector3d(raiz.bandCasaX, raiz.bandCasaY, -raiz.fondoCasa / 2 + 0.05)
+                scale: Qt.vector3d(raiz.bandTam / 100 * 0.009, raiz.bandTam / 100 * 0.006, 1)
+                materials: PrincipledMaterial { opacity: 0.0; alphaMode: PrincipledMaterial.Blend; lighting: PrincipledMaterial.NoLighting }
             }
             Repeater3D {
                 model: raiz.casa ? raiz.muebles : []
@@ -492,8 +549,9 @@ Item {
         function evento(tipo, e) {
             var b = raiz.bajoMouse(e.x, e.y)
             var cual = (tipo === "release" || tipo === "arrastre") ? b.mueble : b.indice       // al soltar o arrastrar: el mueble que hay abajo
-            if (b.suelo !== null) raiz.casaEvento(tipo, b.suelo.x, b.suelo.z, cual)
-            else raiz.casaEvento(tipo + "_fuera", 0, 0, cual)
+            var px = b.pared !== null ? b.pared.x : NaN, py = b.pared !== null ? b.pared.y : NaN
+            if (b.suelo !== null) raiz.casaEvento(tipo, b.suelo.x, b.suelo.z, cual, px, py)
+            else raiz.casaEvento(tipo + "_fuera", NaN, NaN, cual, px, py)
         }
         onPressed: function(e) { ultimo = e.x; ultimoY = e.y; if (raiz.casa && e.button === Qt.LeftButton) evento("press", e) }
         onReleased: function(e) { if (raiz.casa && e.button === Qt.LeftButton) evento("release", e) }
@@ -606,7 +664,7 @@ def _clase():
     class Protagonista3D(QQuickWidget):
         tocado = Signal()
         listo = Signal()
-        casa_evento = Signal(str, float, float, int)     # lo que pasa con el mouse en la habitación (ver EscenaCasa)
+        casa_evento = Signal(str, float, float, int, float, float)     # lo que pasa con el mouse en la habitación (ver EscenaCasa)
 
         def __init__(self, spec: dict | None = None, encuadre: str = "cuerpo", arrastrable: bool = False,
                      quieto: bool = False, parent=None, fondo: bool = False, con_pose: bool = True, lugar: str | None = None,
@@ -638,14 +696,14 @@ def _clase():
                 raiz.setProperty("fondo", fondo)
                 raiz.setProperty("casa", casa)
                 QObject.connect(raiz, SIGNAL("listo()"), self._avisar_listo)
-                QObject.connect(raiz, SIGNAL("casaEvento(QString,double,double,int)"), self._avisar_casa)
+                QObject.connect(raiz, SIGNAL("casaEvento(QString,double,double,int,double,double)"), self._avisar_casa)
             self.poner(spec or avatar3d.PREDETERMINADO)
 
         def _avisar_listo(self):
             self.listo.emit()
 
-        def _avisar_casa(self, tipo, x, z, indice):
-            self.casa_evento.emit(tipo, x, z, indice)
+        def _avisar_casa(self, tipo, x, z, indice, px, py):
+            self.casa_evento.emit(tipo, x, z, indice, px, py)
 
         def repose(self):
             """Vuelve a poner la pose con lo último que se sabe (la habitación cambió dónde y cómo están sentados)."""

@@ -56,6 +56,36 @@ class PruebaSocial(unittest.TestCase):
         r = c.enviar_vistas([{"huella": "no-es-huella", "tipo": "pelicula"}, {"huella": "a" * 64, "tipo": "trampa"}])
         self.assertEqual(r["nuevas"], 0)
 
+    def test_visitar_la_videoteca_de_un_amigo(self):
+        # Un servidor aparte: el de la clase ya usó los registros permitidos por IP
+        srv = servidor.crear_servidor(0, os.path.join(tempfile.mkdtemp(), "v.db"), "127.0.0.1")
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        self.addCleanup(lambda: (srv.shutdown(), srv.server_close()))
+        base = f"http://127.0.0.1:{srv.server_address[1]}"
+
+        def nuevo(nombre):
+            c = social.Cliente(base)
+            c.registrar(nombre, "clave-segura")
+            return c
+        a, b, extra = nuevo("vale_casa"), nuevo("nico_casa"), nuevo("desconocido_1")
+        casa = {"piso": "marmol", "pared": "rosa", "muebles": [{"id": "sillon", "cx": 2, "cz": 0, "rot": 0, "color": "#4f81bd"}],
+                "monedas": 99999, "inventario": {"cama": 3}}
+        a.guardar_casa(casa)
+        with self.assertRaises(social.ErrorSocial):          # solo los amigos
+            extra.ver_casa("vale_casa")
+        a.pedir_amistad("nico_casa")
+        b.pedir_amistad("vale_casa")
+        visita = b.ver_casa("vale_casa")
+        self.assertEqual(visita["nombre"], "vale_casa")
+        self.assertEqual(visita["casa"]["piso"], "marmol")
+        self.assertNotIn("monedas", visita["casa"])            # lo privado no viaja
+        self.assertNotIn("inventario", visita["casa"])
+        with self.assertRaises(social.ErrorSocial):          # todavía no armó la suya
+            a.ver_casa("nico_casa")
+        a.guardar_avatar({"peinado": "afro", "mascota": "pug", "pose": "celebrando", "mascota_color": "#123456"})
+        avatar = b.ver_casa("vale_casa")["avatar"]
+        self.assertEqual((avatar["mascota"], avatar["pose"], avatar["mascota_color"]), ("pug", "celebrando", "#123456"))
+
     def test_amigos_y_avatar(self):
         a, _ = self.cliente("carla_3d")
         b, _ = self.cliente("dani_pochoclo")

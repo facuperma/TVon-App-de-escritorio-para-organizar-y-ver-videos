@@ -52,7 +52,7 @@ class PruebaCasa(unittest.TestCase):
         self.assertIsNotNone(self.casa.poner_mueble("alfombra", 0, 0))                # la alfombra se pone abajo de todo
         self.assertIsNotNone(self.casa.poner_mueble("mesa", 6, 4))
         self.assertTrue(self.casa.girar_mueble(0))
-        self.assertEqual(self.casa.datos["muebles"][0]["rot"], 90)
+        self.assertEqual(self.casa.datos["muebles"][0]["rot"], 45)          # de a 45°
 
     def test_acabados_y_guardado(self):
         self.casa.datos["monedas"] = 500
@@ -100,6 +100,23 @@ class PruebaCasa(unittest.TestCase):
         self.assertIsNone(self.casa.datos["sentado"]["mascota"])
         self.casa.parar()
         self.assertEqual(self.casa.datos["sentado"], {"bb": None, "mascota": None, "falda": False})
+
+    def test_medias_celdas_y_adornos(self):
+        self.casa.datos["monedas"] = 3000
+        for item in ("mesa", "mesa", "reloj", "ventana"):
+            self.assertTrue(self.casa.comprar_mueble(item))
+        self.assertEqual(self.casa.poner_mueble("mesa", 1.5, 2.5), 0)            # se puede poner en media celda
+        self.assertIsNone(self.casa.poner_mueble("mesa", 2.5, 3.0))              # se pisa por media celda
+        self.assertIsNotNone(self.casa.poner_mueble("mesa", 3.5, 2.5))           # justo al lado: entra
+        i = self.casa.poner_adorno("reloj")
+        self.assertEqual(i, 0)
+        self.casa.mover_adorno(0, 99, -5)                                        # no se sale de la pared
+        a = self.casa.datos["adornos"][0]
+        self.assertTrue(-1.8 < a["x"] < 1.8 and 0 < a["y"] < casa.ALTO_PARED)
+        self.casa.guardar_adorno(0)
+        self.assertEqual(self.casa.datos["inventario"]["reloj"], 1)
+        self.casa.mover_bandera(-0.5, 0.9)
+        self.assertEqual(casa.Casa(self.bib).datos["bandera"], {"x": -0.5, "y": 0.9})
 
 
 if __name__ == "__main__":

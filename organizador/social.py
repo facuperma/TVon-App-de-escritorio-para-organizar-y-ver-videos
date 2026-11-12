@@ -126,6 +126,12 @@ class Cliente:
     def amigos(self) -> dict:
         return self._pedir("GET", "/amigos")
 
+    def guardar_casa(self, casa: dict) -> dict:
+        return self._pedir("POST", "/casa", {"casa": casa})
+
+    def ver_casa(self, nombre: str) -> dict:
+        return self._pedir("POST", "/casa/ver", {"nombre": nombre})
+
     def pedir_amistad(self, nombre: str) -> dict:
         return self._pedir("POST", "/amigos/pedir", {"nombre": nombre})
 
