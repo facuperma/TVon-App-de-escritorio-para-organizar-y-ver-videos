@@ -10,12 +10,12 @@ from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication
 
 from organizador.db import Biblioteca
-from organizador import inicio_windows
+from organizador import fuentes, inicio_windows
 from organizador.inicio_windows import ARGUMENTO
 from organizador.tema import ESTILO
 from organizador.ventana import Ventana
 
-VERSION = "1.10.29"
+VERSION = "1.10.30"
 INSTANCIA = "TVon-una-sola-vez"
 
 # Empaquetado con PyInstaller, los recursos están en sys._MEIPASS
@@ -83,6 +83,7 @@ def main():
     app.setStyle("Fusion")
     # «Arrancar con Windows» tiene que abrir esta copia (la instalada), no otra vieja o la del código
     inicio_windows.corregir()
+    fuentes.registrar()
     app.setStyleSheet(ESTILO)
     biblioteca = Biblioteca(carpeta_datos() / "biblioteca.db")
     ventana = Ventana(biblioteca)

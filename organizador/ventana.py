@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
 from .aviso import AvisoFlotante
 from .banda_retro import BandaRetro
 from .limpieza import limpiar_origen
+from . import fuentes
 from .temas import estilo, tema as buscar_tema
 from .ventana_apariencia import VentanaApariencia
 from .db import CATEGORIA_DOMINIO_PUBLICO, CATEGORIA_FAVORITOS, EXT_IMAGEN, EXT_VIDEO, Biblioteca, orden_natural
@@ -1887,6 +1888,7 @@ class Ventana(QMainWindow):
 
     def aplicar_tema(self, id_tema: str | None, animada: bool, guardar: bool = True):
         t = buscar_tema(id_tema)
+        fuentes.registrar()
         QApplication.instance().setStyleSheet(estilo(t))
         # Los colores de «a medias» y «vista» cambian con el tema (en los claros, más oscuros)
         COLOR_PENDIENTE.setRgb(QColor(t.pendiente).rgb())

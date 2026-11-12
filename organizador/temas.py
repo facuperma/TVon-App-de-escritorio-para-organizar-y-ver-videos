@@ -45,6 +45,8 @@ class Tema:
     menu: str = "clasico"
     # Detalles propios de los botones de cada tema (hoja de estilo que se suma al final)
     boton_extra: str = ""
+    # El estilo moderno: más aire, bordes redondeados, listas con filas bien separadas (ver _moderno)
+    moderno: bool = False
 
     # Colores de estado de la lista (a medias / vista / vínculo), legibles sobre el fondo del tema
     @property
@@ -128,6 +130,14 @@ def _degrade(*colores: str, horizontal: bool = False) -> str:
 
 
 TEMAS: list[Tema] = [
+    Tema("moderno", "Moderno", "TorrentVision 2026", "Negro bien negro, grises bien grises, mucho aire entre las cosas y "
+         "una letra moderna (Inter): el estilo de ahora.", "ninguna",
+         fondo="#060607", fondo_hondo="#000000", panel="#101013", panel_claro="#1b1b21", borde="#2a2a32",
+         texto="#f1f1f4", tenue="#9b9ba6", acento="#4c8dff", acento_texto="#ffffff", seleccion="#1c3b73",
+         hover="#17171d", titulo="#ffffff", barra="#0a0a0c", boton="#1b1b21", boton_hover="#26262e",
+         boton_borde="#2e2e37", boton_texto="#f1f1f4", letra="Inter", radio=8, moderno=True,
+         lcd_fondo="#000000", lcd_texto="#8fb8ff", lcd_letra="Inter"),
+
     Tema("marino", "Azul noche", "TorrentVision", "El de siempre: azul marino, prolijo y tranquilo.", "ninguna",
          fondo="#0f1729", fondo_hondo="#0a1020", panel="#131d33", panel_claro="#1f2d4d", borde="#24334f",
          texto="#dbe2ef", tenue="#7a8599", acento="#3d7bfd", acento_texto="#ffffff", seleccion="#2a4a8c",
@@ -549,6 +559,72 @@ QComboBox QAbstractItemView {{ background: #000000; color: {t.lcd_texto}; select
     return ""
 
 
+def _moderno(t: Tema) -> str:
+    """La capa del estilo moderno: se suma al final y pisa lo de arriba (más aire, esquinas redondeadas, filas separadas,
+    barras de desplazamiento finas, pestañas con una línea de color)."""
+    return f"""
+QToolBar {{ border-bottom: 1px solid {t.borde}; padding: 8px 12px; spacing: 6px; }}
+QToolButton {{ padding: 8px 12px; border-radius: 9px; }}
+QToolButton:hover {{ background: {t.hover}; }}
+QMenuBar {{ background: {t.barra}; border-bottom: 1px solid {t.borde}; padding: 4px 8px; }}
+QMenuBar::item {{ padding: 7px 13px; margin: 0 2px; border-radius: 8px; }}
+QMenu {{ background: {t.panel}; border: 1px solid {t.borde}; border-radius: 10px; padding: 6px; }}
+QMenu::item {{ padding: 8px 28px 8px 14px; border-radius: 7px; margin: 1px 2px; }}
+QMenu::item:selected {{ background: {t.seleccion}; }}
+QMenu::separator {{ height: 1px; background: {t.borde}; margin: 6px 10px; }}
+QToolTip {{ background: {t.panel_claro}; color: {t.texto}; border: 1px solid {t.borde}; border-radius: 6px; padding: 6px 9px; }}
+QLabel#titulo {{ font-size: 12pt; font-weight: 600; color: {t.titulo}; padding: 2px 0 4px 2px; }}
+QLabel#pista {{ color: {t.tenue}; }}
+QListWidget, QTreeWidget {{
+    background: {t.fondo_hondo}; border: 1px solid {t.borde}; border-radius: 12px; padding: 4px; outline: none;
+}}
+QListWidget::item {{ padding: 9px 12px; margin: 2px 2px; border-radius: 9px; }}
+QListWidget::item:hover {{ background: {t.hover}; }}
+QListWidget::item:selected {{ background: {t.seleccion}; color: #ffffff; }}
+QTreeWidget::item {{ padding: 9px 10px; border: none; border-bottom: 1px solid {t.panel}; }}
+QTreeWidget::item:hover {{ background: {t.hover}; }}
+QTreeWidget::item:selected {{ background: {t.seleccion}; color: #ffffff; border-bottom: 1px solid {t.seleccion}; }}
+QHeaderView::section {{
+    background: {t.fondo_hondo}; color: {t.tenue}; font-weight: 600; font-size: 9pt; padding: 9px 10px; border: none;
+    border-bottom: 1px solid {t.borde};
+}}
+QHeaderView::section:hover {{ background: {t.hover}; color: {t.texto}; }}
+QScrollBar:vertical {{ background: transparent; width: 12px; margin: 2px; }}
+QScrollBar::handle:vertical {{ background: #31313a; border-radius: 4px; min-height: 40px; margin: 0 2px; }}
+QScrollBar::handle:vertical:hover {{ background: #4a4a56; }}
+QScrollBar:horizontal {{ background: transparent; height: 12px; margin: 2px; }}
+QScrollBar::handle:horizontal {{ background: #31313a; border-radius: 4px; min-width: 40px; margin: 2px 0; }}
+QScrollBar::handle:horizontal:hover {{ background: #4a4a56; }}
+QScrollBar::add-line, QScrollBar::sub-line, QScrollBar::add-page, QScrollBar::sub-page {{ background: none; width: 0; height: 0; }}
+QLineEdit {{ padding: 9px 13px; border-radius: 10px; background: {t.panel}; border: 1px solid {t.borde}; }}
+QLineEdit:focus {{ border: 1px solid {t.acento}; }}
+QComboBox, QSpinBox, QDoubleSpinBox {{ padding: 7px 12px; border-radius: 9px; background: {t.panel}; border: 1px solid {t.borde}; }}
+QComboBox:hover, QSpinBox:hover {{ border-color: {t.boton_borde}; background: {t.panel_claro}; }}
+QComboBox QAbstractItemView {{ background: {t.panel}; border: 1px solid {t.borde}; border-radius: 8px; selection-background-color: {t.seleccion}; padding: 4px; }}
+QPushButton {{ padding: 8px 16px; border-radius: 9px; font-weight: 500; }}
+QPushButton:focus {{ border-color: {t.acento}; }}
+QPushButton#primario {{ background: {t.acento}; color: {t.acento_texto}; border-color: {t.acento}; font-weight: 600; }}
+QPushButton#primario:hover {{ background: #6aa1ff; border-color: #6aa1ff; }}
+QPushButton#chico {{ padding: 4px 10px; border-radius: 7px; }}
+QWidget#controles QPushButton, QWidget#controles QToolButton {{ padding: 4px 6px; border-radius: 8px; }}
+QTabWidget::pane {{ border: none; border-top: 1px solid {t.borde}; border-radius: 0; top: -1px; }}
+QTabBar::tab {{
+    background: transparent; border: none; border-bottom: 2px solid transparent; border-radius: 0; padding: 10px 16px;
+    margin-right: 4px; color: {t.tenue}; font-weight: 500;
+}}
+QTabBar::tab:hover:!selected {{ color: {t.texto}; }}
+QTabBar::tab:selected {{ background: transparent; color: {t.titulo}; border-bottom: 2px solid {t.acento}; }}
+QGroupBox {{ border: 1px solid {t.borde}; border-radius: 12px; margin-top: 20px; padding: 16px 10px 10px; background: transparent; }}
+QGroupBox::title {{ subcontrol-origin: margin; left: 14px; padding: 0 6px; color: {t.tenue}; font-weight: 600; }}
+QSplitter::handle {{ background: transparent; width: 10px; }}
+QStatusBar {{ background: {t.barra}; color: {t.tenue}; border-top: 1px solid {t.borde}; padding: 3px 10px; }}
+QSlider::groove:horizontal {{ height: 4px; background: {t.panel_claro}; border-radius: 2px; }}
+QSlider::sub-page:horizontal {{ background: {t.acento}; border-radius: 2px; }}
+QSlider::handle:horizontal {{ background: #ffffff; border: none; width: 14px; margin: -5px 0; border-radius: 7px; }}
+QWidget#vacio {{ background: #000000; }}
+"""
+
+
 def estilo(t: Tema) -> str:
     """La hoja de estilo completa de la app para el tema."""
     r = t.radio
@@ -638,4 +714,4 @@ QWidget#bandaRetro {{ background: {t.lcd_fondo}; }}
 QComboBox::drop-down {{ border: none; width: 18px; }}
 QComboBox::down-arrow {{ width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent;
     border-top: 6px solid {t.boton_texto}; }}
-""" + _formas(t) + _menus(t) + t.boton_extra
+""" + _formas(t) + _menus(t) + t.boton_extra + (_moderno(t) if t.moderno else "")

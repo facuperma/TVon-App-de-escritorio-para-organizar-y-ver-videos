@@ -112,6 +112,7 @@ def main():
         "--add-data", f"{RAIZ / 'organizador' / 'paleta.dat'};organizador",
         # La app del celular (modo ON)
         "--add-data", f"{RAIZ / 'organizador' / 'web'};organizador/web",
+        "--add-data", f"{RAIZ / 'organizador' / 'fuentes'};organizador/fuentes",
         # Torrents
         "--add-data", f"{BIN};organizador/bin",
         # La APK del celular: se baja escaneando el QR, sin internet

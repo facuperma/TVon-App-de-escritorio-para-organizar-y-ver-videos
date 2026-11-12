@@ -6,7 +6,7 @@ import json
 import random
 
 from PySide6.QtCore import QBuffer, QByteArray, QObject, QPointF, QRectF, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QGuiApplication, QIcon, QImage, QPainter, QPainterPath, QPen
+from PySide6.QtGui import QColor, QGuiApplication, QIcon, QImage, QKeySequence, QPainter, QPainterPath, QPen, QShortcut
 from PySide6.QtWidgets import (
     QCheckBox, QColorDialog, QComboBox, QDialog, QDialogButtonBox, QFileDialog, QFormLayout, QFrame, QGridLayout, QHBoxLayout,
     QLabel, QLineEdit, QListWidget, QListWidgetItem, QMessageBox, QPushButton, QSlider, QStackedWidget, QTabWidget,
@@ -14,7 +14,9 @@ from PySide6.QtWidgets import (
 )
 
 from . import avatar3d, social, vista3d
+from . import casa as modelo_casa
 from . import mascotas
+from .casa_ui import EscenaCasa
 from .tareas import en_segundo_plano
 
 PALETAS = {
@@ -330,29 +332,238 @@ class VentanaAvatar(QWidget):
         super().__init__(None, Qt.Window)
         self.estado = estado
         self.spec = dict(estado.avatar)
-        self.setWindowTitle("Tu BiriBiri — TorrentVision")
-        self.resize(900, 620)
+        self.setWindowTitle("Mi videoteca — TorrentVision")
+        self.resize(1500, 800)
 
-        self.vista = vista3d.crear(self.spec, arrastrable=True, fondo=True)
-        self.vista.setMinimumSize(260, 430)
+        # La habitación (3 veces más ancha que el retrato de antes): BiriBiri y su mascota viven acá
+        self.casa = modelo_casa.Casa(estado.bib)
+        self.vista = vista3d.crear(self.spec, arrastrable=True, fondo=True, casa=True)
+        self.vista.setMinimumSize(560, 430)
+        self.escena = EscenaCasa(self.vista, self.casa)
         # Las caritas de los amigos (se arman de a una, en una vista escondida)
         self._miniaturas = vista3d.Miniaturas(96)
         self._miniaturas.lista.connect(self._miniatura_lista)
         izquierda = QVBoxLayout()
         izquierda.addWidget(self.vista, 1)
-        izquierda.addWidget(QLabel("Arrastralo para girarlo · rueda: zoom · clic derecho y arrastrar: mover · doble clic: vuelve", objectName="pista", alignment=Qt.AlignCenter, wordWrap=True))
+        self.lbl_ayuda_casa = QLabel("Arrastrá los muebles, a BiriBiri y a la mascota para acomodarlos · rueda: zoom · clic derecho y arrastrar: mover la vista · "
+                                     "doble clic: vuelve · R: girar · Supr: guardar el mueble · Esc: cancelar", objectName="pista",
+                                     alignment=Qt.AlignCenter, wordWrap=True)
+        izquierda.addWidget(self.lbl_ayuda_casa)
 
         self.pestanas = QTabWidget()
         self.pestanas.addTab(self._armar_editor(), "🎬 BiriBiri")
+        self.pestanas.addTab(self._armar_casa(), "🏠 Decorar")
         self.pestanas.addTab(self._armar_cuenta(), "🔑 Cuenta")
-        self.pestanas.addTab(self._armar_amigos(), "👥 Amigos")
-        self.pestanas.currentChanged.connect(lambda i: i == 2 and self._cargar_amigos())
+        self._pagina_amigos = self._armar_amigos()
+        self.pestanas.addTab(self._pagina_amigos, "👥 Amigos")
+        self.pestanas.currentChanged.connect(lambda i: self.pestanas.widget(i) is self._pagina_amigos and self._cargar_amigos())
 
         capa = QHBoxLayout(self)
-        capa.addLayout(izquierda, 2)
+        capa.addLayout(izquierda, 5)
         capa.addWidget(self.pestanas, 3)
         estado.cambio.connect(self._refrescar)
         self._refrescar()
+        # Las monedas se ganan viendo películas y series: se cuentan al abrir la ventana y cada tanto
+        QShortcut(QKeySequence("R"), self, activated=self.escena.girar)
+        QShortcut(QKeySequence.Delete, self, activated=self.escena.guardar_seleccionado)
+        QShortcut(QKeySequence("Escape"), self, activated=self.escena.cancelar)
+        self._reloj_monedas = QTimer(self, interval=5 * 60 * 1000, timeout=self._cobrar)
+        self._reloj_monedas.start()
+        self.escena.cambio.connect(self._refrescar_casa)
+        self._cobrar()
+
+    # --- La casa: tienda, inventario, piso y paredes ----------------------------------------------------------
+
+    def _cobrar(self):
+        ganado = self.casa.cobrar(social.vistas_de_biblioteca(self.estado.bib))
+        if ganado and hasattr(self, "lbl_monedas"):
+            self.lbl_avisos.setText(f"🎉 ¡Ganaste {ganado} monedas por lo que viste!")
+        self._refrescar_casa()
+
+    def showEvent(self, e):
+        super().showEvent(e)
+        self._cobrar()
+
+    def _armar_casa(self) -> QWidget:
+        hoja = QWidget()
+        capa = QVBoxLayout(hoja)
+        self.lbl_monedas = QLabel(objectName="titulo")
+        self.lbl_avisos = QLabel(objectName="pista", wordWrap=True)
+        capa.addWidget(self.lbl_monedas)
+        capa.addWidget(self.lbl_avisos)
+        sub = QTabWidget()
+        sub.setDocumentMode(True)
+
+        # Tienda
+        tienda = QWidget()
+        c = QVBoxLayout(tienda)
+        self.lista_tienda = QListWidget()
+        for categoria in modelo_casa.CATEGORIAS:
+            for clave, datos in modelo_casa.CATALOGO.items():
+                if datos["categoria"] == categoria:
+                    it = QListWidgetItem(f"{datos['nombre']}  ·  {datos['categoria']}  ·  🪙 {datos['precio']}")
+                    it.setData(Qt.UserRole, clave)
+                    self.lista_tienda.addItem(it)
+        self.lista_tienda.itemDoubleClicked.connect(lambda _i: self._comprar_mueble())
+        boton = QPushButton("Comprar", objectName="primario")
+        boton.clicked.connect(self._comprar_mueble)
+        c.addWidget(self.lista_tienda, 1)
+        c.addWidget(boton)
+        sub.addTab(tienda, "🛒 Tienda")
+
+        # Inventario
+        inventario = QWidget()
+        c = QVBoxLayout(inventario)
+        self.lista_inventario = QListWidget()
+        self.lista_inventario.currentRowChanged.connect(lambda _r: self._color_inventario())
+        self.combo_color_inv = QComboBox()
+        poner = QPushButton("Poner en la casa", objectName="primario")
+        poner.clicked.connect(self._poner_del_inventario)
+        c.addWidget(QLabel("Lo que compraste y todavía no pusiste. Elegí uno, su color y hacé clic en el piso."))
+        c.addWidget(self.lista_inventario, 1)
+        c.addWidget(self.combo_color_inv)
+        c.addWidget(poner)
+        sub.addTab(inventario, "🎒 Inventario")
+
+        # Piso y paredes
+        acabados = QWidget()
+        c = QVBoxLayout(acabados)
+        self.lista_pisos, self.lista_paredes = QListWidget(), QListWidget()
+        for lista, tabla, tipo in ((self.lista_pisos, modelo_casa.PISOS, "piso"), (self.lista_paredes, modelo_casa.PAREDES, "pared")):
+            for clave in tabla:
+                it = QListWidgetItem()
+                it.setData(Qt.UserRole, clave)
+                lista.addItem(it)
+            lista.itemDoubleClicked.connect(lambda i, tipo=tipo: self._elegir_acabado(tipo, i.data(Qt.UserRole)))
+        c.addWidget(QLabel("<b>Piso</b> (doble clic: comprarlo y ponerlo)"))
+        c.addWidget(self.lista_pisos, 1)
+        c.addWidget(QLabel("<b>Paredes</b> (doble clic: comprarlas y pintarlas)"))
+        c.addWidget(self.lista_paredes, 1)
+        sub.addTab(acabados, "🎨 Piso y paredes")
+
+        # El mueble elegido
+        elegido = QWidget()
+        c = QVBoxLayout(elegido)
+        self.lbl_elegido = QLabel(wordWrap=True)
+        self.combo_color_mueble = QComboBox()
+        self.combo_color_mueble.activated.connect(lambda _i: self.escena.pintar_seleccionado(self.combo_color_mueble.currentData()))
+        girar = QPushButton("↻ Girar (R)")
+        girar.clicked.connect(self.escena.girar)
+        # Para sentarse (solo en sillones y sillas)
+        self.caja_sentar = QWidget()
+        cs = QVBoxLayout(self.caja_sentar)
+        cs.setContentsMargins(0, 0, 0, 0)
+        cs.addWidget(QLabel("<b>Sentarse</b> (o arrastrá a BiriBiri o a la mascota encima del mueble)"))
+        for texto, accion in (("🧍 Sentar a BiriBiri", lambda: self.escena.sentar("bb")),
+                              ("🐾 Sentar a la mascota", lambda: self.escena.sentar("mascota")),
+                              ("🐾 BiriBiri sentado con la mascota en la falda", lambda: self.escena.falda()),
+                              ("👫 Sentar a los dos", lambda: self.escena.sentar_los_dos()),
+                              ("🚶 Pararlos", lambda: self.escena.parar_a_todos())):
+            b = QPushButton(texto)
+            b.clicked.connect(accion)
+            cs.addWidget(b)
+        guardar = QPushButton("🎒 Guardar en el inventario (Supr)")
+        guardar.clicked.connect(self.escena.guardar_seleccionado)
+        c.addWidget(self.lbl_elegido)
+        c.addWidget(QLabel("Color"))
+        c.addWidget(self.combo_color_mueble)
+        c.addWidget(girar)
+        c.addWidget(self.caja_sentar)
+        c.addWidget(guardar)
+        c.addStretch()
+        sub.addTab(elegido, "🪑 Elegido")
+        self._sub_casa = sub
+        capa.addWidget(sub, 1)
+        return hoja
+
+    @staticmethod
+    def _icono_color(hexa: str):
+        from PySide6.QtGui import QPixmap
+        pm = QPixmap(18, 18)
+        pm.fill(QColor(hexa))
+        return QIcon(pm)
+
+    def _refrescar_casa(self):
+        if not hasattr(self, "lbl_monedas"):
+            return
+        d = self.casa.datos
+        self.lbl_monedas.setText(f"🪙 {d['monedas']} monedas")
+        # Piso y paredes
+        for lista, tabla, tenidos, puesto in ((self.lista_pisos, modelo_casa.PISOS, d["pisos"], d["piso"]),
+                                              (self.lista_paredes, modelo_casa.PAREDES, d["paredes"], d["pared"])):
+            for i in range(lista.count()):
+                it = lista.item(i)
+                clave = it.data(Qt.UserRole)
+                nombre, precio, color, *_ = tabla[clave]
+                estado = "puesto" if clave == puesto else ("tuyo" if clave in tenidos else f"🪙 {precio}")
+                it.setText(f"{nombre}  ·  {estado}")
+                it.setIcon(self._icono_color(color))
+        # Inventario
+        actual = self.lista_inventario.currentItem().data(Qt.UserRole) if self.lista_inventario.currentItem() else None
+        self.lista_inventario.clear()
+        for clave, cuantos in d["inventario"].items():
+            it = QListWidgetItem(f"{modelo_casa.CATALOGO[clave]['nombre']}  ×{cuantos}")
+            it.setData(Qt.UserRole, clave)
+            self.lista_inventario.addItem(it)
+            if clave == actual:
+                self.lista_inventario.setCurrentItem(it)
+        if self.lista_inventario.count() and not self.lista_inventario.currentItem():
+            self.lista_inventario.setCurrentRow(0)
+        self._color_inventario()
+        # El mueble elegido
+        m = self.escena.mueble_seleccionado()
+        self.combo_color_mueble.blockSignals(True)
+        self.combo_color_mueble.clear()
+        if m:
+            datos = modelo_casa.CATALOGO[m["id"]]
+            self.lbl_elegido.setText(f"<b>{datos['nombre']}</b><br>Arrastralo para moverlo.")
+            for color in datos["colores"]:
+                self.combo_color_mueble.addItem(self._icono_color(color), color, color)
+            self.combo_color_mueble.setCurrentIndex(max(0, self.combo_color_mueble.findData(m["color"])))
+        else:
+            self.lbl_elegido.setText("Hacé clic en un mueble de la casa para elegirlo.")
+        self.combo_color_mueble.setEnabled(bool(m))
+        self.combo_color_mueble.blockSignals(False)
+        self.caja_sentar.setVisible(bool(m) and self.escena.puede_sentar() > 0)
+        if m:
+            self._sub_casa.setCurrentIndex(3)
+
+    def _color_inventario(self):
+        item = self.lista_inventario.currentItem()
+        self.combo_color_inv.clear()
+        if item:
+            for color in modelo_casa.CATALOGO[item.data(Qt.UserRole)]["colores"]:
+                self.combo_color_inv.addItem(self._icono_color(color), color, color)
+        self.combo_color_inv.setEnabled(bool(item))
+
+    def _comprar_mueble(self):
+        item = self.lista_tienda.currentItem()
+        if not item:
+            return
+        clave = item.data(Qt.UserRole)
+        nombre = modelo_casa.CATALOGO[clave]["nombre"]
+        if self.casa.comprar_mueble(clave):
+            self.lbl_avisos.setText(f"✔ Compraste: {nombre}. Está en tu inventario.")
+        else:
+            self.lbl_avisos.setText(f"No te alcanzan las monedas para {nombre} (cuesta {modelo_casa.CATALOGO[clave]['precio']}). "
+                                    "Se ganan viendo películas y series.")
+        self._refrescar_casa()
+
+    def _poner_del_inventario(self):
+        item = self.lista_inventario.currentItem()
+        if item:
+            self.escena.empezar_colocar(item.data(Qt.UserRole), self.combo_color_inv.currentData())
+            self.lbl_avisos.setText("Hacé clic en el piso para ponerlo (R: girarlo, Esc: cancelar).")
+
+    def _elegir_acabado(self, tipo: str, clave: str):
+        comprar, poner, tabla = ((self.casa.comprar_piso, self.casa.poner_piso, modelo_casa.PISOS) if tipo == "piso" else
+                                 (self.casa.comprar_pared, self.casa.poner_pared, modelo_casa.PAREDES))
+        if comprar(clave) and poner(clave):
+            self.lbl_avisos.setText(f"✔ {tabla[clave][0]}.")
+            self.escena.refrescar()
+        else:
+            self.lbl_avisos.setText(f"No te alcanzan las monedas para {tabla[clave][0]} (cuesta {tabla[clave][1]}).")
+        self._refrescar_casa()
 
     # --- Editor ----------------------------------------------------------------------------------------------
 

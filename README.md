@@ -10,13 +10,13 @@ Aplicación de escritorio para bajar, organizar y ver películas, series y video
 
 ## Descargar
 
-**[⬇ TorrentVision-Setup-1.10.29.exe](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-Setup-1.10.29.exe)** (91 MB): para la PC (Windows 10/11, 64 bits). No pide Python ni permisos de administrador. Como no está firmado, Windows puede decir «Windows protegió su PC»: **Más información → Ejecutar de todas formas**.
+**[⬇ TorrentVision-Setup-1.10.30.exe](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-Setup-1.10.30.exe)** (91 MB): para la PC (Windows 10/11, 64 bits). No pide Python ni permisos de administrador. Como no está firmado, Windows puede decir «Windows protegió su PC»: **Más información → Ejecutar de todas formas**.
 
 **[⬇ TorrentVision-Android-1.1.29.apk](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-Android-1.1.29.apk)** (3 MB): app para el celular (Android 8 o más nuevo).
 
 También desde la **[página de TorrentVision](https://facuperma.github.io/TVon-App-de-escritorio-para-organizar-y-ver-videos/#bajar)** (en la compu muestra un QR para bajar la app).
 
-**¿Es el original?** El botón **🔒 Bajar verificado** de esa página compara la huella SHA-256 con la de [`instalador/SHA256.txt`](instalador/SHA256.txt). A mano: `Get-FileHash TorrentVision-Setup-1.10.29.exe` en PowerShell.
+**¿Es el original?** El botón **🔒 Bajar verificado** de esa página compara la huella SHA-256 con la de [`instalador/SHA256.txt`](instalador/SHA256.txt). A mano: `Get-FileHash TorrentVision-Setup-1.10.30.exe` en PowerShell.
 
 La biblioteca y la configuración se guardan en `%LOCALAPPDATA%\TVon`.
 
@@ -42,7 +42,7 @@ Para generar el instalador: `pip install pyinstaller` y `python empaquetado\cons
 - **Subtítulos:** `.srt`/`.vtt` junto al video se cargan solos; búsqueda en OpenSubtitles (clave gratis) y subdivx; los que bajás por tu cuenta (`.srt`, `.zip`, `.rar`, `.7z`, packs de temporada) se ubican solos junto a su video. Sincronía fina (◀◀ ◀ ▶ ▶▶, 🎯 Ahora; teclas G / H) que se recuerda por video.
 - **📺 Chromecast y Roku:** el botón 📺 manda el video a la tele (MKV, HEVC o DTS los convierte ffmpeg: botón *Instalar ffmpeg*). El canal de **Roku** muestra la biblioteca con un reproductor estilo Netflix: [`roku/LEEME.md`](roku/LEEME.md).
 - **Varios videos:** *Abrir en ventana* (📌 siempre encima), **⏻ Apagar** al terminar, **🗑 Eliminar del disco** (a la Papelera) y **🖥 Modo Fullscreen** (F11).
-- **🎨 23 temas retro** (*Vista → Apariencia*): colores, letra, forma de botones y una banda animada arriba (Galaxia P2P, Lámpara de llama, Luna, Gel azul, Fósforo, Neón Y2K, Casete 85, Arcade 8 bits, Videoclub…). También en el celular.
+- **🎨 Tema «Moderno» y 23 temas retro** (*Vista → Apariencia*): el Moderno es el de siempre ahora (negro bien negro, grises bien grises, letra Inter, filas bien separadas); los retro cambian colores, letra, forma de botones y una banda animada arriba (Galaxia P2P, Lámpara de llama, Luna, Gel azul, Fósforo, Neón Y2K, Casete 85, Arcade 8 bits, Videoclub…). También en el celular.
 
 ## 🎬 Tu BiriBiri, cuenta y amigos
 
@@ -52,6 +52,7 @@ Arriba a la derecha está **tu BiriBiri**: un muñequito 3D (Qt Quick 3D) que ar
 - **Poses:** normal, en T, celebrando, brazos cruzados, manos en la cintura, corriendo, acostado haciéndose el lindo, sentado con las piernas cruzadas, haciendo la vertical, saludando, volando, nadando, bailando, patada de karate y dormido. Se gira arrastrándolo, en cualquier dirección; con la rueda del mouse se le hace zoom y con el clic derecho se mueve la vista (doble clic: vuelve todo).
 - **Otros lugares:** además de apoyado en el logo, puede **nadar detrás del logo**, estar **sentado debajo de la lista**, **acostado arriba del buscador**, **saludando en la esquina del reproductor** o **parado sobre la barra de abajo** (pestaña *🧍 Pose y lugar*).
 - **Mascota:** un perro (labrador, salchicha, pug, husky, dálmata, caniche) o un gato (atigrado, siamés, negro, naranja, persa, manchado), con el color que quieras, parado a su lado. Juntos pueden hacerse mimos, darse un premio (hueso o pescadito), llenar el plato o jugar a la pelota (pestaña *🐾 Mascota*).
+- **Mi videoteca:** la ventana del BiriBiri es una habitación ancha donde viven él y su mascota. Cambiás el piso y las paredes (madera, baldosas, mármol, ladrillo, rayas, colores…), comprás muebles (sillón, silla gamer, tele, cama, heladera, biblioteca, lámpara, planta, alfombra, mesa) y los acomodás arrastrándolos. BiriBiri y la mascota se sientan en el sillón o en la silla gamer (solo, con la mascota en la falda o los dos juntos). Las **monedas** se ganan viendo películas (50) y capítulos (10), una sola vez cada uno.
 - **Cuenta y amigos:** sin correo (usuario, contraseña y código de recuperación); cada película suma 10 puntos y cada capítulo 2. Por ahora las cuentas son locales; el servidor para usarlo entre casas está en [`servidor_social/`](servidor_social/LEEME.md). No se manda qué viste, solo una huella de cada título.
 
 ## 📱 La app del celular (ON)
