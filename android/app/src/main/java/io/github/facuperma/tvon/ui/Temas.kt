@@ -3,7 +3,16 @@ package io.github.facuperma.tvon.ui
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import io.github.facuperma.tvon.R
+
+/** Inter (la misma letra que el tema Moderno de la PC; licencia OFL, viene con la app). */
+val INTER = FontFamily(
+    Font(R.font.inter_regular, FontWeight.Normal), Font(R.font.inter_medium, FontWeight.Medium),
+    Font(R.font.inter_semibold, FontWeight.SemiBold), Font(R.font.inter_bold, FontWeight.Bold),
+)
 
 /**
  * Los mismos temas que la app de escritorio (temas.py): el azul de siempre y once estilos retro de los 2000.
@@ -27,6 +36,7 @@ data class TemaCel(
     val brillo: Boolean = false,    // botones con la mitad de arriba más clara
     val forma: String = "recto",    // botones: recto, pildora, ovalo o circulo (como en la PC)
     val menu: String = "clasico",   // menús: clasico, biselado, cristal, neon o lcd
+    val moderno: Boolean = false,   // el de ahora: negro bien negro, tarjetas separadas, letra Inter
 )
 
 fun col(v: Long) = Color(v)
@@ -49,6 +59,11 @@ fun lerpColor(a: Color, b: Color, f: Float) =
     Color(a.red + (b.red - a.red) * f, a.green + (b.green - a.green) * f, a.blue + (b.blue - a.blue) * f, 1f)
 
 private val CATALOGO = listOf(
+    TemaCel("moderno", "Moderno", "TorrentVision 2026",
+        "Negro bien negro, grises bien grises, mucho aire entre las cosas y una letra moderna (Inter): el estilo de ahora.", "ninguna",
+        0xFF0B0B0E, 0xFF000000, 0xFF17171C, 0xFF202027, 0xFF30303A, 0xFFF2F2F5, 0xFFA0A0AB, 0xFF4C8DFF, 0xFFFFFFFF,
+        0xFF25508F, 0xFFFFFFFF, listOf(0xFF1A1A21), listOf(0xFF3D3D49, 0xFF2A2A33), 0xFF474754, 0xFFF2F2F5, 0xFF000000, 0xFF8FB8FF,
+        radio = 12, letra = INTER, moderno = true),
     TemaCel("marino", "Azul noche", "TorrentVision", "El de siempre: azul marino, prolijo y tranquilo.", "ninguna",
         0xFF0F1729, 0xFF0A1020, 0xFF131D33, 0xFF1F2D4D, 0xFF24334F, 0xFFDBE2EF, 0xFF97A3B8, 0xFF3D7BFD, 0xFFFFFFFF,
         0xFF1F3566, 0xFFFFFFFF, listOf(0xFF131D33), listOf(0xFF1F2D4D), 0xFF24334F, 0xFFDBE2EF, 0xFF0A1020, 0xFF9FC2FF),

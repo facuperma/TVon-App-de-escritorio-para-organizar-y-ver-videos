@@ -560,9 +560,22 @@ QComboBox QAbstractItemView {{ background: #000000; color: {t.lcd_texto}; select
 
 
 def _mix(a: str, b: str, f: float) -> str:
-    """Un color entre a y b (f = 0 es a, 1 es b)."""
-    ca = [int(a[k:k + 2], 16) for k in (1, 3, 5)]
-    cb = [int(b[k:k + 2], 16) for k in (1, 3, 5)]
+    """Un color entre a y b (f = 0 es a, 1 es b). Si es un degradé o rgba (temas retro), toma su primer color."""
+    import re
+
+    def rgb(c: str) -> list[int]:
+        m = re.search(r"#([0-9a-fA-F]{6})", c)
+        if m:
+            h = m.group(1)
+            return [int(h[k:k + 2], 16) for k in (0, 2, 4)]
+        m = re.search(r"rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)", c)
+        if m:
+            return [int(x) for x in m.groups()]
+        m = re.search(r"#([0-9a-fA-F]{3})\b", c)
+        if m:
+            return [int(ch * 2, 16) for ch in m.group(1)]
+        return [128, 128, 128]
+    ca, cb = rgb(a), rgb(b)
     return "#" + "".join(f"{round(x + (y - x) * f):02x}" for x, y in zip(ca, cb))
 
 
@@ -589,13 +602,13 @@ def _moderno(t: Tema) -> str:
                 f"border-bottom: 1px solid {t.boton_borde};")
     acento_alto, acento_bajo = _mix(t.acento, "#ffffff", 0.12), _mix(t.acento, "#000000", 0.15)
     acento_sombra = _mix(t.acento, "#000000", 0.55)
-    return f"""
+    return _redondeo(t, f"""
 QMenuBar {{ background: {t.fondo}; border-bottom: 1px solid {t.borde}; padding: 4px 8px; }}
 QMenuBar::item {{ padding: 7px 13px; margin: 0 2px; border-radius: 8px; }}
 QMenuBar::item:selected {{ background: {t.hover}; }}
 QToolBar {{ background: {t.barra}; border: none; border-bottom: 1px solid {t.borde}; padding: 8px 12px; spacing: 8px; }}
 QToolBar::separator {{ background: {t.borde}; width: 1px; margin: 4px 8px; }}
-QToolBar QToolButton {{ {boton} padding: 7px 13px; }}
+QToolBar QToolButton {{ {boton} padding: {"7px 13px" if t.moderno else "6px 10px"}; }}
 QToolBar QToolButton:hover {{ {hover} }}
 QToolBar QToolButton:pressed {{ {apretado} }}
 QToolButton {{ padding: 7px 12px; border-radius: 9px; }}
@@ -636,7 +649,7 @@ QLineEdit:focus {{ border: 1px solid {t.acento}; }}
 QComboBox, QSpinBox, QDoubleSpinBox, QFontComboBox {{ padding: 7px 12px; border-radius: 9px; background: {t.panel_claro}; border: 1px solid {t.borde}; }}
 QComboBox:hover, QSpinBox:hover {{ border-color: {t.boton_borde}; }}
 QComboBox QAbstractItemView {{ background: {t.panel_claro}; border: 1px solid {t.borde}; border-radius: 8px; selection-background-color: {t.seleccion}; padding: 4px; }}
-QPushButton {{ {boton} padding: 8px 16px; font-weight: 500; }}
+QPushButton {{ {boton} padding: {"8px 16px" if t.moderno else "5px 9px"}; font-weight: 500; }}
 QPushButton:hover {{ {hover} }}
 QPushButton:pressed {{ {apretado} }}
 QPushButton:checked {{ background: {t.seleccion}; border-color: {t.acento}; color: #ffffff; }}
@@ -672,7 +685,14 @@ QSlider::handle:horizontal {{ background: #ffffff; border: none; width: 14px; ma
 QCheckBox::indicator {{ width: 16px; height: 16px; border-radius: 4px; border: 1px solid {t.boton_borde}; background: {t.panel_claro}; }}
 QCheckBox::indicator:checked {{ background: {t.acento}; border-color: {t.acento}; }}
 QWidget#vacio {{ background: {t.fondo_hondo}; }}
-"""
+""")
+
+
+def _redondeo(t: Tema, hoja: str) -> str:
+    """Las esquinas de la capa moderna, según el tema: los retro de esquinas rectas las mantienen rectas."""
+    import re
+    k = 1.0 if t.moderno else min(1.0, t.radio / 8)
+    return re.sub(r"border-radius: (\d+)px", lambda m: f"border-radius: {round(int(m.group(1)) * k)}px", hoja)
 
 
 def estilo(t: Tema) -> str:
@@ -764,4 +784,4 @@ QWidget#bandaRetro {{ background: {t.lcd_fondo}; }}
 QComboBox::drop-down {{ border: none; width: 18px; }}
 QComboBox::down-arrow {{ width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent;
     border-top: 6px solid {t.boton_texto}; }}
-""" + _formas(t) + _menus(t) + t.boton_extra + (_moderno(t) if t.moderno else "")
+""" + _formas(t) + _menus(t) + t.boton_extra + _moderno(t)

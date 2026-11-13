@@ -16,7 +16,7 @@ import numpy as np
 from . import avatar3d, mascotas
 from .modelado import cortar, curva, elipsoide, esfera, capsula, caja_redonda, guardar_glb, malla, restar, unir
 
-VERSION = 26 # subir si cambia la forma: así se rearman los que están en caché
+VERSION = 28 # subir si cambia la forma: así se rearman los que están en caché
 PASO = 0.0045
 
 # Puntos de articulación (para animar): hombros, cuello, cadera
@@ -123,9 +123,17 @@ def _corazon2d(x, y, e):
 GENERO_CUERPO = {"hombre": (0.98, 1.07), "mujer": (1.08, 0.93), "nobinario": (1.0, 1.0)}
 
 
+def _curvas(s: dict) -> float:
+    """0 a 1: cuánto se marcan la cintura, la cadera y el busto (solo en «mujer»)."""
+    return max(0.0, min(1.0, float(s.get("prop_curvas", 50)) / 100)) if s.get("genero") == "mujer" else 0.0
+
+
 def _medidas(s: dict):
     r0, r1, ez = {"flaco": (0.117, 0.105, 0.74), "robusto": (0.136, 0.122, 0.8)}.get(s["cuerpo"], (0.125, 0.112, 0.76))
     cadera, pecho = GENERO_CUERPO.get(s.get("genero"), (1.0, 1.0))
+    if s.get("genero") == "mujer":            # cadera más ancha y hombros/pecho más angostos, según las curvas
+        c = _curvas(s)
+        cadera, pecho = 1.03 + 0.14 * c, 0.95 - 0.06 * c
     return r0 * cadera, r1 * pecho, ez
 
 
@@ -142,6 +150,14 @@ def _torso(p, s, extra=0.0):
     # Ruedo: más ancho que la cadera del pantalón y cortado derecho abajo
     ruedo = capsula(q, (0, 0.445, 0), (0, 0.5, 0), r0 + 0.018 + extra, r0 + 0.006 + extra) * ez
     t = unir(t, ruedo, 0.03)
+    c = _curvas(s)
+    if c > 0:
+        # Cintura marcada y busto suave (la ropa lo sigue: está hecha con este mismo torso un poco más grueso)
+        t = t + 0.016 * c * np.exp(-((p[..., 1] - 0.5) / 0.032) ** 2)
+        tam = 0.6 + 0.7 * c
+        for lado in (-1, 1):
+            busto = elipsoide(p, (lado * 0.047, 0.535, r1 * ez - 0.02), (0.046 * tam + extra, 0.042 * tam + extra, 0.04 * tam + extra))
+            t = unir(t, busto, 0.03)
     return cortar(t, -plano(p, (0, 1, 0), 0.418), 0.006)
 
 
@@ -203,6 +219,39 @@ def _barba(p, estilo, con_foto=False):
     return unir(manto, _bigote(p, "normal"), 0.014) if estilo != "barba_corta" else unir(manto, _bigote(p, "fino"), 0.01)
 
 
+def _ruido(p, f: float, semilla: int = 0):
+    """Ruido suave entre -1 y 1 (valores al azar en una grilla de lado 1/f, interpolados): para que los mechones, los
+    rulitos del afro y los resortes de los rulos no sean perfectos."""
+    q = p.astype(np.float32) * f
+    i = np.floor(q)
+    t = q - i
+    t = t * t * (3 - 2 * t)
+    i = i.astype(np.int64)
+
+    def h(dx, dy, dz):
+        n = ((i[..., 0] + dx) * 73856093) ^ ((i[..., 1] + dy) * 19349663) ^ ((i[..., 2] + dz) * 83492791) ^ (semilla * 2654435761)
+        n = (n ^ (n >> 13)) * 1274126177
+        n = n ^ (n >> 16)
+        return (n & 0xFFFF).astype(np.float32) / 32767.5 - 1.0
+
+    tx, ty, tz = t[..., 0], t[..., 1], t[..., 2]
+    x00 = h(0, 0, 0) * (1 - tx) + h(1, 0, 0) * tx
+    x10 = h(0, 1, 0) * (1 - tx) + h(1, 1, 0) * tx
+    x01 = h(0, 0, 1) * (1 - tx) + h(1, 0, 1) * tx
+    x11 = h(0, 1, 1) * (1 - tx) + h(1, 1, 1) * tx
+    return (x00 * (1 - ty) + x10 * ty) * (1 - tz) + (x01 * (1 - ty) + x11 * ty) * tz
+
+
+def _fibras(p, d, fuerza: float = 1.0):
+    """Mechones finitos que bajan desde la coronilla: surcos de distintos anchos, un poco torcidos, como muchos pelos
+    juntos (y no una superficie lisa ni rayas parejas)."""
+    angulo = np.arctan2(p[..., 0], p[..., 2] + 0.02)
+    n1 = _ruido(p, 22, 1)
+    n2 = _ruido(p, 41, 2)
+    surcos = 0.0028 * np.sin(angulo * 58 + 2.6 * n1) + 0.0017 * np.sin(angulo * 97 + 4.0 * n2) + 0.0012 * _ruido(p, 120, 3)
+    return d + fuerza * surcos
+
+
 def _linea_pelo(p):
     """Donde empieza el pelo: más alto adelante (la frente) y bajo en la nuca."""
     a = math.radians(38)
@@ -213,7 +262,7 @@ def _casco(p, margen=0.018):
     casco = elipsoide(p, (0, 0.835, -0.012), (0.2 + margen, 0.19 + margen, 0.18 + margen))
     # Surcos que bajan desde la coronilla: se ve como pelo peinado y no como un casco
     angulo = np.arctan2(p[..., 0], p[..., 2] + 0.02)
-    casco = casco + 0.0045 * np.sin(angulo * 30.0) * np.clip((p[..., 1] - 0.7) * 6, 0, 1)
+    casco = casco + 0.0035 * np.sin(angulo * 30.0) * np.clip((p[..., 1] - 0.7) * 6, 0, 1)
     return cortar(casco, _linea_pelo(p), 0.015)
 
 
@@ -254,8 +303,43 @@ def _pelo(p, s):
                 x = lado * (0.215 - i * 0.002) + (0.007 if i % 2 else -0.007) * lado
                 d = unir(d, esfera(p, (x, y, -0.03), 0.034 - i * 0.002), 0.012)
             d = unir(d, curva(p, [(lado * 0.211, 0.535, -0.03), (lado * 0.211, 0.5, -0.03)], 0.02, 0.006), 0.01)
+    elif est == "ondas":
+        # Largo con ondas: cae por la espalda y a los costados en mechones que van y vienen, con un flequillo de costado
+        espalda = elipsoide(p, (0, 0.69, -0.12), (0.215, 0.27, 0.1))
+        d = unir(d, cortar(espalda, plano(p, (0, 0, 1), -0.02), 0.03), 0.04)
+        for lado in (-1, 1):
+            for k in range(9):
+                y = 0.88 - k * 0.045
+                x = lado * (0.2 + 0.012 * math.sin(k * 1.4))
+                d = unir(d, esfera(p, (x, y, -0.035 - 0.004 * k), 0.044 - k * 0.0022), 0.03)
+        d = unir(d, curva(p, [(-0.06, 1.0, 0.1), (0.04, 0.97, 0.17), (0.15, 0.88, 0.16)], 0.045, 0.014), 0.03)
+        d = d + 0.0035 * np.sin(p[..., 1] * 48 + 3 * _ruido(p, 12, 4)) * np.clip((0.86 - p[..., 1]) * 8, 0, 1)
+    elif est == "lacio":
+        # Largo y lacio con raya al medio: liso hasta la mitad de la espalda, caído a los costados de la cara
+        espalda = elipsoide(p, (0, 0.66, -0.115), (0.212, 0.31, 0.095))
+        d = unir(d, cortar(espalda, plano(p, (0, 0, 1), -0.02), 0.03), 0.04)
+        for lado in (-1, 1):
+            d = unir(d, capsula(p, (lado * 0.198, 0.9, -0.01), (lado * 0.2, 0.58, -0.04), 0.038), 0.035)
+        raya = 0.005 * np.exp(-(p[..., 0] / 0.007) ** 2) * np.clip((p[..., 1] - 0.93) * 12, 0, 1) * (p[..., 2] > -0.05)
+        d = d + raya
+    elif est == "melena":
+        # Corte carré: hasta la mandíbula, redondeado y con flequillo recto
+        capa = elipsoide(p, (0, 0.815, -0.01), (0.238, 0.232, 0.22))
+        capa = cortar(capa, plano(p, (0, -1, 0), -0.665), 0.02)
+        capa = restar(capa, elipsoide(p, (0, 0.77, 0.2), (0.185, 0.16, 0.14)), 0.02)
+        borde = 0.872 + 0.006 * np.abs(np.sin(p[..., 0] * 40.0))
+        capa = restar(capa, cortar(borde - p[..., 1], plano(p, (0, 0, -1), -0.12), 0.0), 0.01)
+        d = unir(d, capa, 0.03)
+    elif est == "coletas":
+        # Dos colitas altas a los costados, con su gomita
+        for lado in (-1, 1):
+            d = unir(d, curva(p, [(lado * 0.2, 0.93, -0.07), (lado * 0.26, 0.88, -0.1), (lado * 0.265, 0.76, -0.09),
+                                  (lado * 0.245, 0.67, -0.07)], 0.05, 0.018), 0.03)
+            d = unir(d, esfera(p, (lado * 0.21, 0.945, -0.064), 0.035), 0.01)
     elif est == "rulos":
         d = _rulos(p, d, 0.205, 0.045, 70)
+        # cada rulo como un resortito (vueltas finitas que se ven con la luz)
+        d = d + 0.0045 * np.sin(p[..., 1] * 260 + np.arctan2(p[..., 0], p[..., 2]) * 3 + 6 * _ruido(p, 18, 5))
     elif est == "afro":
         # Una nube redonda y suave: una base grande y bolas grandes que se funden entre sí (sin rulitos sueltos ni surcos)
         centro = (0.0, 0.875, -0.03)
@@ -272,6 +356,9 @@ def _pelo(p, s):
             if float(_linea_pelo(punto[None])[0]) > -0.04:
                 continue
             d = unir(d, esfera(p, punto, 0.08), 0.07)
+        # Muchos rulitos chiquitos apretados: una textura crespa (ruido «crestado») y el borde apenas irregular
+        crespo = 1 - np.abs(_ruido(p, 70, 6))
+        d = d - 0.0065 * (crespo * 0.65 + 0.35 * (1 - np.abs(_ruido(p, 130, 7)))) + 0.0035 * _ruido(p, 13, 8)
     elif est == "cresta":
         d = _casco(p, 0.006)
         for i, z in enumerate((0.15, 0.08, 0.0, -0.08, -0.15)):
@@ -282,6 +369,8 @@ def _pelo(p, s):
         d = unir(d, elipsoide(p, (0, 1.0, -0.11), (0.08, 0.075, 0.08)), 0.03)
     if tapado and est in ("cresta", "rodete", "afro"):
         d = cortar(d, plano(p, (0, 1, 0), 0.96), 0.01)
+    if est not in ("afro", "rulos"):
+        d = _fibras(p, d, 1.0 if est in ("largo", "ondas", "lacio", "melena", "colita", "coletas", "trenzas") else 0.75)
     return d
 
 
@@ -314,16 +403,16 @@ def _cono(p, y_abajo, r_abajo, ez=0.85):
 
 
 @lru_cache(maxsize=None)
-def _z_frente(cuerpo: str, genero: str, y: float, extra: float) -> float:
+def _z_frente(cuerpo: str, genero: str, y: float, extra: float, curvas: int = 50) -> float:
     """Hasta dónde llega el frente del torso (con tela de espesor `extra`) a la altura y: ahí se pegan botones y corbata."""
-    s = {"cuerpo": cuerpo, "genero": genero}
+    s = {"cuerpo": cuerpo, "genero": genero, "prop_curvas": curvas}
     zs = np.linspace(0.3, 0.0, 1201, dtype=np.float32)
     pts = np.stack([np.zeros_like(zs), np.full_like(zs, y), zs], 1)
     return float(zs[int(np.argmax(_torso(pts, s, extra) <= 0))])
 
 
 def _zf(s, y, extra):
-    return _z_frente(s["cuerpo"], s.get("genero", "nobinario"), round(y, 3), extra)
+    return _z_frente(s["cuerpo"], s.get("genero", "nobinario"), round(y, 3), extra, int(s.get("prop_curvas", 50)))
 
 
 def _ropa_torso(p, s):
@@ -1132,10 +1221,10 @@ def _disco_foto():
 # Qué opciones cambian la FORMA de cada parte (los colores no: cambiar un color no vuelve a modelar nada)
 FORMA = {
     "cabeza": ("peinado", "cabeza", "lentes", "boca", "barba", "extra", "mirada", "cejas", "genero"),
-    "torso": ("ropa", "estampa", "cuerpo", "extra", "genero"),
+    "torso": ("ropa", "estampa", "cuerpo", "extra", "genero", "prop_curvas"),
     "brazo_i": ("ropa", "cuerpo"),
     "brazo_d": ("ropa", "cuerpo", "extra"),
-    "piernas": ("ropa", "cuerpo", "genero"),
+    "piernas": ("ropa", "cuerpo", "genero", "prop_curvas"),
     "pierna_i": ("ropa", "cuerpo", "genero"),
     "pierna_d": ("ropa", "cuerpo", "genero"),
     "mascota": ("mascota",),
@@ -1147,10 +1236,10 @@ FORMA = {
 # Qué tan fina es la grilla de cada pieza chica (1 = la normal): las calcomanías de la cara necesitan mucho más
 FINURA = {"m_cuerpo": 0.8, "m_cabeza": 0.7, "m_cola": 0.7, "m_orejas": 0.7, "m_manchas": 0.6, "m_mascara": 0.6, "m_ojos": 0.5, "m_boca": 0.45, "m_rubor": 0.6,
           "m_pupilas": 0.5, "m_brillo": 0.5, "m_nariz": 0.5, "m_lengua": 0.5, "m_bigotes": 0.4, "brillo": 0.6, "ojos": 0.6, "cejas": 0.6, "trazos": 0.6, "pestanas": 0.6, "boca": 0.5, "lengua": 0.5,
-          "dientes": 0.5, "esclera": 0.5, "corazones": 0.5}
+          "dientes": 0.5, "esclera": 0.5, "corazones": 0.5, "pelo": 0.8}
 # La bandera de fondo no cambia el muñequito (la dibuja la escena aparte): no cuenta para armarlo
 SOLO_ESCENA = ("bandera", "bandera_x", "bandera_y", "bandera_tam", "bandera_giro", "bandera_costado", "pose", "lugar",
-               "interaccion")
+               "interaccion", "prop_cabeza", "prop_alto", "prop_ancho")
 
 
 def clave(spec: dict) -> str:

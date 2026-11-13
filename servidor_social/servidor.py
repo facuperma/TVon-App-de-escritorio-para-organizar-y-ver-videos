@@ -41,7 +41,8 @@ COLORES_AVATAR = ("piel", "pelo", "ojos", "remera", "estampa_color", "pantalon",
 # las opciones nuevas no necesitan actualizar el servidor
 CLAVES_AVATAR = ("peinado", "boca", "barba", "cuerpo", "ropa", "estampa", "cabeza", "lentes", "extra", "genero", "mirada", "cejas",
                  "bandera", "pose", "lugar", "mascota", "interaccion")
-NUMEROS_AVATAR = ("bandera_x", "bandera_y", "bandera_tam", "bandera_giro", "bandera_costado")
+NUMEROS_AVATAR = ("bandera_x", "bandera_y", "bandera_tam", "bandera_giro", "bandera_costado", "prop_cabeza", "prop_alto",
+                  "prop_ancho", "prop_curvas")
 # Las mismas opciones que organizador/avatar3d.py (OPCIONES)
 OPCIONES_AVATAR = {
     "peinado": ("corto", "flequillo", "largo", "colita", "trenzas", "rulos", "afro", "cresta", "rodete", "pelado"),
@@ -276,7 +277,7 @@ class Social:
     # --- Amigos -----------------------------------------------------------------------------------------------
 
     # --- La videoteca (la habitación) ----------------------------------------------------------------------
-    CLAVES_CASA = ("piso", "pared", "muebles", "adornos", "bandera", "bb", "mascota", "sentado")
+    CLAVES_CASA = ("piso", "pared", "muebles", "adornos", "bandera", "bb", "mascota", "sentado", "plato", "pelota")
 
     def guardar_casa(self, usuario: int, casa) -> dict:
         """Lo que se ve de la habitación (sin monedas ni inventario). La revisa TorrentVision al mostrarla."""

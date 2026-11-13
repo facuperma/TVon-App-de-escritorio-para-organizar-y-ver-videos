@@ -1380,6 +1380,7 @@ class _Control:
             "ventanas": len(ventana.ventanas_video),
             "mover_descargas": self.bib.config("mover_descargas") == "1",
             "opensubtitles": bool(self.bib.config("os_api_key")),
+            "tema": self.bib.config("tema") or "",       # la app del celular se pone el mismo (salvo que elija otro)
             "cast": self.ventana.transmisor.estado(),
             "roku": self.remoto.estado_roku(),
         }

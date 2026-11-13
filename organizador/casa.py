@@ -14,7 +14,7 @@ CELDA = 0.3                    # lado de una celda de la grilla (BiriBiri mide 1
 COLUMNAS, FILAS = 12, 8        # 12 celdas de ancho (x) y 8 de fondo (z): 3,6 × 2,4
 ANCHO, FONDO = COLUMNAS * CELDA, FILAS * CELDA
 ALTO_PARED = 1.7
-SUB = 2                        # la grilla para acomodar es de medias celdas (0,15): más lugares donde poner las cosas
+SUB = 4                        # la cuadrícula que se ve en el piso es de cuartos de celda (0,075); los muebles se mueven libres
 
 # Monedas que da lo que ves (distinto de los puntos de rango, que cuentan la cuenta y los amigos)
 RECOMPENSA = {"pelicula": 50, "episodio": 10}
@@ -61,7 +61,7 @@ CATALOGO: dict[str, dict] = {
     "estante": {"nombre": "Biblioteca", "categoria": "Muebles", "precio": 90, "celdas": (2, 1),
                 "colores": ["#8a5a36", "#e8e8ec", "#2f2f35", "#d8c3a0"]},
     "cama": {"nombre": "Cama", "categoria": "Muebles", "precio": 140, "celdas": (3, 5),
-             "colores": ["#4f81bd", "#c0504d", "#7a8b99", "#6aa84f", "#f1a6b8"]},
+             "colores": ["boca", "#4f81bd", "#c0504d", "#7a8b99", "#6aa84f", "#f1a6b8"]},      # «boca»: sábanas de Boca Juniors
     "heladera": {"nombre": "Heladera", "categoria": "Electrodomésticos", "precio": 180, "celdas": (2, 2),
                  "colores": ["#e8e8ec", "#3b3b42", "#c0504d", "#9bd0f0"]},
 }
@@ -92,13 +92,14 @@ def celdas_girado(item: str, rot: int) -> tuple[float, float]:
     """Ancho y fondo en celdas con el mueble girado (de a 45°). En diagonal ocupa un cuadrado que lo contiene."""
     w, d = CATALOGO[item]["celdas"]
     if rot % 90:
-        lado = math.ceil((w + d) * 0.7071 * SUB) / SUB
+        lado = round((w + d) * 0.7071, 2)
         return lado, lado
     return (d, w) if rot % 180 else (w, d)
 
 
 def _medio(v: float) -> float:
-    return round(float(v) * SUB) / SUB
+    """Los muebles se ponen en cualquier lugar (en centésimos de celda)."""
+    return round(float(v), 2)
 
 
 def celda_a_mundo(cx: float, cz: float) -> tuple[float, float]:
@@ -115,7 +116,20 @@ def estado_inicial() -> dict:
             "monedas": MONEDAS_INICIALES, "cobradas": [], "bb": {"cx": 4.5, "cz": 5.0, "rot": 0},
             "mascota": {"cx": 7.0, "cz": 5.0, "rot": -20},
             "sentado": {"bb": None, "mascota": None, "falda": False}, "adornos": [], "bandera": {"x": 0.0, "y": 1.05},
-            "vida": True}
+            "vida": True, "plato": {"x": 1.3, "z": 0.8}, "pelota": {"x": -1.05, "z": 0.75}}
+
+
+# Hasta dónde se pueden llevar el plato de la mascota y su pelota (x mínimo, x máximo, z mínimo, z máximo)
+LIMITES_PISO = (-1.6, 1.6, -1.0, 1.08)
+
+
+def _en_el_piso(v, x: float, z: float) -> dict:
+    v = v if isinstance(v, dict) else {}
+    try:
+        x, z = float(v.get("x", x)), float(v.get("z", z))
+    except (TypeError, ValueError):
+        pass
+    return {"x": round(max(LIMITES_PISO[0], min(LIMITES_PISO[1], x)), 3), "z": round(max(LIMITES_PISO[2], min(LIMITES_PISO[3], z)), 3)}
 
 
 class Casa:
@@ -145,6 +159,8 @@ class Casa:
         b = d.get("bandera") if isinstance(d.get("bandera"), dict) else {}
         d["bandera"] = {"x": max(-1.5, min(1.5, float(b.get("x", 0.0)))), "y": max(0.4, min(1.4, float(b.get("y", 1.05))))}
         d["vida"] = bool(d.get("vida", True))
+        d["plato"] = _en_el_piso(d.get("plato"), 1.3, 0.8)
+        d["pelota"] = _en_el_piso(d.get("pelota"), -1.05, 0.75)
         d["monedas"] = max(0, int(d.get("monedas", 0)))
         limpios = []
         for m in d.get("muebles", []):
@@ -154,7 +170,10 @@ class Casa:
                 cx = max(0.0, min(COLUMNAS - w, _medio(m.get("cx", 0))))
                 cz = max(0.0, min(FILAS - p, _medio(m.get("cz", 0))))
                 color = m.get("color") if m.get("color") in CATALOGO[m["id"]]["colores"] else CATALOGO[m["id"]]["colores"][0]
-                limpios.append({"id": m["id"], "cx": cx, "cz": cz, "rot": rot, "color": color})
+                limpio = {"id": m["id"], "cx": cx, "cz": cz, "rot": rot, "color": color}
+                if m["id"] == "lampara":            # las lámparas se prenden y se apagan (arrancan prendidas)
+                    limpio["on"] = bool(m.get("on", True))
+                limpios.append(limpio)
         d["muebles"] = limpios
         s = d.get("sentado") if isinstance(d.get("sentado"), dict) else {}
         d["sentado"] = {"bb": None, "mascota": None, "falda": bool(s.get("falda"))}
@@ -181,7 +200,8 @@ class Casa:
 
     def publica(self) -> dict:
         """Lo que ven los amigos (sin monedas, inventario ni lo cobrado)."""
-        return {k: self.datos[k] for k in ("piso", "pared", "muebles", "adornos", "bandera", "bb", "mascota", "sentado")}
+        return {k: self.datos[k] for k in ("piso", "pared", "muebles", "adornos", "bandera", "bb", "mascota", "sentado", "plato",
+                                           "pelota")}
 
     def guardar(self):
         if self.bib is None:
@@ -252,19 +272,20 @@ class Casa:
 
     # --- Acomodar muebles ----------------------------------------------------------------------------------
     @staticmethod
-    def _subceldas(item: str, cx: float, cz: float, rot: int) -> set[tuple[int, int]]:
+    def huella(item: str, cx: float, cz: float, rot: int) -> tuple[float, float, float, float]:
+        """El rectángulo que ocupa en el piso (en celdas): x0, z0, x1, z1."""
         w, p = celdas_girado(item, rot)
-        x0, z0 = round(cx * SUB), round(cz * SUB)
-        return {(x0 + a, z0 + b) for a in range(round(w * SUB)) for b in range(round(p * SUB))}
+        return cx, cz, cx + w, cz + p
 
-    def ocupadas(self, sin: int | None = None) -> set[tuple[int, int]]:
-        """Medias celdas con algo encima. Las alfombras no ocupan: se puede pisar y poner cosas arriba."""
-        celdas = set()
-        for i, m in enumerate(self.datos["muebles"]):
-            if i == sin or m["id"] == "alfombra":
-                continue
-            celdas |= self._subceldas(m["id"], m["cx"], m["cz"], m["rot"])
-        return celdas
+    def ocupadas(self, sin: int | None = None) -> list[tuple[float, float, float, float]]:
+        """Los rectángulos con algo encima. Las alfombras no ocupan: se puede pisar y poner cosas arriba."""
+        return [self.huella(m["id"], m["cx"], m["cz"], m["rot"]) for i, m in enumerate(self.datos["muebles"])
+                if i != sin and m["id"] != "alfombra"]
+
+    @staticmethod
+    def pisado(x: float, z: float, ocupadas, margen: float = 0.0) -> bool:
+        """¿El punto (en celdas) cae sobre algún mueble? (con un margen alrededor)"""
+        return any(a - margen < x < c + margen and b - margen < z < d + margen for a, b, c, d in ocupadas)
 
     def cabe(self, item: str, cx: float, cz: float, rot: int, sin: int | None = None) -> bool:
         w, p = celdas_girado(item, rot)
@@ -272,7 +293,8 @@ class Casa:
             return False
         if item == "alfombra":
             return True
-        return not (self._subceldas(item, cx, cz, rot) & self.ocupadas(sin))
+        a, b, c, d = self.huella(item, cx, cz, rot)
+        return not any(a < x1 - 1e-6 and x0 < c - 1e-6 and b < z1 - 1e-6 and z0 < d - 1e-6 for x0, z0, x1, z1 in self.ocupadas(sin))
 
     def poner_mueble(self, item: str, cx: int, cz: int, rot: int = 0, color: str | None = None) -> int | None:
         """Saca uno del inventario y lo pone. Devuelve su número, o None si no entra o no tenés."""
@@ -283,7 +305,10 @@ class Casa:
         if self.datos["inventario"][item] <= 0:
             del self.datos["inventario"][item]
         elegido = color if color in CATALOGO[item]["colores"] else CATALOGO[item]["colores"][0]
-        self.datos["muebles"].append({"id": item, "cx": cx, "cz": cz, "rot": rot % 360 // 45 * 45, "color": elegido})
+        nuevo = {"id": item, "cx": cx, "cz": cz, "rot": rot % 360 // 45 * 45, "color": elegido}
+        if item == "lampara":
+            nuevo["on"] = True
+        self.datos["muebles"].append(nuevo)
         self.guardar()
         return len(self.datos["muebles"]) - 1
 
@@ -353,6 +378,21 @@ class Casa:
         a = self.datos["adornos"].pop(i)
         self.datos["inventario"][a["id"]] = self.datos["inventario"].get(a["id"], 0) + 1
         self.guardar()
+
+    def mover_cosa(self, cual: str, x: float, z: float, guardar: bool = True):
+        """El plato de la mascota o su pelota: se ponen en cualquier lugar del piso."""
+        self.datos[cual] = _en_el_piso({"x": x, "z": z}, x, z)
+        if guardar:
+            self.guardar()
+
+    def lampara(self, i: int, prendida: bool | None = None) -> bool:
+        """Prende o apaga una lámpara (sin decir cómo: la cambia). Devuelve cómo quedó."""
+        m = self.datos["muebles"][i]
+        if m["id"] != "lampara":
+            return False
+        m["on"] = (not m.get("on", True)) if prendida is None else bool(prendida)
+        self.guardar()
+        return m["on"]
 
     def mover_bandera(self, x: float, y: float, guardar: bool = True):
         self.datos["bandera"] = {"x": max(-1.5, min(1.5, x)), "y": max(0.4, min(1.4, y))}

@@ -20,7 +20,7 @@ POSES: dict[str, tuple[str, dict]] = {
                                   "cabX": -8}),
     "cruzados": ("Brazos cruzados", {"reposo": 0, "aiX": -62, "aiZ": 58, "adX": -72, "adZ": -58, "cabZ": 4}),
     "cintura": ("Manos en la cintura", {"reposo": 0, "aiZ": -34, "aiX": 12, "adZ": 34, "adX": 12}),
-    "corriendo": ("Corriendo", {"reposo": 0, "aiZ": -14, "adZ": 14, "ampBx": 44, "ampP": 42, "ampS": 0.04, "ritmo": 9, "rX": 8, "rY": -42}),
+    "corriendo": ("Corriendo", {"reposo": 0, "aiZ": -14, "adZ": 14, "ampBx": -44, "ampP": 42, "ampS": 0.04, "ritmo": 9, "rX": 8, "rY": -42}),
     "acostado": ("Acostado, haciéndose el lindo", {"reposo": 0, "rZ": 90, "pX": 0.36, "pY": 0.14, "esc": 0.58,
                                                    "aiZ": -112, "adZ": 10, "adX": -10, "liX": -12, "ldX": -34, "ldZ": 4,
                                                    "cabZ": -48, "cabY": 0}),

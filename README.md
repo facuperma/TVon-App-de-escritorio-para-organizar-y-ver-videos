@@ -10,13 +10,13 @@ Aplicación de escritorio para bajar, organizar y ver películas, series y video
 
 ## Descargar
 
-**[⬇ TorrentVision-Setup-1.10.31.exe](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-Setup-1.10.31.exe)** (91 MB): para la PC (Windows 10/11, 64 bits). No pide Python ni permisos de administrador. Como no está firmado, Windows puede decir «Windows protegió su PC»: **Más información → Ejecutar de todas formas**.
+**[⬇ TorrentVision-Setup-1.10.35.exe](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-Setup-1.10.35.exe)** (92 MB): para la PC (Windows 10/11, 64 bits). No pide Python ni permisos de administrador. Como no está firmado, Windows puede decir «Windows protegió su PC»: **Más información → Ejecutar de todas formas**.
 
-**[⬇ TorrentVision-Android-1.1.29.apk](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-Android-1.1.29.apk)** (3 MB): app para el celular (Android 8 o más nuevo).
+**[⬇ TorrentVision-Android-1.1.30.apk](https://github.com/facuperma/TVon-App-de-escritorio-para-organizar-y-ver-videos/raw/main/instalador/TorrentVision-Android-1.1.30.apk)** (3 MB): app para el celular (Android 8 o más nuevo).
 
 También desde la **[página de TorrentVision](https://facuperma.github.io/TVon-App-de-escritorio-para-organizar-y-ver-videos/#bajar)** (en la compu muestra un QR para bajar la app).
 
-**¿Es el original?** El botón **🔒 Bajar verificado** de esa página compara la huella SHA-256 con la de [`instalador/SHA256.txt`](instalador/SHA256.txt). A mano: `Get-FileHash TorrentVision-Setup-1.10.31.exe` en PowerShell.
+**¿Es el original?** El botón **🔒 Bajar verificado** de esa página compara la huella SHA-256 con la de [`instalador/SHA256.txt`](instalador/SHA256.txt). A mano: `Get-FileHash TorrentVision-Setup-1.10.35.exe` en PowerShell.
 
 La biblioteca y la configuración se guardan en `%LOCALAPPDATA%\TVon`.
 
@@ -39,6 +39,8 @@ Para generar el instalador: `pip install pyinstaller` y `python empaquetado\cons
 - **🧲 Torrents:** pegá un magnet o abrí un `.torrent`; baja con [aria2](https://aria2.github.io) (incluido), solo la película (sin extras), sin programas ni ejecutables, y sigue en segundo plano junto al reloj.
 - **🎞 Dominio público:** unas 25.000 películas del Internet Archive, con descarga automática opcional.
 - **🎬 Letterboxd y búsqueda:** tu watchlist pública y las 500 mejor puntuadas, marcando las que ya tenés; el buscador de arriba filtra la biblioteca y, con Enter, busca cualquier película o serie para bajar (entiende «temporada 2», `S03E07`, «completa»…).
+- **🎬 Modo simple** (en la barra de menús): una grilla con los pósters de tus películas y series, como en la app del celular; al elegir una, en el lugar del reproductor aparece su ficha (año, géneros, puntaje, de qué trata y los capítulos) con **▶ Reproducir**. Se recuerda al volver a abrir.
+- **Idioma de los subtítulos:** se elige al instalar entre todos los idiomas y sus variantes por país (cientos) y se cambia en *Configuración → Preferencias*. En español, cada película que termina de bajarse busca sola su subtítulo en [subtis.io](https://subtis.io) (por el archivo exacto, por el nombre o por título y año); si no hay, no pasa nada.
 - **Subtítulos:** `.srt`/`.vtt` junto al video se cargan solos; búsqueda en OpenSubtitles (clave gratis) y subdivx; los que bajás por tu cuenta (`.srt`, `.zip`, `.rar`, `.7z`, packs de temporada) se ubican solos junto a su video. Sincronía fina (◀◀ ◀ ▶ ▶▶, 🎯 Ahora; teclas G / H) que se recuerda por video.
 - **📺 Chromecast y Roku:** el botón 📺 manda el video a la tele (MKV, HEVC o DTS los convierte ffmpeg: botón *Instalar ffmpeg*). El canal de **Roku** muestra la biblioteca con un reproductor estilo Netflix: [`roku/LEEME.md`](roku/LEEME.md).
 - **🛠 Modo desarrollador** (*Vista* o **Ctrl+2, 3**): cambiás colores, letra, tamaño y aire de toda la interfaz; ordenás, renombrás y escondés los botones de la barra y los controles del reproductor; mostrás u ocultás secciones y cambiás el orden de las columnas. Todo se ve al instante y se guarda en presets.
@@ -102,4 +104,5 @@ Conservan sus propias licencias:
 
 - [aria2](https://github.com/aria2/aria2) 1.37.0: GPL v2, incluido sin modificar como programa aparte (`organizador\bin\aria2-LICENCIA.txt`).
 - [PySide6 / Qt](https://www.qt.io/qt-for-python): LGPL v3, sin modificar. [cryptography](https://github.com/pyca/cryptography): Apache 2.0 / BSD. [segno](https://github.com/heuer/segno): BSD.
+- Servicios en línea que se consultan (no se incluyen): subtítulos en español de [subtis.io](https://subtis.io) (API pública `api.subt.is`, que los junta de SubDivX y SUBDL), OpenSubtitles, Wikipedia, TVmaze y TMDb.
 - App de Android: AndroidX, Jetpack Compose, Media3 (ExoPlayer) y OkHttp (Apache 2.0); libtorrent4j (MIT) y libtorrent (BSD), que se bajan aparte solo si se activan los torrents; lector de QR de Google Play Services según los términos de Google.

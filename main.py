@@ -5,6 +5,7 @@ import sys
 import time
 from pathlib import Path
 
+from PySide6.QtCore import QTimer
 from PySide6.QtGui import QIcon
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication
@@ -15,7 +16,7 @@ from organizador.inicio_windows import ARGUMENTO
 from organizador.tema import ESTILO
 from organizador.ventana import Ventana
 
-VERSION = "1.10.31"
+VERSION = "1.10.35"
 INSTANCIA = "TVon-una-sola-vez"
 
 # Empaquetado con PyInstaller, los recursos están en sys._MEIPASS
@@ -81,6 +82,8 @@ def main():
     if avisar_al_abierto(mostrar=not segundo_plano):
         return
     app.setStyle("Fusion")
+    from organizador import emojis
+    emojis.instalar(app)   # los emojis de los menús, todos del mismo tamaño y alineados
     # «Arrancar con Windows» tiene que abrir esta copia (la instalada), no otra vieja o la del código
     inicio_windows.corregir()
     fuentes.registrar()
@@ -96,6 +99,7 @@ def main():
         ventana.iniciar_en_segundo_plano()  # arrancó con Windows
     else:
         ventana.show()
+        QTimer.singleShot(700, ventana.pedir_idioma_si_falta)   # la primera vez: el idioma de los subtítulos
     sys.exit(app.exec())
 
 

@@ -484,6 +484,13 @@ fun PantallaApariencia(vm: Modelo) {
         LazyColumn(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp), modifier = Modifier.fillMaxSize()) {
             item {
                 Tarjeta {
+                    Interruptor("🖥 Igual que la PC", !vm.temaManual) { vm.seguirTemaDeLaPc(it) }
+                    val nombrePc = TEMAS.firstOrNull { it.id == vm.temaPc }?.nombre
+                    Pista(when {
+                        nombrePc == null -> "Cuando la app se conecte con la PC, se pone el mismo tema que tenga ahí."
+                        vm.temaManual -> "La PC tiene «$nombrePc». Elegiste otro acá: activá esto para volver a usar el de la PC."
+                        else -> "Se usa el de la PC («$nombrePc») y cambia solo cuando lo cambiás ahí. Si elegís otro abajo, queda el tuyo."
+                    })
                     Interruptor("Animaciones arriba (estrellas, ecualizador…)", C.animada) { vm.elegirAnimadas(it) }
                     Pista("Los mismos temas están en la PC: Vista → Apariencia y temas.")
                 }

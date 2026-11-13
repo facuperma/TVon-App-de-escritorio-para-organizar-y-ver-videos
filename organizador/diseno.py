@@ -26,7 +26,7 @@ NOMBRES_BARRA = {"archivos": "Agregar archivos", "carpeta": "Agregar carpeta", "
                  "subtitulos": "Subtítulos (web)"}
 CONTROLES = {"atras15": "↺ 15 s", "play": "Reproducir / pausar", "adelante15": "15 s ↻", "stop": "Detener",
              "siguiente": "Siguiente", "mute": "Silenciar", "volumen": "Volumen", "porcentaje": "Porcentaje del volumen",
-             "mas": "Menú «⋯»", "completa": "Pantalla completa"}
+             "subs": "Subtítulos (CC)", "mas": "Menú «⋯»", "completa": "Pantalla completa"}
 SECCIONES = {"izq": "Biblioteca y categorías", "detalles": "Detalles del archivo (ficha)", "buscador": "Buscador de arriba",
              "estado": "Barra de estado", "barra": "Barra de botones", "banda": "Banda del tema retro"}
 COLUMNAS = {"izq": "Categorías", "centro": "Lista de videos", "der": "Reproductor"}

@@ -68,6 +68,7 @@ data class Estado(
     val opensubtitles: Boolean,
     val cast: Cast?,
     val roku: Roku?,
+    val tema: String = "",          // el tema elegido en la PC
 ) {
     companion object {
         fun de(o: JSONObject) = Estado(
@@ -97,6 +98,7 @@ data class Estado(
             arrancaConWindows = o.optBoolean("arranca_con_windows"),
             moverDescargas = o.optBoolean("mover_descargas"),
             opensubtitles = o.optBoolean("opensubtitles"),
+            tema = o.optString("tema"),
             cast = o.optJSONObject("cast")?.let { c ->
                 Cast(
                     disponible = c.optBoolean("disponible"),

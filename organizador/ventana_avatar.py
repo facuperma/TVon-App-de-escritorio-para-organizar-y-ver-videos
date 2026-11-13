@@ -7,6 +7,8 @@ import random
 
 from PySide6.QtCore import QBuffer, QByteArray, QObject, QPointF, QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QGuiApplication, QIcon, QImage, QKeySequence, QPainter, QPainterPath, QPen, QShortcut
+from PySide6.QtGui import QCursor
+from PySide6.QtWidgets import QMenu
 from PySide6.QtWidgets import (
     QCheckBox, QColorDialog, QComboBox, QDialog, QDialogButtonBox, QFileDialog, QFormLayout, QFrame, QGridLayout, QHBoxLayout,
     QLabel, QLineEdit, QListWidget, QListWidgetItem, QMessageBox, QPushButton, QSlider, QStackedWidget, QTabWidget,
@@ -362,6 +364,7 @@ class VentanaAvatar(QWidget):
         self.vista = vista3d.crear(self.spec, arrastrable=True, fondo=True, casa=True)
         self.vista.setMinimumSize(560, 430)
         self.escena = EscenaCasa(self.vista, self.casa)
+        self.escena.menu.connect(self._menu_personaje)
         # Vida propia: pasean, se sientan solos, se hacen mimos
         self.vida = Vida(self.escena, self.casa, con_mascota=lambda: avatar3d.normalizar(self.spec)["mascota"] != "ninguna")
         # Las caritas de los amigos (se arman de a una, en una vista escondida)
@@ -371,7 +374,8 @@ class VentanaAvatar(QWidget):
         izquierda.addWidget(self.vista, 1)
         self.lbl_ayuda_casa = QLabel("Arrastrá los muebles, los adornos de la pared, la bandera, a BiriBiri y a la mascota para "
                                      "acomodarlos (soltarlos sobre un sillón los sienta) · rueda: zoom · clic derecho y arrastrar: "
-                                     "mover la vista · doble clic: vuelve · R: girar 45° · Supr: guardar · Esc: cancelar", objectName="pista",
+                                     "mover la vista · clic en BiriBiri o la mascota: te miran · doble clic: qué querés que hagan · "
+                                     "doble clic en otro lado: vuelve · R: girar 45° · Supr: guardar · Esc: cancelar", objectName="pista",
                                      alignment=Qt.AlignCenter, wordWrap=True)
         izquierda.addWidget(self.lbl_ayuda_casa)
 
@@ -426,6 +430,64 @@ class VentanaAvatar(QWidget):
         self._visitas.append(ventana)
         ventana.destroyed.connect(lambda *_: self._visitas.remove(ventana) if ventana in self._visitas else None)
         ventana.show()
+
+    def _menu_personaje(self, quien: str):
+        """Doble clic en un personaje: un menú con lo que puede hacer (como en los Sims) y personalizarlo."""
+        spec = avatar3d.normalizar(self.spec)
+        tiene_mascota = spec["mascota"] != "ninguna"
+        hay = lambda tipo: any(m["id"] == tipo for m in self.casa.datos["muebles"])       # noqa: E731
+        asientos = any(modelo_casa.PLAZAS.get(m["id"]) for m in self.casa.datos["muebles"])
+        nombre_bb = self.estado.nombre_visible() or "BiriBiri"
+        if quien == "bb":
+            titulo = f"🎬 {nombre_bb}"
+            opciones = [("👋 Saludar", "saludar", True),
+                        ("🐾 Hacerle mimos a la mascota", "mimos", tiene_mascota),
+                        ("🎾 Tirarle la pelota", "tirar_pelota", tiene_mascota),
+                        ("🥣 Llenarle el plato", "llenar_plato", tiene_mascota),
+                        ("🛋 Sentarse", "sentarse", asientos),
+                        ("📺 Mirar la tele", "tele", hay("tele")),
+                        ("🛏 Dormir una siesta", "dormir", hay("cama")),
+                        ("💡 Prender o apagar la luz", "lampara", hay("lampara")),
+                        ("🚶 Pasear", "pasear", True)]
+            personalizar = "🎨 Personalizar a BiriBiri…"
+        else:
+            titulo = "🐾 Tu mascota"
+            opciones = [("👋 Saludar", "saludar", True),
+                        ("🥣 Comer", "comer", self.vida.plato_lleno),
+                        ("🎾 Jugar con la pelota", "jugar_pelota", True),
+                        ("🐶 Ir con BiriBiri", "seguir", True),
+                        ("💞 Subirse a la falda de BiriBiri", "falda", asientos),
+                        ("🛋 Subirse al sillón", "sentarse", asientos),
+                        ("💤 Dormir a los pies de la cama", "a_los_pies", bool(self.vida.lugar["bb"] and self.vida.lugar["bb"].get("tipo") == "cama")),
+                        ("🚶 Pasear", "pasear", True)]
+            personalizar = "🎨 Personalizar a la mascota…"
+        menu = QMenu(self)
+        menu.setObjectName("menuPersonaje")
+        encabezado = menu.addAction(titulo)
+        encabezado.setEnabled(False)
+        menu.addSeparator()
+        for texto, que, se_puede in opciones:
+            accion = menu.addAction(texto)
+            accion.setEnabled(bool(se_puede))
+            accion.triggered.connect(lambda _c=False, q=que, t=texto: self._ordenar(quien, q, t))
+        menu.addSeparator()
+        menu.addAction(personalizar).triggered.connect(lambda: self._personalizar(quien))
+        menu.popup(QCursor.pos())
+
+    def _ordenar(self, quien: str, que: str, texto: str):
+        if not self.vida.activa:
+            self.vida_propia.setChecked(True)
+        if not self.vida.ordenar(quien, que):
+            self.lbl_avisos.setText(f"Ahora no puede: «{texto[2:].strip()}» (no hay lugar libre o no llega).")
+
+    def _personalizar(self, quien: str):
+        """Va al editor (en el probador) y, si es la mascota, a sus opciones."""
+        self.pestanas.setCurrentIndex(0)
+        if quien == "mascota":
+            self._secciones_editor.setCurrentWidget(self._tab_mascota)
+        elif self._secciones_editor.currentWidget() is self._tab_mascota:
+            self._secciones_editor.setCurrentIndex(0)
+        self.escena.enfocar(quien)
 
     def _pestana_cambio(self, i: int):
         w = self.pestanas.widget(i)
@@ -551,14 +613,38 @@ class VentanaAvatar(QWidget):
     def _icono_color(hexa: str):
         from PySide6.QtGui import QPixmap
         pm = QPixmap(18, 18)
-        pm.fill(QColor(hexa))
+        if hexa == "boca":                  # azul y oro
+            pm.fill(QColor("#123d8f"))
+            p = QPainter(pm)
+            p.fillRect(0, 6, 18, 6, QColor("#f6c100"))
+            p.end()
+        else:
+            pm.fill(QColor(hexa))
         return QIcon(pm)
+
+    @staticmethod
+    def _nombre_color(color: str) -> str:
+        return "Boca Juniors 💙💛" if color == "boca" else color
+
+    def _texto_tienda(self, clave: str) -> str:
+        """El renglón de la tienda: nombre, categoría, precio y, si ya lo tenés, «✔ Obtenido»."""
+        cat = "Pared" if clave in modelo_casa.ADORNOS else modelo_casa.CATALOGO[clave]["categoria"]
+        d = self.casa.datos
+        tenes = d["inventario"].get(clave, 0) + sum(1 for m in d["muebles"] if m["id"] == clave) + \
+            sum(1 for a in d["adornos"] if a["id"] == clave)
+        obtenido = f"  ·  ✔ Obtenido{f' ×{tenes}' if tenes > 1 else ''}" if tenes else ""
+        return f"{modelo_casa.nombre(clave)}  ·  {cat}  ·  🪙 {modelo_casa.precio(clave)}{obtenido}"
 
     def _refrescar_casa(self):
         if not hasattr(self, "lbl_monedas"):
             return
         d = self.casa.datos
         self.lbl_monedas.setText(f"🪙 {d['monedas']} monedas")
+        for i in range(self.lista_tienda.count()):
+            it = self.lista_tienda.item(i)
+            texto = self._texto_tienda(it.data(Qt.UserRole))
+            if it.text() != texto:
+                it.setText(texto)
         # Piso y paredes
         for lista, tabla, tenidos, puesto in ((self.lista_pisos, modelo_casa.PISOS, d["pisos"], d["piso"]),
                                               (self.lista_paredes, modelo_casa.PAREDES, d["paredes"], d["pared"])):
@@ -592,15 +678,17 @@ class VentanaAvatar(QWidget):
             datos = modelo_casa.CATALOGO[m["id"]]
             self.lbl_elegido.setText(f"<b>{datos['nombre']}</b><br>Arrastralo para moverlo.")
             for color in datos["colores"]:
-                self.combo_color_mueble.addItem(self._icono_color(color), color, color)
+                self.combo_color_mueble.addItem(self._icono_color(color), self._nombre_color(color), color)
             self.combo_color_mueble.setCurrentIndex(max(0, self.combo_color_mueble.findData(m["color"])))
         if not m and not adorno:
             self.lbl_elegido.setText("Hacé clic en un mueble o en un adorno de la pared para elegirlo.")
         self.combo_color_mueble.setEnabled(bool(m))
         self.combo_color_mueble.blockSignals(False)
         self.caja_sentar.setVisible(bool(m) and self.escena.puede_sentar() > 0)
-        if m or adorno:
+        elegido = (self.escena.seleccion, self.escena.sel_adorno)
+        if (m or adorno) and elegido != getattr(self, "_ultimo_elegido", None):
             self._sub_casa.setCurrentIndex(3)
+        self._ultimo_elegido = elegido if (m or adorno) else None
 
     def _color_inventario(self):
         item = self.lista_inventario.currentItem()
@@ -608,7 +696,7 @@ class VentanaAvatar(QWidget):
         mueble = item and item.data(Qt.UserRole) in modelo_casa.CATALOGO
         if mueble:
             for color in modelo_casa.CATALOGO[item.data(Qt.UserRole)]["colores"]:
-                self.combo_color_inv.addItem(self._icono_color(color), color, color)
+                self.combo_color_inv.addItem(self._icono_color(color), self._nombre_color(color), color)
         self.combo_color_inv.setEnabled(bool(mueble))
 
     def _comprar_mueble(self):
@@ -618,7 +706,9 @@ class VentanaAvatar(QWidget):
         clave = item.data(Qt.UserRole)
         nombre = modelo_casa.nombre(clave)
         if self.casa.comprar_mueble(clave):
-            self.lbl_avisos.setText(f"✔ Compraste: {nombre}. Está en tu inventario.")
+            from . import sonidos
+            sonidos.sonar("monedas")
+            self.lbl_avisos.setText(f"✔ Compraste: {nombre}. Está en tu inventario (🪙 −{modelo_casa.precio(clave)}).")
         else:
             self.lbl_avisos.setText(f"No te alcanzan las monedas para {nombre} (cuesta {modelo_casa.precio(clave)}). "
                                     "Se ganan viendo películas y series.")
@@ -717,8 +807,22 @@ class VentanaAvatar(QWidget):
         self._fila_color(form, "pelo")
         secciones.addTab(pelo, "💇 Pelo")
 
+        cuerpo, form = self._seccion()
+        self._combo(form, "cuerpo", "Contextura")
+        for clave, texto in (("prop_cabeza", "Tamaño de la cabeza"), ("prop_alto", "Altura"), ("prop_ancho", "Ancho del cuerpo"),
+                             ("prop_curvas", "Curvas (cintura, cadera y busto)")):
+            minimo, maximo, _ = avatar3d.NUMEROS[clave]
+            deslizador = QSlider(Qt.Horizontal)
+            deslizador.setRange(minimo, maximo)
+            deslizador.setValue(int(self.spec.get(clave, avatar3d.NUMEROS[clave][2])))
+            deslizador.valueChanged.connect(lambda v, clave=clave: self._cambiar(clave, int(v)))
+            self._deslizadores[clave] = deslizador
+            form.addRow(texto, deslizador)
+        form.addRow(QLabel("Las curvas se notan con el género «Mujer». Para volver a lo de siempre, poné cada uno en el medio "
+                           "(o tocá «Al azar» y elegí de nuevo).", objectName="pista", wordWrap=True))
+        secciones.addTab(cuerpo, "🧍 Cuerpo")
+
         ropa, form = self._seccion()
-        self._combo(form, "cuerpo", "Cuerpo")
         self._combo(form, "ropa", "Ropa")
         self._filtrar_ropa()
         self._combo(form, "estampa", "Estampa")
@@ -768,8 +872,19 @@ class VentanaAvatar(QWidget):
                            "se pone sus colores de siempre y después los podés cambiar. Con una interacción, tu BiriBiri deja la "
                            "pose elegida para hacerle mimos, darle un premio o llenarle el plato.", objectName="pista", wordWrap=True))
         secciones.addTab(mascota_tab, "🐾 Mascota")
+        self._secciones_editor, self._tab_mascota = secciones, mascota_tab
 
         capa.addWidget(secciones, 1)
+        fila_vista = QHBoxLayout()
+        fila_vista.addWidget(QLabel("Ver de cerca:"))
+        for texto, quien in (("🔍 BiriBiri", "bb"), ("🔍 Mascota", "mascota"), ("👥 Los dos", None)):
+            b = QPushButton(texto)
+            b.clicked.connect(lambda _c=False, q=quien: self.escena.enfocar(q))
+            fila_vista.addWidget(b)
+        fila_vista.addStretch(1)
+        capa.addLayout(fila_vista)
+        capa.addWidget(QLabel("Arrastrá a cada uno para girarlo · rueda: zoom donde está el mouse · clic derecho y arrastrar: mover la vista",
+                              objectName="pista", wordWrap=True))
         self.en_logo = QCheckBox("Que aparezca apoyado en el logo cuando no hay ningún video elegido")
         self.en_logo.setChecked(self.estado.en_logo)
         self.con_animacion = QCheckBox("Con la animación: empuja al logo y sale volando (si no, queda apoyado quieto)")
@@ -843,6 +958,14 @@ class VentanaAvatar(QWidget):
             self.spec[clave] = valor
         if clave == "genero":
             self._filtrar_ropa()
+            # «Mujer» con un corte de varón: pasa a un peinado acorde (después se puede cambiar)
+            if valor == "mujer" and self.spec.get("peinado") in ("corto", "cresta", "pelado", "rodete"):
+                self.spec["peinado"] = "ondas"
+                combo = self._combos.get("peinado")
+                if combo is not None:
+                    combo.blockSignals(True)
+                    combo.setCurrentIndex(max(0, combo.findData("ondas")))
+                    combo.blockSignals(False)
         if clave == "mascota" and valor in mascotas.RAZAS:      # cada raza con sus colores de siempre
             for k, c in zip(("mascota_color", "mascota_color2"), mascotas.colores(valor)):
                 self.spec[k] = c

@@ -4,7 +4,7 @@ import time
 import re
 from pathlib import Path
 
-from PySide6.QtCore import QLocale, QPointF, QRectF, QSize, Qt, QTimer, QUrl, Signal
+from PySide6.QtCore import QLocale, QPoint, QPointF, QRectF, QSize, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import (
     QBrush, QColor, QConicalGradient, QCursor, QFont, QFontMetrics, QKeySequence, QPainter, QPainterPath, QPen, QPixmap,
     QShortcut,
@@ -13,7 +13,8 @@ from PySide6.QtMultimedia import QAudioOutput, QMediaDevices, QMediaMetaData, QM
 from PySide6.QtWidgets import (
     QCheckBox,
     QApplication, QFileDialog, QFrame, QHBoxLayout, QLabel, QMenu, QMessageBox, QPushButton,
-    QSizePolicy, QSlider, QSpinBox, QStackedWidget, QStyle, QToolButton, QVBoxLayout, QWidget,
+    QSizePolicy, QSlider, QSpinBox, QStackedWidget, QStyle, QStyleOptionSlider, QToolButton, QToolTip,
+    QVBoxLayout, QWidget,
 )
 
 from . import sincronia
@@ -123,6 +124,9 @@ class PantallaVideo(QWidget):
         self.boton_intro: QWidget | None = None  # «Saltar intro», abajo a la izquierda
         self._timer_osd = QTimer(self, singleShot=True, interval=1500)
         self._timer_osd.timeout.connect(lambda: self._set_osd(""))
+        self._aviso: tuple[str, str] | None = None
+        self._timer_aviso = QTimer(self, singleShot=True)
+        self._timer_aviso.timeout.connect(lambda: (setattr(self, "_aviso", None), self.update()))
         # El clic simple espera por si llega el segundo de un doble clic (pantalla completa),
         # así el doble clic no pausa y reanuda de paso
         self._timer_clic = QTimer(self, singleShot=True, interval=QApplication.doubleClickInterval())
@@ -140,6 +144,12 @@ class PantallaVideo(QWidget):
     def mostrar_osd(self, texto: str):
         self._set_osd(texto)
         self._timer_osd.start()
+
+    def mostrar_aviso(self, titulo: str, detalle: str = "", segundos: float = 12):
+        """Un aviso importante: grande, en el medio de arriba, con borde ámbar, y que dura varios segundos."""
+        self._aviso = (titulo, detalle)
+        self._timer_aviso.start(int(segundos * 1000))
+        self.update()
 
     def _set_osd(self, texto: str):
         self._osd = texto
@@ -198,6 +208,8 @@ class PantallaVideo(QWidget):
             self._dibujar_subtitulo(p, zona)
         if self._osd:
             self._dibujar_osd(p)
+        if self._aviso:
+            self._dibujar_aviso(p)
 
     def _dibujar_subtitulo(self, p: QPainter, zona: QRectF):
         fuente = QFont(self.font())
@@ -233,6 +245,30 @@ class PantallaVideo(QWidget):
         p.setPen(QColor("white"))
         p.drawText(QRectF(0, centro.y() + radio + 8, self.width(), radio), Qt.AlignHCenter | Qt.AlignTop,
                    "Clic o Espacio para reproducir")
+
+    def _dibujar_aviso(self, p: QPainter):
+        titulo, detalle = self._aviso
+        alto_letra = max(16, self.height() // 22)
+        f_tit = QFont(self.font()); f_tit.setPixelSize(alto_letra); f_tit.setBold(True)
+        f_det = QFont(self.font()); f_det.setPixelSize(max(13, int(alto_letra * 0.66)))
+        ancho = min(self.width() - 40, max(420, self.width() * 0.6))
+        fm_t, fm_d = QFontMetrics(f_tit), QFontMetrics(f_det)
+        lineas = _envolver(detalle, fm_d, ancho - 48) if detalle else []
+        alto = 24 + fm_t.height() + (10 + len(lineas) * fm_d.height() if lineas else 0) + 22
+        caja = QRectF((self.width() - ancho) / 2, max(16, self.height() * 0.12), ancho, alto)
+        p.setPen(QPen(QColor("#ffb020"), 3))
+        p.setBrush(QColor(20, 14, 4, 235))
+        p.drawRoundedRect(caja, 12, 12)
+        p.setFont(f_tit)
+        p.setPen(QColor("#ffc640"))
+        y = caja.top() + 20
+        p.drawText(QRectF(caja.left() + 16, y, ancho - 32, fm_t.height()), Qt.AlignCenter, "⚠  " + titulo)
+        y += fm_t.height() + 10
+        p.setFont(f_det)
+        p.setPen(QColor("white"))
+        for linea in lineas:
+            p.drawText(QRectF(caja.left() + 24, y, ancho - 48, fm_d.height()), Qt.AlignCenter, linea)
+            y += fm_d.height()
 
     def _dibujar_osd(self, p: QPainter):
         fuente = QFont(self.font())
@@ -620,6 +656,44 @@ class Bienvenida(QWidget):
         self._mover(d_logo, (d_x, d_y))
 
 
+class BarraTiempo(QSlider):
+    """La barra del video: clic en cualquier parte salta ahí (y se puede seguir arrastrando);
+    al pasar el mouse muestra un cartelito con el minuto de ese punto."""
+
+    def __init__(self):
+        super().__init__(Qt.Horizontal)
+        self.setMouseTracking(True)
+
+    def _valor_en(self, x: float) -> int:
+        opt = QStyleOptionSlider()
+        self.initStyleOption(opt)
+        canal = self.style().subControlRect(QStyle.CC_Slider, opt, QStyle.SC_SliderGroove, self)
+        manija = self.style().subControlRect(QStyle.CC_Slider, opt, QStyle.SC_SliderHandle, self)
+        inicio = canal.x() + manija.width() / 2
+        largo = max(1, canal.width() - manija.width())
+        return QStyle.sliderValueFromPosition(self.minimum(), self.maximum(),
+                                              int(min(max(x - inicio, 0), largo)), largo)
+
+    def mousePressEvent(self, e):
+        if e.button() == Qt.LeftButton and self.maximum() > 0:
+            v = self._valor_en(e.position().x())
+            self.setValue(v)
+            self.sliderMoved.emit(v)      # el reproductor salta ahí
+        super().mousePressEvent(e)        # la manija ya quedó bajo el mouse: se puede arrastrar
+
+    def mouseMoveEvent(self, e):
+        super().mouseMoveEvent(e)
+        if self.maximum() <= 0:
+            return
+        x = e.position().x()
+        v = self.value() if self.isSliderDown() else self._valor_en(x)
+        QToolTip.showText(self.mapToGlobal(QPoint(int(x) - 20, -38)), formato_tiempo(v), self)
+
+    def leaveEvent(self, e):
+        QToolTip.hideText()
+        super().leaveEvent(e)
+
+
 class Visor(QWidget):
     pedir_pantalla_completa = Signal()
     # (ruta del video, ruta del subtítulo o None, retraso en ms)
@@ -692,7 +766,7 @@ class Visor(QWidget):
                                          toolTip="Siguiente de la cola o capítulo de la categoría (N)")
         self.btn_atras15 = QPushButton("↺ 15", toolTip="Retroceder 15 segundos (Shift+←)")
         self.btn_adelante15 = QPushButton("15 ↻", toolTip="Adelantar 15 segundos (Shift+→)")
-        self.barra = QSlider(Qt.Horizontal)
+        self.barra = BarraTiempo()
         self.lbl_tiempo = QLabel("0:00 / 0:00")
         self.btn_mute = QPushButton(icon=estilo.standardIcon(QStyle.SP_MediaVolume), toolTip="Silenciar")
         self.volumen = QSlider(Qt.Horizontal, maximum=100, value=VOLUMEN_INICIAL)
@@ -737,10 +811,10 @@ class Visor(QWidget):
         for w in (self.btn_atras15, self.btn_play, self.btn_adelante15, self.btn_stop, self.btn_siguiente):
             fila.addWidget(w)
         fila.addStretch(1)
-        for w in (self.btn_mute, self.volumen, self.lbl_volumen, self.btn_cola, self.btn_subs, self.btn_mas,
+        for w in (self.btn_subs, self.btn_mute, self.volumen, self.lbl_volumen, self.btn_cola, self.btn_mas,
                   self.btn_completa):
             fila.addWidget(w)
-        self.btn_subs.hide()                      # los subtítulos se eligen desde el menú «⋯»
+        self.btn_subs.setObjectName("botonCC")       # «CC»: los subtítulos, a mano (también están en el menú «⋯»)
         self.volumen.setFixedWidth(90)
 
         # Barra de sincronización, visible con un archivo de subtítulos cargado.
@@ -782,7 +856,7 @@ class Visor(QWidget):
         self._giro = 0
         self._reloj_giro = QTimer(self, interval=130, timeout=self._girar)
         self.avance_sincronia.connect(self._avance_sincronia)
-        fila_subs.insertWidget(fila_subs.indexOf(self.campo_ms) + 1, self.lbl_cargando)
+        fila_subs.insertWidget(fila_subs.indexOf(self.lbl_sub) + 1, self.lbl_cargando, 1)
         btn_auto = QPushButton("🪄 Auto", objectName="chico", toolTip=(
             "Sincroniza solo: compara cuándo se habla en el audio con cuándo hay diálogos en el subtítulo.\n"
             "Tarda un rato según el largo de la película (hace falta ffmpeg)."))
@@ -885,7 +959,7 @@ class Visor(QWidget):
     def controles_editables(self) -> dict:
         return {"atras15": self.btn_atras15, "play": self.btn_play, "adelante15": self.btn_adelante15, "stop": self.btn_stop,
                 "siguiente": self.btn_siguiente, "mute": self.btn_mute, "volumen": self.volumen, "porcentaje": self.lbl_volumen,
-                "mas": self.btn_mas, "completa": self.btn_completa}
+                "subs": self.btn_subs, "mas": self.btn_mas, "completa": self.btn_completa}
 
     def esconder_controles(self, nombres):
         for nombre, w in self.controles_editables().items():
@@ -1043,31 +1117,46 @@ class Visor(QWidget):
             self._actividad()
         else:
             self._timer_ocultar.stop()
-            self.pantalla.unsetCursor()
+            self._mostrar_cursor()
             self._actualizar_controles()
+
+    def _mostrar_cursor(self):
+        self.pantalla.unsetCursor()
+        self.unsetCursor()
 
     def _actividad(self):
         if self._modo_completo:
-            self.pantalla.unsetCursor()
+            self._mostrar_cursor()
             self._actualizar_controles()
+            self._quieto_desde = time.monotonic()
             self._timer_ocultar.start()
 
     def _ocultar_controles(self):
-        # Con el cursor de verdad: underMouse() queda «pegado» en True después de usar un menú o una lista
-        # desplegable (Qt no avisa que el mouse salió), y los controles no se ocultaban más
-        def encima(w):
-            return w.isVisible() and w.rect().contains(w.mapFromGlobal(QCursor.pos()))
-        desplegado = QApplication.activePopupWidget() is not None
-        en_uso = (encima(self.controles) or encima(self.barra_subs) or desplegado
-                  or self.menu_subs.isVisible() or self.menu_cola.isVisible())
         if not self._modo_completo:
             return
-        if en_uso or self.reproductor.playbackState() != QMediaPlayer.PlayingState:
+        # Con el cursor de verdad: underMouse() queda «pegado» en True después de usar un menú o una lista
+        # desplegable (Qt no avisa que el mouse salió), y los controles no se ocultaban más
+        pos = QCursor.pos()
+        if pos != getattr(self, "_ultima_pos", None):
+            self._ultima_pos = pos
+            self._quieto_desde = time.monotonic()
+        quieto = time.monotonic() - getattr(self, "_quieto_desde", 0)
+
+        def encima(w):
+            return w.isVisible() and w.rect().contains(w.mapFromGlobal(pos))
+        desplegado = (QApplication.activePopupWidget() is not None
+                      or self.menu_subs.isVisible() or self.menu_cola.isVisible())
+        # Con el mouse encima de los controles se quedan, pero si el mouse quedó quieto ahí un rato
+        # (por ejemplo después de tocar ▶) se esconden igual
+        encima_activo = (encima(self.controles) or encima(self.barra_subs)) and quieto < 4
+        if desplegado or encima_activo or self.reproductor.playbackState() != QMediaPlayer.PlayingState:
             self._timer_ocultar.start()
             return
+        QToolTip.hideText()
         self.controles.hide()
         self.barra_subs.hide()
         self.pantalla.setCursor(Qt.BlankCursor)
+        self.setCursor(Qt.BlankCursor)
 
     def _actualizar_controles(self):
         self.controles.setVisible(self._es_video)
@@ -1149,6 +1238,7 @@ class Visor(QWidget):
     def _empezar_carga(self):
         self.progreso_sincronia = 0
         self.btn_auto.setEnabled(False)
+        self.lbl_sub.hide()
         self.lbl_cargando.show()
         self._reloj_giro.start()
         self._girar()
@@ -1157,6 +1247,7 @@ class Visor(QWidget):
         self.progreso_sincronia = -1
         self._reloj_giro.stop()
         self.lbl_cargando.hide()
+        self.lbl_sub.show()
         self.btn_auto.setEnabled(True)
 
     def _avance_sincronia(self, porcentaje: int):
@@ -1165,7 +1256,7 @@ class Visor(QWidget):
 
     def _girar(self):
         self._giro = (self._giro + 1) % 4
-        self.lbl_cargando.setText(f"{'◐◓◑◒'[self._giro]} Analizando el audio… {max(0, self.progreso_sincronia)} %")
+        self.lbl_cargando.setText(f"{'◐◓◑◒'[self._giro]} Analizando… {max(0, self.progreso_sincronia)} %")
 
     def _campo_ms_cambio(self, ms: int):
         if self.subs is None:
@@ -1212,7 +1303,11 @@ class Visor(QWidget):
         def fallo(mensaje):
             self._sincronizando = False
             self._terminar_carga()
-            self.pantalla.mostrar_osd(mensaje)
+            titulo, _, detalle = str(mensaje).partition("\n")
+            if detalle:           # un aviso importante (el subtítulo es de otra película): grande y por más tiempo
+                self.pantalla.mostrar_aviso(titulo, detalle, segundos=14)
+            else:
+                self.pantalla.mostrar_aviso("No se pudo sincronizar", titulo, segundos=10)
 
         def avance(segundos: float):  # desde el hilo de fondo: la señal lo pasa al de la interfaz
             self.avance_sincronia.emit(min(99, int(segundos * 100 / duracion_s)))
@@ -1276,9 +1371,7 @@ class Visor(QWidget):
         if archivos:
             m.addSection("Archivos de subtítulos")
         for ruta, texto in archivos:
-            accion = m.addAction(texto, lambda r=ruta: self.cargar_subtitulos(r))
-            accion.setCheckable(True)
-            accion.setChecked(ruta == self.ruta_sub)
+            m.addAction(self._fila_subtitulo(m, ruta, texto))
         pistas = self.pistas_subtitulos()
         if pistas:
             m.addSection("Pistas incluidas en el video")
@@ -1294,6 +1387,45 @@ class Visor(QWidget):
             accion = tamanos.addAction(nombre, lambda e=escala: self.cambiar_tamano_sub(e))
             accion.setCheckable(True)
             accion.setChecked(self.pantalla.escala_sub == escala)
+
+    def _fila_subtitulo(self, menu: QMenu, ruta, texto: str):
+        """Una opción del menú de subtítulos: el nombre (lo elige) y, al final, una papelerita roja (lo borra)."""
+        from PySide6.QtWidgets import QWidgetAction
+        accion = QWidgetAction(menu)
+        fila = QWidget(objectName="filaSubtitulo")
+        capa = QHBoxLayout(fila)
+        capa.setContentsMargins(4, 1, 4, 1)
+        capa.setSpacing(6)
+        elegido = ruta == self.ruta_sub
+        nombre = QPushButton(("✓  " if elegido else "     ") + texto, objectName="subtituloNombre", flat=True)
+        nombre.setStyleSheet("QPushButton#subtituloNombre { text-align: left; padding: 5px 8px; border: none; background: transparent; }"
+                             "QPushButton#subtituloNombre:hover { background: rgba(127, 127, 127, 60); border-radius: 4px; }")
+        nombre.setCursor(Qt.PointingHandCursor)
+        nombre.clicked.connect(lambda: (menu.close(), self.cargar_subtitulos(ruta)))
+        papelera = QPushButton("🗑", objectName="subtituloBorrar", toolTip="Borrar este archivo de subtítulos (va a la Papelera)")
+        papelera.setFixedSize(30, 26)
+        papelera.setCursor(Qt.PointingHandCursor)
+        papelera.setStyleSheet("QPushButton#subtituloBorrar { color: #ff5252; background: rgba(229, 57, 53, 40); border: 1px solid "
+                               "rgba(229, 57, 53, 120); border-radius: 5px; font-size: 12pt; padding: 0; }"
+                               "QPushButton#subtituloBorrar:hover { background: #e53935; color: white; }")
+        papelera.clicked.connect(lambda: (menu.close(), self._borrar_subtitulo(ruta)))
+        capa.addWidget(nombre, 1)
+        capa.addWidget(papelera)
+        accion.setDefaultWidget(fila)
+        return accion
+
+    def _borrar_subtitulo(self, ruta):
+        from pathlib import Path
+        from .dominio_publico import a_la_papelera
+        ruta = Path(ruta)
+        if QMessageBox.question(self, "Borrar subtítulos", f"¿Mandar «{ruta.name}» a la Papelera?") != QMessageBox.Yes:
+            return
+        if ruta == (Path(self.ruta_sub) if self.ruta_sub else None):
+            self.quitar_subtitulos()
+        if a_la_papelera(ruta):
+            self.pantalla.mostrar_osd(f"🗑 {ruta.name} fue a la Papelera")
+        else:
+            self.pantalla.mostrar_osd("No se pudo borrar el archivo")
 
     def cambiar_tamano_sub(self, escala: float):
         self.pantalla.escala_sub = escala

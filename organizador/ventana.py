@@ -347,6 +347,20 @@ class Ventana(QMainWindow):
                 w.setMinimumWidth(0)
         self.setCentralWidget(divisor)
 
+        # Modo simple: grilla de pósters a la izquierda y la ficha grande en el lugar del reproductor
+        from .modo_simple import FichaSimple, GrillaSimple
+        self._modo_simple = False
+        self.grilla_simple = GrillaSimple(self.bib)
+        self.grilla_simple.hide()
+        divisor.addWidget(self.grilla_simple)
+        self.ficha_simple = FichaSimple(self.bib)
+        self.ficha_simple.hide()
+        capa_der.insertWidget(capa_der.indexOf(self.visor), self.ficha_simple, 1)
+        self.grilla_simple.elegido.connect(self._simple_elegido)
+        self.grilla_simple.reproducir.connect(self._simple_reproducir)
+        self.ficha_simple.reproducir.connect(self._simple_reproducir)
+        self.grilla_simple.salir.connect(lambda: self.alternar_modo_simple(False))
+
         self._crear_menu()
         self._atajos()
         self._crear_on()
@@ -358,6 +372,74 @@ class Ventana(QMainWindow):
         self.vigilante.iniciar()
         self.torrents.iniciar()
         self.buscador_fichas.iniciar()
+        if self.bib.config("modo_simple") == "1":
+            QTimer.singleShot(0, lambda: self.alternar_modo_simple(True))
+
+    # --- Modo simple (pósters, como la app del celular) ---------------------------
+
+    def alternar_modo_simple(self, activo: bool | None = None):
+        activo = (not self._modo_simple) if activo is None else activo
+        if self._video_completo:
+            self.alternar_pantalla_completa()
+        if activo == self._modo_simple and activo:
+            return self._visibilidad_simple()
+        self._modo_simple = activo
+        self.bib.guardar_config("modo_simple", "1" if activo else "0")
+        if activo:
+            self._tamanos_normales = self.divisor.sizes()
+            self.grilla_simple.cargar()
+            self._visibilidad_simple()
+            total = max(900, sum(self.divisor.sizes()))
+            self.divisor.setSizes([int(total * 0.58) if self.divisor.widget(i) is self.grilla_simple
+                                   else (int(total * 0.42) if self.divisor.widget(i) is self.der else 0)
+                                   for i in range(self.divisor.count())])
+            actual = self.grilla_simple.grilla.currentItem()
+            if self.visor.ruta_video and self.visor.reproductor.playbackState() == QMediaPlayer.PlayingState:
+                self._ver_reproductor()
+            else:
+                self.ficha_simple.mostrar(actual.data(Qt.UserRole) if actual else None)
+                self._ver_ficha()
+        else:
+            self.grilla_simple.hide()
+            self.ficha_simple.hide()
+            self.visor.show()
+            for w in (self.izq, self.centro, self.detalles, self.barra_herramientas, self.fila_buscar):
+                w.show()
+            self._aplicar_disposicion()
+            if getattr(self, "_tamanos_normales", None):
+                self.divisor.setSizes(self._tamanos_normales)
+        if hasattr(self, "acc_simple"):
+            self.acc_simple.setText("✕ Salir del modo simple" if activo else "🎬 Modo simple")
+
+    def _visibilidad_simple(self):
+        """En el modo simple solo se ven la grilla y la ficha (o el reproductor); el resto se esconde."""
+        for w in (self.izq, self.centro, self.detalles, self.barra_herramientas, self.fila_buscar, self.fila_banda):
+            w.hide()
+        if self.divisor.indexOf(self.grilla_simple) != 0:
+            self.divisor.insertWidget(0, self.grilla_simple)
+        self.grilla_simple.show()
+
+    def _ver_ficha(self):
+        self.visor.hide()
+        self.ficha_simple.show()
+
+    def _ver_reproductor(self):
+        self.ficha_simple.hide()
+        self.visor.show()
+
+    def _simple_elegido(self, e: dict):
+        """Elegiste un póster: su ficha en el lugar del reproductor (si estaba viendo algo, se pausa)."""
+        if self.visor.reproductor.playbackState() == QMediaPlayer.PlayingState:
+            self.visor.reproductor.pause()
+        self.ficha_simple.mostrar(e)
+        self._ver_ficha()
+
+    def _simple_reproducir(self, ruta: str):
+        self._ver_reproductor()
+        if self.visor.ruta_video == ruta and not self.visor.en_vista_previa():
+            self.visor.reproductor.play()
+            return
+        self.visor.mostrar(ruta, "video", self.bib.subtitulos_de(ruta), self.bib.posicion_guardada(ruta), modo=REPRODUCIR)
 
     # --- Construcción -------------------------------------------------------
 
@@ -462,21 +544,37 @@ class Ventana(QMainWindow):
         fila.setContentsMargins(0, 0, 8, 0)
         fila.setSpacing(8)
         self._fila_esquina = fila
-        self.lbl_munequito = QLabel(objectName="pista")
-        self.lbl_munequito.setCursor(Qt.PointingHandCursor)
-        self.lbl_munequito.mousePressEvent = lambda _e: self._abrir_avatar()
+        # El botón de BiriBiri va abajo, en la barra de botones, pegado a la derecha y más grande (solo el muñequito;
+        # su nombre y sus puntos aparecen al pasar el mouse)
+        self.lbl_munequito = QLabel(self, objectName="pista")
+        self.lbl_munequito.hide()
         self.munequito = vista3d.crear(self.social.avatar, "busto")
-        self.munequito.setFixedSize(alto + 6, alto)
+        self.munequito.setFixedSize(62, 52)
+        self.munequito.setCursor(Qt.PointingHandCursor)
         self.munequito.tocado.connect(self._abrir_avatar)
+        espacio = QWidget()
+        espacio.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        espacio.setStyleSheet("background: transparent;")
+        # Acciones propias (no las de addWidget, que la barra borra al sacarlas cuando se rearma)
+        from PySide6.QtWidgets import QWidgetAction
+        self._acc_espacio = QWidgetAction(self)
+        self._acc_espacio.setDefaultWidget(espacio)
+        caja_prota = QWidget()
+        caja_prota.setStyleSheet("background: transparent;")
+        capa_prota = QHBoxLayout(caja_prota)
+        capa_prota.setContentsMargins(0, 0, 4, 0)
+        capa_prota.addWidget(self.munequito)
+        self._acc_prota = QWidgetAction(self)
+        self._acc_prota.setDefaultWidget(caja_prota)
+        self.barra_herramientas.addAction(self._acc_espacio)
+        self.barra_herramientas.addAction(self._acc_prota)
         # Al pasar el mouse por el botón: el nombre, los puntos y el muñequito sobre el reproductor
         self._tarjeta_prota = TarjetaProtagonista(self.visor)
         self._paso_prota = PasoDelMouse(self)
         self._paso_prota.instalar(self.munequito, self.lbl_munequito)
         self._paso_prota.cambio.connect(self._mostrar_tarjeta_protagonista)
-        fila.addWidget(self.lbl_munequito)
-        fila.addWidget(self.munequito)
         self._esquina = esquina  # PySide no se queda con el widget de la esquina: sin esto se borra
-        barra.setCornerWidget(esquina, Qt.TopRightCorner)
+        esquina.hide()           # la esquina quedó vacía (el BiriBiri está abajo): escondida no deja rastros
         # Al cambiar de tema (otra letra) o de tamaño, la esquina vuelve a tomar el alto de las opciones
         self._filtro_barra = _AlCambiarEstilo(barra, lambda: QTimer.singleShot(0, self._ajustar_esquina))
         barra.installEventFilter(self._filtro_barra)
@@ -484,6 +582,11 @@ class Ventana(QMainWindow):
         self.social.cambio.connect(self._munequito_cambio)
         self._munequito_cambio()
         barra.addAction("Reportar un bug", self._reportar_bug)
+        # Fullscreen como una opción más de la barra (como antes): entra y sale; no ocupa la esquina del BiriBiri
+        self.acc_fullscreen = barra.addAction("🖥 Fullscreen", self.alternar_modo_fullscreen)
+        self.acc_fullscreen.setToolTip("Toda la app a pantalla completa, sin la barra de tareas (F11)")
+        self.acc_simple = barra.addAction("🎬 Modo simple", self.alternar_modo_simple)
+        self.acc_simple.setToolTip("Navegar tus películas y series con sus pósters, como en la app del celular")
 
     def _acerca_de(self):
         caja = QMessageBox(self)
@@ -557,17 +660,12 @@ class Ventana(QMainWindow):
             self.alternar_modo_fullscreen()
 
     def _ubicar_salir_fullscreen(self):
-        boton = getattr(self, "btn_salir_fullscreen", None)
-        if boton is None:
-            boton = self.btn_salir_fullscreen = QPushButton("✕ Salir de Fullscreen", objectName="salirFullscreen")
-            self._fila_esquina.insertWidget(0, boton)
-            boton.setToolTip("Volver a la ventana normal (F11 o Esc)")
-            boton.setCursor(Qt.PointingHandCursor)
-            boton.setStyleSheet("QPushButton#salirFullscreen { background: rgba(0, 0, 0, 150); color: #ffffff; "
-                                "border: 1px solid rgba(255, 255, 255, 120); border-radius: 11px; padding: 2px 12px; "
-                                "font-size: 9pt; } QPushButton#salirFullscreen:hover { background: rgba(200, 30, 30, 220); }")
-            boton.clicked.connect(self.alternar_modo_fullscreen)
-        boton.setVisible(self._modo_fullscreen and not self._video_completo)
+        """La opción Fullscreen de la barra de menús cambia a «Salir» mientras está activo."""
+        accion = getattr(self, "acc_fullscreen", None)
+        if accion is not None:
+            accion.setText("✕ Salir de Fullscreen" if self._modo_fullscreen else "🖥 Fullscreen")
+            accion.setToolTip("Volver a la ventana normal (F11 o Esc)" if self._modo_fullscreen
+                              else "Toda la app a pantalla completa, sin la barra de tareas (F11)")
 
     def showEvent(self, e):
         super().showEvent(e)
@@ -612,6 +710,10 @@ class Ventana(QMainWindow):
             w.setVisible(not completa and (w not in self._paneles or self._paneles[w].isChecked()))
         # La banda del tema (título que corre) tampoco: en pantalla completa se ve solo la película
         self.fila_banda.setVisible(not completa and self._banda_con_tema)
+        if getattr(self, "_modo_simple", False):
+            self.grilla_simple.setVisible(not completa)
+            if not completa:
+                QTimer.singleShot(0, self._visibilidad_simple)
         if hasattr(self, "_lugares"):
             QTimer.singleShot(0, self._lugares.reposicionar)
         if not completa:
@@ -976,7 +1078,7 @@ class Ventana(QMainWindow):
         item.setData(0, ROL_VISTO, visto)
         if visto:
             item.setForeground(0, COLOR_VISTA)
-        elif texto:
+        elif texto and item.data(0, ROL)[1] not in self._videos_sin_pendiente():
             item.setForeground(0, COLOR_PENDIENTE)
         else:
             item.setData(0, Qt.ForegroundRole, None)
@@ -1039,6 +1141,15 @@ class Ventana(QMainWindow):
                 menu.addAction(f"↺ Marcar como no visto ({len(videos)})", lambda: self._marcar_vistos(videos, False))
             else:
                 menu.addAction(f"✓ Marcar como visto ({len(videos)})", lambda: self._marcar_vistos(videos, True))
+            a_medias = [r for r in videos if progresos.get(r) and not progresos[r][2] and texto_progreso(progresos[r])]
+            if a_medias:
+                sin = self._videos_sin_pendiente()
+                if all(r in sin for r in a_medias):
+                    menu.addAction(f"🟨 Volver a marcar como pendiente ({len(a_medias)})",
+                                   lambda: self._quitar_amarillo(a_medias, False))
+                else:
+                    menu.addAction(f"⬜ Quitar el amarillo de pendiente ({len(a_medias)})",
+                                   lambda: self._quitar_amarillo(a_medias, True))
         menu.addSeparator()
         if all(self.bib.favoritos in self.bib.categorias_de(a) for a in ids):
             menu.addAction(f"☆ Quitar de {CATEGORIA_FAVORITOS} ({n})", lambda: self.asignar_seleccion(
@@ -1166,9 +1277,16 @@ class Ventana(QMainWindow):
         self.ficha.show()
 
     def _ficha_nueva(self, clave: str):
+        if self._modo_simple:
+            QTimer.singleShot(1500, self._refrescar_grilla_simple)
         actual = self.archivo_actual()
         if actual and actual[2] == "video" and fichas.clave_de(Path(actual[1]).name)[0] == clave:
             self._mostrar_ficha(actual)
+
+    def _refrescar_grilla_simple(self):
+        if self._modo_simple and not getattr(self, "_refresco_pendiente", False):
+            self._refresco_pendiente = True
+            QTimer.singleShot(2000, lambda: (setattr(self, "_refresco_pendiente", False), self.grilla_simple.cargar()))
 
     def _corregir_ficha(self, ruta: str):
         clave, titulo, _anio = fichas.clave_de(Path(ruta).name)
@@ -1255,6 +1373,18 @@ class Ventana(QMainWindow):
         return {cid for cid, n in self.bib.videos_por_categoria().items()
                 if vistos.get(cid, 0) >= n and cid != self.bib.favoritos}
 
+    def _videos_sin_pendiente(self) -> set[str]:
+        if getattr(self, "_cache_sin_pendiente", None) is None:
+            self._cache_sin_pendiente = self.bib.videos_sin_pendiente()
+        return self._cache_sin_pendiente
+
+    def _quitar_amarillo(self, rutas: list[str], quitar: bool):
+        """El amarillo de «pendiente» es de cada video: se saca (o se vuelve a poner) desde la lista o desde su categoría."""
+        self.bib.marcar_sin_pendiente(rutas, quitar)
+        self._cache_sin_pendiente = None
+        self._cargar_archivos()
+        self._actualizar_conteos()
+
     def _sin_pendiente(self) -> set[int]:
         """Categorías a las que se les sacó a mano el amarillo de «por ver»."""
         return {int(c) for c in self.bib.config("categorias_sin_pendiente").split(",") if c}
@@ -1294,9 +1424,14 @@ class Ventana(QMainWindow):
         menu.exec(self.lista_filtros.viewport().mapToGlobal(pos))
 
     def _alternar_pendiente(self, cid: int):
+        """El amarillo va con cada película: sacárselo a la categoría se lo saca a sus videos a medias (y al revés)."""
+        quitar = cid not in self._sin_pendiente()
         self.bib.guardar_config("categorias_sin_pendiente",
                                 ",".join(str(c) for c in sorted(self._sin_pendiente() ^ {cid})))
-        self._actualizar_conteos()
+        progresos = self.bib.progresos()
+        rutas = [r for _a, r, _n, tipo in self.bib.listar_archivos("categoria", cid)
+                 if tipo == "video" and progresos.get(r) and not progresos[r][2]]
+        self._quitar_amarillo(rutas, quitar)
 
     def _plegar_categorias_vistas(self):
         plegada = self.bib.config("categorias_vistas_plegadas") == "1"
@@ -1578,7 +1713,6 @@ class Ventana(QMainWindow):
         if alto < 20 or alto == self._esquina.height():
             return
         self._esquina.setFixedHeight(alto)
-        self.munequito.setFixedSize(alto + 6, alto)
 
     def _munequito_cambio(self):
         social = self.social
@@ -1819,7 +1953,45 @@ class Ventana(QMainWindow):
         self._buscar_subtitulos_solos(videos)
 
     def _buscar_subtitulos_solos(self, videos: list):
-        subtitulos_automaticos(self.bib, videos, lambda m: self.statusBar().showMessage(m, 10000))
+        """Subtítulos de las películas que acaban de llegar: primero subtis.io (si el idioma elegido es español;
+        gratis y sin límite), y para las que no aparezcan ahí, OpenSubtitles (si hay clave)."""
+        from . import idiomas, subtis
+        from .tareas import en_segundo_plano
+        avisar =lambda m: self.statusBar().showMessage(m, 10000)       # noqa: E731
+        idioma = self.bib.config(idiomas.CLAVE) or ""
+        if not videos or not subtis.sirve_para(idioma):
+            subtitulos_automaticos(self.bib, videos, avisar)
+            return
+
+        def trabajo():
+            bajados, faltan = [], []
+            for v in videos:
+                try:
+                    (bajados.append((v, r)) if (r := subtis.bajar(v)) else faltan.append(v))
+                except Exception:       # sin internet o subtis caído: no pasa nada
+                    faltan.append(v)
+            return bajados, faltan
+
+        def listo(resultado):
+            bajados, faltan = resultado
+            for video, sub in bajados:
+                for visor in [self.visor, *(w.visor for w in self.ventanas_video)]:
+                    if visor.ruta_video == video and visor.subs is None:
+                        visor.cargar_subtitulos(sub)
+            if bajados:
+                avisar(f"💬 Subtítulos en español de subtis.io: {len(bajados)} película(s)")
+            if faltan:
+                subtitulos_automaticos(self.bib, faltan, avisar)
+        en_segundo_plano(trabajo, listo, lambda _e: subtitulos_automaticos(self.bib, videos, avisar))
+
+    def pedir_idioma_si_falta(self):
+        """La primera vez (recién instalado): elegir el idioma de los subtítulos."""
+        from . import idiomas
+        if self.bib.config(idiomas.CLAVE):
+            return
+        dialogo = idiomas.DialogoIdioma(parent=self, primera_vez=True)
+        dialogo.exec()
+        idiomas.guardar(self.bib, dialogo.elegido() or idiomas.del_sistema())
 
     def _buscar_en_subdivx(self, ruta_video: str):
         """subdivx no tiene API ni acepta la búsqueda en el link: se abre en el navegador con el
@@ -1907,9 +2079,12 @@ class Ventana(QMainWindow):
             self._diseno = diseno.cargar(self.bib)
         t = diseno.tema_con(buscar_tema(id_tema), self._diseno)
         fuentes.registrar()
-        QApplication.instance().setStyleSheet(estilo(t) + diseno.qss(self._diseno))
+        from . import emojis
+        emojis.color_texto = t.texto   # los símbolos de un color (⛶ ↺) van del color del texto del tema
+        QApplication.instance().setStyleSheet(estilo(t) + diseno.qss(self._diseno)
+                                              + "\nQMenu { icon-size: 20px; }")
         if hasattr(self, "lista"):
-            self.lista.setAlternatingRowColors(t.moderno)       # filas alternadas: se distinguen mejor
+            self.lista.setAlternatingRowColors(True)       # filas alternadas: se distinguen mejor
         # Los colores de «a medias» y «vista» cambian con el tema (en los claros, más oscuros)
         COLOR_PENDIENTE.setRgb(QColor(t.pendiente).rgb())
         COLOR_VISTA.setRgb(QColor(t.vista).rgb())
@@ -1947,19 +2122,23 @@ class Ventana(QMainWindow):
         d = getattr(self, "_diseno", None) or diseno.cargar(self.bib)
         barra = getattr(self, "barra_herramientas", None)
         if barra is not None and hasattr(self, "_acciones_barra"):
+            # BiriBiri (al final, a la derecha) no se saca nunca: el muñequito 3D no aguanta que lo suelten
+            fijas = [a for a in (getattr(self, "_acc_espacio", None), getattr(self, "_acc_prota", None)) if a is not None]
+            antes_de = fijas[0] if fijas else None
             for accion in list(barra.actions()):
-                barra.removeAction(accion)
+                if accion not in fijas:
+                    barra.removeAction(accion)
             anterior_sep = True
             for clave in d["barra"]["orden"]:
                 if clave == "|":
                     if not anterior_sep:
-                        barra.addSeparator()
+                        barra.insertSeparator(antes_de) if antes_de else barra.addSeparator()
                         anterior_sep = True
                     continue
                 accion = self._acciones_barra[clave]
                 accion.setText(d["barra"]["textos"].get(clave) or self._textos_barra[clave])
                 if clave not in d["barra"]["ocultos"]:
-                    barra.addAction(accion)
+                    barra.insertAction(antes_de, accion) if antes_de else barra.addAction(accion)
                     anterior_sep = False
             barra.setToolButtonStyle({"texto": Qt.ToolButtonTextOnly, "icono": Qt.ToolButtonIconOnly,
                                       "texto_abajo": Qt.ToolButtonTextUnderIcon}.get(d["barra"]["estilo"], Qt.ToolButtonTextBesideIcon))
@@ -1988,6 +2167,8 @@ class Ventana(QMainWindow):
                     divisor.insertWidget(i, widgets[clave])
             for i in range(divisor.count()):
                 divisor.setCollapsible(i, False)
+        if getattr(self, "_modo_simple", False):     # en el modo simple, lo de arriba no se vuelve a mostrar
+            self._visibilidad_simple()
 
     def _abrir_apariencia(self):
         dialogo = VentanaApariencia(buscar_tema(self.bib.config("tema")).id, self.bib.config("tema_animado") != "0", self)

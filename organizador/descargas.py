@@ -180,6 +180,13 @@ class GestorDescargas(QObject):
             destino = video.with_suffix(f".{idioma}.srt")
             if destino.exists():
                 continue
+            if idioma == "es":          # subtis.io: subtítulos en español, gratis y sin límite
+                try:
+                    from . import subtis
+                    if subtis.bajar(str(video)):
+                        continue
+                except Exception:
+                    pass
             if cliente:
                 try:
                     if cliente.descargar(str(video), idioma, titulo):

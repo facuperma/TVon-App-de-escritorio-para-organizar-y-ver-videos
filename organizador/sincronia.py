@@ -261,6 +261,11 @@ def estimar(voz: np.ndarray, cues: list[tuple[int, int, str]], pista: int = 0) -
               or (zb >= 6.0 and k >= 4 and acuerdo >= 0.4)
               or (z >= 4.0 and relacion >= 1.15 and zb >= 4.5 and acuerdo >= 0.5))
     if not seguro:
+        dura_subs = max(b for _a, b, _t in cues) / 60000
+        dura_video = len(voz) * PASO_MS / 60000
+        if dura_video > 20 and (dura_subs < 0.65 * dura_video or dura_subs > 1.25 * dura_video):
+            raise ErrorSincronia(f"Este subtítulo no es de esta película\nEl subtítulo dura {dura_subs:.0f} min y la película "
+                                 f"{dura_video:.0f} min: es de otra película o de otra versión. Buscá otro archivo de subtítulos.")
         raise ErrorSincronia("No se pudo sincronizar con seguridad (el audio no coincide con estos subtítulos, o casi "
                              "no hay diálogos). Probá con «🎯 Ahora» o con otro archivo de subtítulos")
     return Resultado(final * PASO_MS, float(z), acuerdo, deriva_ms, pista, avisos)

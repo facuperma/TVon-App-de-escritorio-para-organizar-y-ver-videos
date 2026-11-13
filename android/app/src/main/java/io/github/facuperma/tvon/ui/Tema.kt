@@ -50,6 +50,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -85,6 +86,10 @@ object C {
     val peligroTexto get() = if (tema.claro) Color(0xFF8B1111) else Color(0xFFFFD4D4)
     val error get() = if (tema.claro) Color(0xFFC0262D) else Color(0xFFFF8080)
     val chipActivo get() = col(tema.seleccion)
+    /** Las tarjetas y filas: un poco más claras que el fondo, con un borde apenas visible (se separan mejor). */
+    val tarjeta get() = if (tema.claro) lerpColor(col(tema.panel), Color.White, 0.35f) else lerpColor(col(tema.panel), Color.White, 0.025f)
+    val bordeSuave get() = if (tema.claro) lerpColor(col(tema.borde), Color.White, 0.25f) else lerpColor(col(tema.borde), Color.White, 0.05f)
+    val sombra get() = if (tema.claro) Color(0x40000000) else Color(0xCC000000)
     val esquina get() = tema.radio.dp
     val forma get() = tema.forma
     val letra get() = tema.letra
@@ -145,12 +150,13 @@ fun Tarjeta(modifier: Modifier = Modifier, contenido: @Composable ColumnScope.()
     Column(
         modifier
             .fillMaxWidth()
-            .padding(vertical = 6.dp)
+            .padding(vertical = 7.dp)
+            .shadow(5.dp, formaPanel(), ambientColor = C.sombra, spotColor = C.sombra)
             .clip(formaPanel())
-            .background(C.panel)
-            .border(1.dp, C.borde, formaPanel())
-            .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+            .background(C.tarjeta)
+            .border(1.dp, C.bordeSuave, formaPanel())
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
         content = contenido,
     )
 }
@@ -184,7 +190,11 @@ fun Boton(
     val pincel = when {
         // Luna: el botón principal verde, como el de «Inicio» de esa época
         estilo == Estilo.PRIMARIO && t.id == "luna" -> brilloDe(Color(0xFF3C9D27))
+        estilo == Estilo.NORMAL && t.boton.size == 1 -> Brush.verticalGradient(
+            listOf(lerpColor(col(t.boton[0]), Color.White, 0.1f), lerpColor(col(t.boton[0]), Color.Black, 0.18f)))
         estilo == Estilo.NORMAL -> degrade(t.boton, t.brillo)
+        estilo == Estilo.PRIMARIO && !t.brillo -> Brush.verticalGradient(
+            listOf(lerpColor(C.acento, Color.White, 0.14f), lerpColor(C.acento, Color.Black, 0.14f)))
         estilo == Estilo.PRIMARIO && t.brillo -> brilloDe(C.acento)
         else -> null
     }
@@ -200,7 +210,9 @@ fun Boton(
     }
     Button(
         onClick = alTocar, enabled = habilitado,
-        modifier = (if (pincel != null) modifier.alpha(if (habilitado) 1f else .5f).background(pincel, forma) else modifier)
+        modifier = (if (pincel != null) modifier.alpha(if (habilitado) 1f else .5f)
+            .shadow(if (habilitado) 3.dp else 0.dp, forma, ambientColor = C.sombra, spotColor = C.sombra)
+            .background(pincel, forma) else modifier.shadow(if (habilitado) 3.dp else 0.dp, forma, ambientColor = C.sombra, spotColor = C.sombra))
             .then(when {
                 relieve -> Modifier.drawBehind {
                     val g = 2.dp.toPx()
@@ -224,9 +236,9 @@ fun Boton(
             disabledContainerColor = if (pincel != null) Color.Transparent else fondo.copy(alpha = .4f),
             disabledContentColor = color.copy(alpha = .6f),
         ),
-        contentPadding = if (chico) PaddingValues(horizontal = 10.dp, vertical = 4.dp) else PaddingValues(horizontal = 14.dp, vertical = 10.dp),
+        contentPadding = if (chico) PaddingValues(horizontal = 12.dp, vertical = 5.dp) else PaddingValues(horizontal = 16.dp, vertical = 11.dp),
     ) {
-        Text(texto, fontSize = if (chico) 13.sp else 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(texto, fontSize = if (chico) 13.sp else 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
     }
 }
 
@@ -267,11 +279,12 @@ fun Interruptor(texto: String, activo: Boolean, modifier: Modifier = Modifier, a
 fun Chip(texto: String, activo: Boolean = false, modifier: Modifier = Modifier, alTocar: () -> Unit) {
     Box(
         modifier
+            .shadow(if (activo) 3.dp else 1.dp, RoundedCornerShape(20.dp), ambientColor = C.sombra, spotColor = C.sombra)
             .clip(RoundedCornerShape(20.dp))
-            .background(if (activo) C.chipActivo else C.panel)
-            .border(1.dp, if (activo) C.acento else C.borde, RoundedCornerShape(20.dp))
+            .background(if (activo) C.chipActivo else C.tarjeta)
+            .border(1.dp, if (activo) C.acento else C.bordeSuave, RoundedCornerShape(20.dp))
             .clickable(onClick = alTocar)
-            .padding(horizontal = 12.dp, vertical = 7.dp),
+            .padding(horizontal = 14.dp, vertical = 8.dp),
     ) { Text(texto, color = if (activo) C.titulo else C.texto, fontSize = 14.sp, maxLines = 1) }
 }
 
@@ -294,23 +307,24 @@ fun Item(
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(vertical = 3.dp)
+            .padding(vertical = 4.dp)
+            .shadow(if (elegido) 4.dp else 2.dp, formaPanel(), ambientColor = C.sombra, spotColor = C.sombra)
             .clip(formaPanel())
-            .background(if (elegido) C.chipActivo else C.panel)
-            .border(1.dp, if (elegido) C.acento else C.borde, formaPanel())
+            .background(if (elegido) C.chipActivo else C.tarjeta)
+            .border(1.dp, if (elegido) C.acento else C.bordeSuave, formaPanel())
             .then(
                 if (alTocar != null || alMantener != null) Modifier.combinedClickable(
                     onClick = { alTocar?.invoke() },
                     onLongClick = alMantener?.let { { vibrar.performHapticFeedback(HapticFeedbackType.LongPress); it() } },
                 ) else Modifier
             )
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Box(Modifier.width(36.dp), contentAlignment = Alignment.Center) { icono() }
         Column(Modifier.weight(1f)) {
-            Text(nombre, color = if (tenue) C.tenue else colorNombre, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(nombre, color = if (tenue) C.tenue else colorNombre, maxLines = 2, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
             if (sub.isNotEmpty()) Text(sub, color = C.tenue, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             abajo()
         }

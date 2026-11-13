@@ -99,6 +99,13 @@ Item {
     property color pisoColor: "#c8a070"
     property color paredColor: "#f1ece4"
     property var muebles: []
+    // El mueble que se está arrastrando: se mueve solo él (mandar la lista entera rearma y recarga todos los muebles)
+    property int arrI: -1
+    property int arrA: -1
+    property real arrAX: 0
+    property real arrAY: 0
+    property real arrX: 0
+    property real arrZ: 0
     property var adornos: []          // los de la pared del fondo: {tex, x, y, w, h, marco, i}
     property bool grilla: false       // la cuadrícula del piso, mientras se acomoda algo
     property string grillaTex: ""
@@ -114,9 +121,73 @@ Item {
     property real selD: 0.3
     property bool selOk: true
     property bool selFantasma: false
+    // Lo que hacen solos en la habitación (vida.py): pasar suave de una pose a otra (sentarse, acostarse), el balanceo de la
+    // cadera al caminar, los «z z z» cuando duerme, el plato de la mascota y su pelota
+    property bool suave: false
+    property bool suaveLugar: true
+    Behavior on zoomU { enabled: raiz.suave; NumberAnimation { duration: 650; easing.type: Easing.InOutQuad } }
+    Behavior on panX { enabled: raiz.suave; NumberAnimation { duration: 650; easing.type: Easing.InOutQuad } }
+    Behavior on panY { enabled: raiz.suave; NumberAnimation { duration: 650; easing.type: Easing.InOutQuad } }
+    property real giroPaso: 0
+    property bool zzz: false
+    property real zzzX: 0
+    property real zzzY: 0
+    property real zzzZ: 0
+    property bool cosasCasa: false
+    property real platoCasaX: 1.3
+    property real platoCasaZ: 0.8
+    property bool platoLleno: true
+    property real pelotaX: -1.05
+    property real pelotaY: 0
+    property real pelotaZ: 0.75
+    property real pelotaRumbo: 0
+    property real pelotaGiro: 0
+    Behavior on pX { enabled: raiz.suave; NumberAnimation { duration: 650; easing.type: Easing.InOutQuad } }
+    Behavior on pY { enabled: raiz.suave; NumberAnimation { duration: 650; easing.type: Easing.InOutQuad } }
+    Behavior on pZ { enabled: raiz.suave; NumberAnimation { duration: 650; easing.type: Easing.InOutQuad } }
+    Behavior on rX { enabled: raiz.suave; NumberAnimation { duration: 650; easing.type: Easing.InOutQuad } }
+    Behavior on rZ { enabled: raiz.suave; NumberAnimation { duration: 650; easing.type: Easing.InOutQuad } }
+    Behavior on aiX { enabled: raiz.suave; NumberAnimation { duration: 650; easing.type: Easing.InOutQuad } }
+    Behavior on aiY { enabled: raiz.suave; NumberAnimation { duration: 650; easing.type: Easing.InOutQuad } }
+    Behavior on aiZ { enabled: raiz.suave; NumberAnimation { duration: 650; easing.type: Easing.InOutQuad } }
+    Behavior on adX { enabled: raiz.suave; NumberAnimation { duration: 650; easing.type: Easing.InOutQuad } }
+    Behavior on adY { enabled: raiz.suave; NumberAnimation { duration: 650; easing.type: Easing.InOutQuad } }
+    Behavior on adZ { enabled: raiz.suave; NumberAnimation { duration: 650; easing.type: Easing.InOutQuad } }
+    Behavior on liX { enabled: raiz.suave; NumberAnimation { duration: 650; easing.type: Easing.InOutQuad } }
+    Behavior on liY { enabled: raiz.suave; NumberAnimation { duration: 650; easing.type: Easing.InOutQuad } }
+    Behavior on liZ { enabled: raiz.suave; NumberAnimation { duration: 650; easing.type: Easing.InOutQuad } }
+    Behavior on ldX { enabled: raiz.suave; NumberAnimation { duration: 650; easing.type: Easing.InOutQuad } }
+    Behavior on ldY { enabled: raiz.suave; NumberAnimation { duration: 650; easing.type: Easing.InOutQuad } }
+    Behavior on ldZ { enabled: raiz.suave; NumberAnimation { duration: 650; easing.type: Easing.InOutQuad } }
+    Behavior on cabX { enabled: raiz.suave; NumberAnimation { duration: 650; easing.type: Easing.InOutQuad } }
+    Behavior on cabY { enabled: raiz.suave; NumberAnimation { duration: 650; easing.type: Easing.InOutQuad } }
+    Behavior on cabZ { enabled: raiz.suave; NumberAnimation { duration: 650; easing.type: Easing.InOutQuad } }
+    Behavior on bbX { enabled: raiz.suave && raiz.suaveLugar; NumberAnimation { duration: 650; easing.type: Easing.InOutQuad } }
+    Behavior on bbZ { enabled: raiz.suave && raiz.suaveLugar; NumberAnimation { duration: 650; easing.type: Easing.InOutQuad } }
+    Behavior on petPos { enabled: raiz.suave && raiz.suaveLugar; NumberAnimation { duration: 650; easing.type: Easing.InOutQuad } }
+    Behavior on petZ { enabled: raiz.suave && raiz.suaveLugar; NumberAnimation { duration: 650; easing.type: Easing.InOutQuad } }
+    Behavior on petY { enabled: raiz.suave; NumberAnimation { duration: 650; easing.type: Easing.InOutQuad } }
+    Behavior on petCabX { enabled: raiz.suave; NumberAnimation { duration: 650; easing.type: Easing.InOutQuad } }
+    Behavior on bbRot { enabled: raiz.suave && raiz.suaveLugar; RotationAnimation { duration: 650; direction: RotationAnimation.Shortest; easing.type: Easing.InOutQuad } }
+    Behavior on petRotY { enabled: raiz.suave && raiz.suaveLugar; RotationAnimation { duration: 650; direction: RotationAnimation.Shortest; easing.type: Easing.InOutQuad } }
     readonly property real anchoCasa: 3.6
     readonly property real fondoCasa: 2.4
     readonly property real altoPared: 1.7
+    // Paredes rectas, como una casa de muñecas cortada al medio (así los muebles se apoyan contra ellas)
+    readonly property real abertura: 0
+    readonly property real anchoPiso: raiz.anchoCasa + 2 * raiz.fondoCasa * Math.sin(raiz.abertura * Math.PI / 180) + 0.1
+    property string ventanaTex: ""
+    function enPared(lado, f) {      // un punto de la pared izquierda (lado -1) o derecha (1), a la fracción f desde el fondo
+        var a = raiz.abertura * Math.PI / 180
+        return Qt.vector3d(lado * (raiz.anchoCasa / 2 + raiz.fondoCasa * f * Math.sin(a)), 0, -raiz.fondoCasa / 2 + raiz.fondoCasa * f * Math.cos(a))
+    }
+    // En la casa, la vista no se va de la habitación: cuanto más cerca, más se puede correr
+    function limitarPan() {
+        if (!raiz.casa) return
+        var libre = 1 - 1 / Math.max(1, raiz.zoomU)
+        raiz.panX = Math.max(-raiz.anchoCasa / 2 * libre, Math.min(raiz.anchoCasa / 2 * libre, raiz.panX))
+        raiz.panY = Math.max(-1.6 * libre, Math.min(0.9 * libre, raiz.panY))
+    }
     signal casaEvento(string tipo, real x, real z, int indice, real px, real py)
     function bajoMouse(px, py) {
         var hits = vista.pickAll(px, py)
@@ -147,6 +218,32 @@ Item {
     property bool liviano: false
     property real cuerpoK: 0.74      // cabezón y regordete: más tierno
     property real cabezaK: 1.45
+    // Choque de las manos con la cabeza: dónde queda la mano (en el muñeco) con esos giros del hombro
+    // (Qt Quick 3D gira primero en z, después en x y después en y) y si cae adentro de la cabeza (un elipsoide)
+    function manoEnCabeza(s, z, x, y) {
+        var r = Math.PI / 180
+        var hx = 0.02 * s, hy = -0.235, hz = 0.01
+        var cz = Math.cos(z * r), sz = Math.sin(z * r)
+        var x1 = hx * cz - hy * sz, y1 = hx * sz + hy * cz, z1 = hz
+        var cx = Math.cos(x * r), sx = Math.sin(x * r)
+        var y2 = y1 * cx - z1 * sx, z2 = y1 * sx + z1 * cx
+        var cy = Math.cos(y * r), sy = Math.sin(y * r)
+        var x3 = x1 * cy + z2 * sy, z3 = -x1 * sy + z2 * cy
+        var k = raiz.cuerpoK, c = raiz.cabezaK, m = 0.065
+        var ex = (k * (0.155 * s + x3)) / (0.225 * c + m)
+        var ey = (k * (0.585 + y2) - (0.64 * k + 0.187 * c)) / (0.193 * c + m)
+        var ez = (k * z3 + 0.013 * c) / (0.167 * c + m)
+        return ex * ex + ey * ey + ez * ez < 1
+    }
+    // Si la mano iba a quedar adentro de la cabeza, el brazo se abre (o se cierra) lo justo para pasar por afuera
+    function zLibre(s, z, x, y) {
+        if (!raiz.manoEnCabeza(s, z, x, y)) return z
+        for (var k = 4; k <= 120; k += 4) {
+            if (!raiz.manoEnCabeza(s, z - s * k, x, y)) return z - s * k
+            if (!raiz.manoEnCabeza(s, z + s * k, x, y)) return z + s * k
+        }
+        return z
+    }
     // La bandera de fondo (archivo PNG) flameando detrás: solo si la vista pide fondo
     property string bandera: ""
     property bool fondo: false
@@ -183,7 +280,7 @@ Item {
         PerspectiveCamera {
             id: camara
             // Con margen para que entren los gorros, la galera y los rulos del afro
-            position: raiz.casa ? Qt.vector3d(raiz.panX, 1.95 + raiz.panY, 4.75 / raiz.zoomU) : (raiz.busto ? Qt.vector3d(0, 0.88, 4.2) : Qt.vector3d((raiz.conMascota ? 0.14 : 0) + raiz.panX, (raiz.conMascota ? 0.74 : 0.62) + raiz.panY, 6.6 * raiz.zoomM / raiz.zoomU))
+            position: raiz.casa ? Qt.vector3d(raiz.panX, 2.15 + raiz.panY, 5.7 / raiz.zoomU) : (raiz.busto ? Qt.vector3d(0, 0.88, 4.2) : Qt.vector3d((raiz.conMascota ? 0.14 : 0) + raiz.panX, (raiz.conMascota ? 0.74 : 0.62) + raiz.panY, 6.6 * raiz.zoomM / raiz.zoomU))
             eulerRotation.x: raiz.casa ? -17 : 0
             fieldOfView: raiz.casa ? 34 : (raiz.busto ? 13.6 : 11.6)
             clipNear: 0.1
@@ -238,13 +335,13 @@ Item {
             Model {
                 objectName: "suelo"; source: "#Rectangle"; pickable: true
                 eulerRotation.x: -90
-                scale: Qt.vector3d(raiz.anchoCasa / 100, raiz.fondoCasa / 100, 1)
+                scale: Qt.vector3d(raiz.anchoPiso / 100, raiz.fondoCasa / 100, 1)
                 materials: PrincipledMaterial {
                     baseColor: raiz.pisoTex === "" ? raiz.pisoColor : "white"
                     baseColorMap: raiz.pisoTex === "" ? null : texPiso
                     roughness: 0.55
                     Texture { id: texPiso; source: raiz.pisoTex; tilingModeHorizontal: Texture.Repeat; tilingModeVertical: Texture.Repeat
-                              scaleU: 4; scaleV: 3 }
+                              scaleU: 4 * raiz.anchoPiso / raiz.anchoCasa; scaleV: 3 }
                 }
             }
             Model {      // pared del fondo
@@ -260,7 +357,8 @@ Item {
                 }
             }
             Model {      // pared izquierda
-                source: "#Rectangle"; position: Qt.vector3d(-raiz.anchoCasa / 2, raiz.altoPared / 2, 0); eulerRotation.y: 90
+                source: "#Rectangle"; position: Qt.vector3d(raiz.enPared(-1, 0.5).x, raiz.altoPared / 2, raiz.enPared(-1, 0.5).z)
+                eulerRotation.y: 90 - raiz.abertura
                 scale: Qt.vector3d(raiz.fondoCasa / 100, raiz.altoPared / 100, 1)
                 materials: PrincipledMaterial { baseColor: raiz.paredTex === "" ? raiz.paredColor : "white"; baseColorMap: raiz.paredTex === "" ? null : texPared2
                     roughness: 0.9
@@ -268,17 +366,20 @@ Item {
                               scaleU: 3; scaleV: 2 } }
             }
             Model {      // pared derecha
-                source: "#Rectangle"; position: Qt.vector3d(raiz.anchoCasa / 2, raiz.altoPared / 2, 0); eulerRotation.y: -90
+                source: "#Rectangle"; position: Qt.vector3d(raiz.enPared(1, 0.5).x, raiz.altoPared / 2, raiz.enPared(1, 0.5).z)
+                eulerRotation.y: -90 + raiz.abertura
                 scale: Qt.vector3d(raiz.fondoCasa / 100, raiz.altoPared / 100, 1)
                 materials: PrincipledMaterial { baseColor: raiz.paredTex === "" ? raiz.paredColor : "white"; baseColorMap: raiz.paredTex === "" ? null : texPared3
                     roughness: 0.9
                     Texture { id: texPared3; source: raiz.paredTex; tilingModeHorizontal: Texture.Repeat; tilingModeVertical: Texture.Repeat
                               scaleU: 3; scaleV: 2 } }
             }
-            Repeater3D {     // una puerta a la izquierda y otra a la derecha (en las puntas de la pared del fondo, que se ven)
+            Repeater3D {     // una puerta en la pared izquierda y otra en la derecha
                 model: [-1, 1]
                 Node {
-                    position: Qt.vector3d(modelData * (raiz.anchoCasa / 2 - 0.36), 0, -raiz.fondoCasa / 2 + 0.012)
+                    property vector3d p: raiz.enPared(modelData, 0.2)
+                    position: Qt.vector3d(p.x - modelData * 0.012 * Math.cos(raiz.abertura * Math.PI / 180), 0, p.z + 0.012 * Math.sin(raiz.abertura * Math.PI / 180))
+                    eulerRotation.y: -modelData * (90 - raiz.abertura)
                     Model { source: "#Cube"; position: Qt.vector3d(0, 0.61, 0); scale: Qt.vector3d(0.006, 0.0122, 0.0003)
                             materials: PrincipledMaterial { baseColor: "#f4f1ea"; roughness: 0.6 } }
                     Model { source: "#Cube"; position: Qt.vector3d(0, 0.59, 0.006); scale: Qt.vector3d(0.0052, 0.0116, 0.0002)
@@ -286,8 +387,19 @@ Item {
                     Repeater3D { model: 2
                         Model { source: "#Cube"; position: Qt.vector3d(0, index === 0 ? 0.86 : 0.33, 0.0085); scale: Qt.vector3d(0.0038, 0.0034, 0.0001)
                                 materials: PrincipledMaterial { baseColor: "#7a4f2f"; roughness: 0.6 } } }
-                    Model { source: "#Sphere"; position: Qt.vector3d(0.19, 0.58, 0.016); scale: Qt.vector3d(0.00045, 0.00045, 0.00045)
+                    Model { source: "#Sphere"; position: Qt.vector3d(modelData * 0.19, 0.58, 0.016); scale: Qt.vector3d(0.00045, 0.00045, 0.00045)
                             materials: PrincipledMaterial { baseColor: "#d9b44a"; metalness: 0.8; roughness: 0.25 } }
+                }
+            }
+            Repeater3D {     // dos ventanas en la pared del fondo, con el paisaje de afuera
+                model: raiz.ventanaTex !== "" ? [-1, 1] : []
+                Model {
+                    source: "#Rectangle"; position: Qt.vector3d(modelData * 1.25, 1.0, -raiz.fondoCasa / 2 + 0.008)
+                    scale: Qt.vector3d(0.0066, 0.0056, 1)
+                    materials: PrincipledMaterial {
+                        baseColorMap: Texture { source: raiz.ventanaTex }
+                        alphaMode: PrincipledMaterial.Blend; roughness: 0.6
+                    }
                 }
             }
             Model {      // la cuadrícula del piso (medias celdas), mientras se acomoda algo
@@ -296,7 +408,7 @@ Item {
                 scale: Qt.vector3d(raiz.anchoCasa / 100, raiz.fondoCasa / 100, 1)
                 materials: PrincipledMaterial {
                     baseColorMap: Texture { source: raiz.grillaTex; tilingModeHorizontal: Texture.Repeat; tilingModeVertical: Texture.Repeat
-                                            scaleU: 24; scaleV: 16 }
+                                            scaleU: 48; scaleV: 32 }
                     alphaMode: PrincipledMaterial.Blend; lighting: PrincipledMaterial.NoLighting
                 }
             }
@@ -304,7 +416,8 @@ Item {
                 model: raiz.casa ? raiz.adornos : []
                 Node {
                     property var a: modelData
-                    position: Qt.vector3d(a.x, a.y, -raiz.fondoCasa / 2 + 0.012)
+                    position: a.i === raiz.arrA ? Qt.vector3d(raiz.arrAX, raiz.arrAY, -raiz.fondoCasa / 2 + 0.012)
+                                                : Qt.vector3d(a.x, a.y, -raiz.fondoCasa / 2 + 0.012)
                     Model {
                         visible: a.marco
                         source: "#Cube"; position: Qt.vector3d(0, 0, -0.004)
@@ -334,9 +447,47 @@ Item {
                 model: raiz.casa ? raiz.muebles : []
                 Node {
                     property var m: modelData
-                    position: Qt.vector3d(m.x, 0, m.z)
+                    position: m.i === raiz.arrI ? Qt.vector3d(raiz.arrX, 0, raiz.arrZ) : Qt.vector3d(m.x, 0, m.z)
                     eulerRotation.y: m.rot
                     RuntimeLoader { source: m.src }
+                    Model {      // el escudo de Boca en las sábanas
+                        visible: m.escudo !== undefined && m.escudo !== ""
+                        source: "#Rectangle"; eulerRotation.x: -90; position: Qt.vector3d(0, 0.2775, 0.43)
+                        scale: Qt.vector3d(0.0044, 0.0052, 1)
+                        materials: PrincipledMaterial {
+                            baseColorMap: Texture { source: m.escudo !== undefined ? m.escudo : "" }
+                            alphaMode: PrincipledMaterial.Blend; roughness: 0.9
+                        }
+                    }
+                    Node {       // la tele prendida: una imagen que cambia de escena cada tanto (y alumbra un poco adelante)
+                        id: pantallaTv
+                        visible: m.tipo === "tele" && m.on === true
+                        property real escena: Math.floor(raiz.tiempo / 2.6)
+                        property real tono: (escena * 0.37) % 1
+                        Model { source: "#Rectangle"; position: Qt.vector3d(0, 0.595, 0.0295); scale: Qt.vector3d(0.0072, 0.0019, 1)
+                                materials: PrincipledMaterial { lighting: PrincipledMaterial.NoLighting
+                                    baseColor: Qt.hsla(pantallaTv.tono, 0.55, 0.62 + 0.05 * Math.sin(raiz.tiempo * 7), 1) } }
+                        Model { source: "#Rectangle"; position: Qt.vector3d(0, 0.405, 0.0295); scale: Qt.vector3d(0.0072, 0.0019, 1)
+                                materials: PrincipledMaterial { lighting: PrincipledMaterial.NoLighting
+                                    baseColor: Qt.hsla((pantallaTv.tono + 0.45) % 1, 0.5, 0.36, 1) } }
+                        Model { source: "#Rectangle"; position: Qt.vector3d(-0.25 + 0.5 * ((raiz.tiempo / 2.6) % 1), 0.45 + 0.03 * Math.abs(Math.sin(raiz.tiempo * 6)), 0.031)
+                                scale: Qt.vector3d(0.0007, 0.0011, 1)
+                                materials: PrincipledMaterial { lighting: PrincipledMaterial.NoLighting; baseColor: "#fff4d8" } }
+                        PointLight { position: Qt.vector3d(0, 0.5, 0.35); color: Qt.hsla(pantallaTv.tono, 0.5, 0.7, 1)
+                                     brightness: m.tipo === "tele" && m.on === true ? 0.9 + 0.25 * Math.sin(raiz.tiempo * 5) : 0
+                                     constantFade: 1; linearFade: 0; quadraticFade: 12000 }
+                    }
+                    Node {       // la lámpara prendida: luz cálida, un halo alrededor de la pantalla y un círculo de luz en el piso
+                        visible: m.tipo === "lampara" && m.on === true
+                        PointLight { position: Qt.vector3d(0, 0.62, 0.05); color: "#ffd59a"; brightness: m.tipo === "lampara" && m.on === true ? 2.6 : 0
+                                     constantFade: 1; linearFade: 0; quadraticFade: 9000 }
+                        Model { source: "#Sphere"; position: Qt.vector3d(0, 0.71, 0); scale: Qt.vector3d(0.0034, 0.0034, 0.0034)
+                                materials: PrincipledMaterial { baseColor: "#ffe2a8"; opacity: 0.16; alphaMode: PrincipledMaterial.Blend
+                                                                lighting: PrincipledMaterial.NoLighting; depthDrawMode: Material.NeverDepthDraw } }
+                        Model { source: "#Cylinder"; position: Qt.vector3d(0, 0.003, 0); scale: Qt.vector3d(0.011, 0.00002, 0.011)
+                                materials: PrincipledMaterial { baseColor: "#ffd27a"; opacity: 0.16; alphaMode: PrincipledMaterial.Blend
+                                                                lighting: PrincipledMaterial.NoLighting; depthDrawMode: Material.NeverDepthDraw } }
+                    }
                     Model {      // una caja invisible del tamaño del mueble, para poder agarrarlo con el mouse
                         property int indice: m.i
                         source: "#Cube"; pickable: true
@@ -353,6 +504,40 @@ Item {
                 scale: Qt.vector3d(raiz.selW / 100, raiz.selD / 100, 1)
                 materials: PrincipledMaterial { baseColor: raiz.selOk ? (raiz.selFantasma ? "#3ddc84" : "#ffd23f") : "#ff4d4d"
                     opacity: 0.55; alphaMode: PrincipledMaterial.Blend; lighting: PrincipledMaterial.NoLighting }
+            }
+            Node {       // el plato de la mascota (con comida o vacío)
+                visible: raiz.cosasCasa && raiz.conMascota
+                position: Qt.vector3d(raiz.platoCasaX, 0, raiz.platoCasaZ)
+                Model { source: "#Cylinder"; position: Qt.vector3d(0, 0.011, 0); scale: Qt.vector3d(0.0011, 0.00022, 0.0011)
+                        materials: PrincipledMaterial { baseColor: "#d4513d"; roughness: 0.4 } }
+                Model { source: "#Cylinder"; position: Qt.vector3d(0, 0.0225, 0); scale: Qt.vector3d(0.0008, 0.00002, 0.0008)
+                        materials: PrincipledMaterial { baseColor: "#5e2a20"; roughness: 0.8 } }
+                Repeater3D { model: raiz.platoLleno ? 7 : 0
+                    Model { source: "#Sphere"; scale: Qt.vector3d(0.00016, 0.00012, 0.00016)
+                            position: Qt.vector3d(0.018 * Math.cos(index * 2.4), 0.026 + 0.004 * (index % 2), 0.018 * Math.sin(index * 2.4))
+                            materials: PrincipledMaterial { baseColor: index % 3 === 0 ? "#a0683c" : "#8a5a34"; roughness: 0.9 } } }
+                Model { property int indice: -5; source: "#Cube"; pickable: true; position: Qt.vector3d(0, 0.04, 0); scale: Qt.vector3d(0.0026, 0.0008, 0.0026)
+                        materials: PrincipledMaterial { opacity: 0.0; alphaMode: PrincipledMaterial.Blend; lighting: PrincipledMaterial.NoLighting } }
+            }
+            Model {      // la sombra de la pelota
+                visible: raiz.cosasCasa && raiz.conMascota
+                source: "#Cylinder"; position: Qt.vector3d(raiz.pelotaX, 0.002, raiz.pelotaZ)
+                scale: Qt.vector3d(0.0008 / (1 + raiz.pelotaY * 4), 0.00001, 0.0008 / (1 + raiz.pelotaY * 4))
+                materials: PrincipledMaterial { baseColor: "black"; opacity: 0.25; alphaMode: PrincipledMaterial.Blend; lighting: PrincipledMaterial.NoLighting }
+            }
+            Node {       // la pelota: rueda cuando la empujan (gira según lo que avanza)
+                visible: raiz.cosasCasa && raiz.conMascota
+                position: Qt.vector3d(raiz.pelotaX, raiz.pelotaY + 0.035, raiz.pelotaZ)
+                eulerRotation.y: raiz.pelotaRumbo
+                Node {
+                    eulerRotation.x: raiz.pelotaGiro
+                    Model { source: "#Sphere"; scale: Qt.vector3d(0.0007, 0.0007, 0.0007)
+                            materials: PrincipledMaterial { baseColor: "#e0432f"; roughness: 0.35 } }
+                    Model { source: "#Cylinder"; scale: Qt.vector3d(0.00072, 0.00011, 0.00072)
+                            materials: PrincipledMaterial { baseColor: "#fff3e0"; roughness: 0.4 } }
+                }
+                Model { property int indice: -6; source: "#Cube"; pickable: true; scale: Qt.vector3d(0.0013, 0.0013, 0.0013)
+                        materials: PrincipledMaterial { opacity: 0.0; alphaMode: PrincipledMaterial.Blend; lighting: PrincipledMaterial.NoLighting } }
             }
             Model {      // cajas invisibles para agarrar a BiriBiri y a la mascota
                 property int indice: -2
@@ -433,7 +618,7 @@ Item {
             id: cuerpo
             scale: Qt.vector3d(raiz.escala.x * raiz.esc, raiz.escala.y * raiz.esc, raiz.escala.z * raiz.esc)
             eulerRotation.x: raiz.rX
-            eulerRotation.y: (raiz.quieto ? -16 : 15 * Math.sin(raiz.tiempo * 0.35) * raiz.vaiven) + raiz.giroMano + raiz.rY
+            eulerRotation.y: (raiz.quieto ? -16 : 15 * Math.sin(raiz.tiempo * 0.35) * raiz.vaiven) + raiz.giroMano + raiz.rY + raiz.giroPaso * Math.sin(raiz.tiempo * raiz.ritmo)
             eulerRotation.z: raiz.inclinacion + raiz.rZ
             x: raiz.pX
             z: raiz.pZ
@@ -466,17 +651,21 @@ Item {
                 }
                 Node {
                     position: Qt.vector3d(-0.155, 0.585, 0)
-                    eulerRotation.z: (-4 - 2 * Math.sin(raiz.tiempo * 1.1)) * (1 - raiz.manos) * raiz.reposo + raiz.aiZ - raiz.ondaI * Math.sin(raiz.tiempo * raiz.ritmo)
+                    property real zCrudo: (-4 - 2 * Math.sin(raiz.tiempo * 1.1)) * (1 - raiz.manos) * raiz.reposo + raiz.aiZ - raiz.ondaI * Math.sin(raiz.tiempo * raiz.ritmo)
+                    property real xCrudo: 4 * Math.sin(raiz.tiempo * 0.8) * (1 - raiz.manos) * raiz.reposo - raiz.manos * 98 + raiz.aiX + raiz.anima(0)
+                    eulerRotation.z: raiz.zLibre(-1, zCrudo, xCrudo, raiz.aiY)
                     eulerRotation.y: raiz.aiY
-                    eulerRotation.x: 4 * Math.sin(raiz.tiempo * 0.8) * (1 - raiz.manos) * raiz.reposo - raiz.manos * 98 + raiz.aiX + raiz.anima(0)
+                    eulerRotation.x: xCrudo
                     RuntimeLoader { source: raiz.url("brazo_i"); position: Qt.vector3d(0.155, -0.585, 0)
                                     onStatusChanged: if (status === RuntimeLoader.Success) raiz.cuenta() }
                 }
                 Node {
                     position: Qt.vector3d(0.155, 0.585, 0)
-                    eulerRotation.z: (4 + 2 * Math.sin(raiz.tiempo * 1.1 + 1)) * (1 - raiz.manos) * raiz.reposo + raiz.empuje * 80 + raiz.adZ + raiz.ondaD * Math.sin(raiz.tiempo * raiz.ritmo)
+                    property real zCrudo: (4 + 2 * Math.sin(raiz.tiempo * 1.1 + 1)) * (1 - raiz.manos) * raiz.reposo + raiz.empuje * 80 + raiz.adZ + raiz.ondaD * Math.sin(raiz.tiempo * raiz.ritmo)
+                    property real xCrudo: -4 * Math.sin(raiz.tiempo * 0.8) * (1 - raiz.manos) * raiz.reposo - raiz.empuje * 35 - raiz.manos * 98 + raiz.adX - raiz.ampBx * Math.sin(raiz.tiempo * raiz.ritmo) - raiz.giroB * (raiz.tiempo * raiz.ritmo * 57.29578 + 180)
+                    eulerRotation.z: raiz.zLibre(1, zCrudo, xCrudo, raiz.adY)
                     eulerRotation.y: raiz.adY
-                    eulerRotation.x: -4 * Math.sin(raiz.tiempo * 0.8) * (1 - raiz.manos) * raiz.reposo - raiz.empuje * 35 - raiz.manos * 98 + raiz.adX - raiz.anima(3.14159)
+                    eulerRotation.x: xCrudo
                     RuntimeLoader { source: raiz.url("brazo_d"); position: Qt.vector3d(-0.155, -0.585, 0)
                                     onStatusChanged: if (status === RuntimeLoader.Success) raiz.cuenta() }
                     Node {
@@ -536,12 +725,42 @@ Item {
         x: raiz.petCabeza.x - width / 2 + raiz.width * 0.03
         y: raiz.petCabeza.y - raiz.height * 0.09 - 3 * Math.abs(Math.sin(raiz.tiempo * raiz.petRitmo * 0.6)) * raiz.height * 0.03
     }
+    readonly property var zzzPunto: { raiz.tiempo; return raiz.zzz ? vista.mapFrom3DScene(Qt.vector3d(raiz.zzzX, raiz.zzzY, raiz.zzzZ)) : Qt.vector3d(0, 0, 0) }
+    Repeater {
+        model: raiz.zzz ? 3 : 0
+        Text {
+            property real fase: (raiz.tiempo * 0.32 + index / 3) % 1
+            text: "z"; color: "#a9c8ff"; font.bold: true; font.italic: true
+            font.pixelSize: Math.max(11, raiz.height * (0.03 + 0.035 * fase))
+            style: Text.Outline; styleColor: "#1b2a4a"
+            x: raiz.zzzPunto.x + fase * raiz.height * 0.07 + 4 * Math.sin(fase * 9)
+            y: raiz.zzzPunto.y - fase * raiz.height * 0.13 - height
+            opacity: fase < 0.15 ? fase / 0.15 : 1 - (fase - 0.15) / 0.85
+        }
+    }
+    property string mano: "señala"      // «señala» (nada abajo), «abierta» (se puede agarrar), «agarra» (llevando algo), «mira» (moviendo la vista)
+    property real manoX: -100
+    property real manoY: -100
+    property bool manoVis: false
+    function manoPara(indice) { return indice === -1 ? "señala" : "abierta" }
+    Text {
+        visible: raiz.casa && raiz.manoVis
+        text: raiz.mano === "agarra" ? "✊" : (raiz.mano === "abierta" ? "✋" : (raiz.mano === "mira" ? "🤚" : "👆"))
+        font.family: "Segoe UI Emoji"; font.pixelSize: raiz.mano === "agarra" ? 30 : 32
+        x: raiz.manoX - width * (raiz.mano === "señala" ? 0.42 : 0.5)
+        y: raiz.manoY - height * (raiz.mano === "señala" ? 0.08 : 0.45) - (raiz.mano === "agarra" ? 6 : 0)
+        rotation: raiz.mano === "agarra" ? -8 : 0
+        style: Text.Outline; styleColor: "#40000000"
+        Behavior on rotation { NumberAnimation { duration: 120 } }
+    }
     function cuenta() { raiz.cargadas += 1; if (raiz.cargadas >= 7) raiz.listo() }
     onCarpetaChanged: raiz.cargadas = 0
 
     MouseArea {
         anchors.fill: parent
-        cursorShape: raiz.arrastrable ? (pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor) : Qt.PointingHandCursor
+        cursorShape: raiz.casa ? Qt.BlankCursor : (raiz.arrastrable ? (pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor) : Qt.PointingHandCursor)
+        onEntered: raiz.manoVis = true
+        onExited: raiz.manoVis = false
         property real ultimo: 0
         property real ultimoY: 0
         acceptedButtons: Qt.LeftButton | Qt.RightButton
@@ -549,21 +768,27 @@ Item {
         function evento(tipo, e) {
             var b = raiz.bajoMouse(e.x, e.y)
             var cual = (tipo === "release" || tipo === "arrastre") ? b.mueble : b.indice       // al soltar o arrastrar: el mueble que hay abajo
+            raiz.manoX = e.x; raiz.manoY = e.y; raiz.manoVis = true
+            if (tipo === "press") raiz.mano = b.indice === -1 ? "señala" : "agarra"
+            else if (tipo === "mover" || tipo === "release") raiz.mano = raiz.manoPara(b.indice)
             var px = b.pared !== null ? b.pared.x : NaN, py = b.pared !== null ? b.pared.y : NaN
             if (b.suelo !== null) raiz.casaEvento(tipo, b.suelo.x, b.suelo.z, cual, px, py)
             else raiz.casaEvento(tipo + "_fuera", NaN, NaN, cual, px, py)
         }
         onPressed: function(e) { ultimo = e.x; ultimoY = e.y; if (raiz.casa && e.button === Qt.LeftButton) evento("press", e) }
-        onReleased: function(e) { if (raiz.casa && e.button === Qt.LeftButton) evento("release", e) }
+        onReleased: function(e) { if (raiz.casa && e.button === Qt.LeftButton) evento("release", e); else if (raiz.casa) raiz.mano = "señala" }
         onPositionChanged: function(e) {
+            if (raiz.casa) { raiz.manoX = e.x; raiz.manoY = e.y }
+            if (raiz.casa && (pressedButtons & Qt.RightButton)) raiz.mano = "mira"
             if (raiz.casa && !(pressedButtons & Qt.RightButton)) { evento(pressed ? "arrastre" : "mover", e); ultimo = e.x; ultimoY = e.y; return }
             if (!raiz.arrastrable && !raiz.casa) return
             if (pressedButtons & Qt.RightButton) {
                 // Mover la vista: lo que se arrastra sigue al mouse
-                var porPixel = raiz.casa ? 2 * 4.75 / raiz.zoomU * Math.tan(17 * Math.PI / 180) / Math.max(1, raiz.height)
+                var porPixel = raiz.casa ? 2 * 5.7 / raiz.zoomU * Math.tan(17 * Math.PI / 180) / Math.max(1, raiz.height)
                                          : 2 * 6.6 * raiz.zoomM / raiz.zoomU * Math.tan(11.6 * Math.PI / 360) / Math.max(1, raiz.height)
                 raiz.panX -= (e.x - ultimo) * porPixel
                 raiz.panY += (e.y - ultimoY) * porPixel
+                raiz.limitarPan()
             } else {
                 raiz.giroMano += (e.x - ultimo) * 0.7
                 raiz.giroVert += (e.y - ultimoY) * 0.7
@@ -571,10 +796,26 @@ Item {
             ultimo = e.x; ultimoY = e.y
         }
         onWheel: function(w) {
-            if (raiz.arrastrable || raiz.casa)
-                raiz.zoomU = Math.max(0.4, Math.min(4.0, raiz.zoomU * (w.angleDelta.y > 0 ? 1.1 : 1 / 1.1)))
+            if (!(raiz.arrastrable || raiz.casa)) return
+            var antes = raiz.zoomU
+            // En la casa no se aleja más que la vista de siempre (más adelante, para ver otras habitaciones)
+            var nuevo = Math.max(raiz.casa ? 1.0 : 0.4, Math.min(raiz.casa ? 7.0 : 4.0, antes * (w.angleDelta.y > 0 ? 1.12 : 1 / 1.12)))
+            if (raiz.casa) {       // lo que está bajo el mouse queda bajo el mouse
+                var porPixel = 2 * 5.7 / antes * Math.tan(17 * Math.PI / 180) / Math.max(1, raiz.height)
+                var f = 1 - antes / nuevo
+                raiz.panX += (w.x - raiz.width / 2) * porPixel * f
+                raiz.panY -= (w.y - raiz.height / 2) * porPixel * f
+            }
+            raiz.zoomU = nuevo
+            raiz.limitarPan()
         }
-        onDoubleClicked: if (raiz.arrastrable || raiz.casa) { raiz.giroMano = 0; raiz.giroVert = 0; raiz.zoomU = 1; raiz.panX = 0; raiz.panY = 0 }
+        onDoubleClicked: function(e) {
+            if (raiz.casa && e.button === Qt.LeftButton) {       // doble clic sobre BiriBiri o la mascota: su menú
+                var b = raiz.bajoMouse(e.x, e.y)
+                if (b.indice === -2 || b.indice === -3) { raiz.casaEvento("doble", NaN, NaN, b.indice, NaN, NaN); return }
+            }
+            if (raiz.arrastrable || raiz.casa) { raiz.giroMano = 0; raiz.giroVert = 0; raiz.zoomU = 1; raiz.panX = 0; raiz.panY = 0 }
+        }
         onClicked: if (!raiz.arrastrable) puente.tocar()
     }
 }
@@ -714,7 +955,18 @@ def _clase():
             from .protagonista3d import ESCALA
             s = avatar3d.normalizar(spec)
             self._spec_actual = s
-            self._escala = ESCALA.get(s["cuerpo"], ESCALA["normal"])
+            ancho, alto = s.get("prop_ancho", 100) / 100, s.get("prop_alto", 100) / 100
+            ex, ey, ez = ESCALA.get(s["cuerpo"], ESCALA["normal"])
+            self._escala = (ex * ancho, ey * alto, ez * (1 + (ancho - 1) * 0.7))
+            try:
+                from PySide6.QtGui import QVector3D
+                raiz_e = self.rootObject()
+                if raiz_e is not None:
+                    raiz_e.setProperty("cabezaK", 1.45 * s.get("prop_cabeza", 100) / 100)
+                    if raiz_e.property("carpeta"):
+                        raiz_e.setProperty("escala", QVector3D(*self._escala))
+            except RuntimeError:
+                pass
             self._poner_bandera(s["bandera"])
             self.pose(bandX=s["bandera_x"], bandY=s["bandera_y"], bandTam=s["bandera_tam"], bandGiro=s["bandera_giro"],
                       bandCostado=s["bandera_costado"])

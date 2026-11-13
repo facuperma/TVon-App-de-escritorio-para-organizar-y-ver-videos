@@ -143,6 +143,15 @@ def _estante(color):
 
 def _cama(color):
     madera = "#6b4f3a"
+    if color == "boca":             # sábanas azul y oro, con la franja amarilla (el escudo lo pone la escena)
+        marco = _union([_caja((0, 0.1, 0), (0.9, 0.14, 1.5), 0.03), _caja((0, 0.38, -0.74), (0.92, 0.46, 0.05), 0.02),
+                        _caja((0, 0.2, 0.74), (0.92, 0.26, 0.04), 0.02)])
+        colchon = _caja((0, 0.2, 0.0), (0.82, 0.12, 1.4), 0.045)
+        manta = _caja((0, 0.235, 0.24), (0.86, 0.08, 0.92), 0.038)
+        franja = _caja((0, 0.236, 0.1), (0.872, 0.084, 0.2), 0.036)
+        almohada = lambda p: elipsoide(p, (0, 0.285, -0.55), (0.24, 0.045, 0.14))      # noqa: E731
+        return [("marco", marco, _mat(madera, 0.6)), ("colchon", colchon, _mat("#f2f0ea", 0.95)), ("manta", manta, _mat("#123d8f", 0.9)),
+                ("franja", franja, _mat("#f6c100", 0.85)), ("almohada", almohada, _mat("#f6c100", 0.95))]
     marco = _union([_caja((0, 0.1, 0), (0.9, 0.14, 1.5), 0.03), _caja((0, 0.38, -0.74), (0.92, 0.46, 0.05), 0.02),
                     _caja((0, 0.2, 0.74), (0.92, 0.26, 0.04), 0.02)])
     colchon = _caja((0, 0.2, 0.0), (0.82, 0.12, 1.4), 0.045)
@@ -253,6 +262,56 @@ def textura_grilla(carpeta) -> Path:
     p = QPainter(im)
     p.fillRect(0, 0, 64, 2, QColor(255, 255, 255, 120))
     p.fillRect(0, 0, 2, 64, QColor(255, 255, 255, 120))
+    p.end()
+    im.save(str(destino))
+    return destino
+
+
+def textura_escudo_boca(carpeta) -> Path:
+    """El escudo (dibujado acá, simplificado) para las sábanas de Boca: óvalo azul con borde y franja de oro, «CABJ» y
+    estrellitas arriba."""
+    from PySide6.QtCore import QPointF, QRectF, Qt
+    from PySide6.QtGui import QColor, QFont, QImage, QPainter, QPainterPath, QPen
+
+    destino = Path(carpeta) / f"escudo_boca_v{VERSION}.png"
+    if destino.exists():
+        return destino
+    Path(carpeta).mkdir(parents=True, exist_ok=True)
+    W, H = 256, 300
+    im = QImage(W, H, QImage.Format_ARGB32)
+    im.fill(QColor(0, 0, 0, 0))
+    p = QPainter(im)
+    p.setRenderHint(QPainter.Antialiasing)
+    oro, azul = QColor("#f6c100"), QColor("#123d8f")
+    # estrellas arriba
+    def estrella(cx, cy, r):
+        camino = QPainterPath()
+        for k in range(10):
+            ang = -math.pi / 2 + k * math.pi / 5
+            rr = r if k % 2 == 0 else r * 0.45
+            punto = QPointF(cx + rr * math.cos(ang), cy + rr * math.sin(ang))
+            camino.moveTo(punto) if k == 0 else camino.lineTo(punto)
+        camino.closeSubpath()
+        p.fillPath(camino, oro)
+    for k in range(5):
+        estrella(W / 2 + (k - 2) * 30, 26 + abs(k - 2) * 5, 11)
+    # el óvalo
+    ovalo = QRectF(28, 50, W - 56, H - 62)
+    p.setPen(QPen(oro, 12))
+    p.setBrush(azul)
+    p.drawEllipse(ovalo)
+    # la franja de oro, recortada al óvalo
+    recorte = QPainterPath()
+    recorte.addEllipse(ovalo.adjusted(6, 6, -6, -6))
+    p.setClipPath(recorte)
+    p.setPen(Qt.NoPen)
+    p.fillRect(QRectF(0, ovalo.center().y() - 34, W, 68), oro)
+    p.setClipping(False)
+    fuente = QFont("Arial Black", 34)
+    fuente.setBold(True)
+    p.setFont(fuente)
+    p.setPen(azul)
+    p.drawText(QRectF(0, ovalo.center().y() - 34, W, 68), Qt.AlignCenter, "CABJ")
     p.end()
     im.save(str(destino))
     return destino

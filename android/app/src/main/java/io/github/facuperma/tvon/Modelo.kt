@@ -75,6 +75,10 @@ class Modelo(app: Application) : AndroidViewModel(app) {
     val almacen = Almacen(app)
     val videoteca = Videoteca(app)
     private val prefsApariencia = app.getSharedPreferences("apariencia", android.content.Context.MODE_PRIVATE)
+    /** true: elegiste un tema en el celular (deja de copiar el de la PC hasta que vuelvas a «Igual que la PC»). */
+    var temaManual by mutableStateOf(prefsApariencia.getBoolean("tema_manual", false))
+    /** El tema que tiene la PC ahora (para mostrarlo en Apariencia). */
+    var temaPc by mutableStateOf("")
     /** ⚙ Apariencia abierta (la galería de temas). */
     var apariencia by mutableStateOf(false)
     private var pc: Pc? = null
@@ -357,7 +361,24 @@ class Modelo(app: Application) : AndroidViewModel(app) {
 
     fun elegirTema(t: io.github.facuperma.tvon.ui.TemaCel) {
         io.github.facuperma.tvon.ui.C.tema = t
-        prefsApariencia.edit().putString("tema", t.id).apply()
+        temaManual = t.id != temaPc || temaPc.isEmpty()
+        prefsApariencia.edit().putString("tema", t.id).putBoolean("tema_manual", temaManual).apply()
+    }
+
+    /** «Igual que la PC»: vuelve a copiar el tema de la PC (y lo aplica ya, si se sabe cuál es). */
+    fun seguirTemaDeLaPc(si: Boolean) {
+        temaManual = !si
+        prefsApariencia.edit().putBoolean("tema_manual", temaManual).apply()
+        if (si) aplicarTemaDeLaPc(temaPc)
+    }
+
+    private fun aplicarTemaDeLaPc(id: String) {
+        if (id.isEmpty() || temaManual) return
+        val t = io.github.facuperma.tvon.ui.TEMAS.firstOrNull { it.id == id } ?: return
+        if (t.id != io.github.facuperma.tvon.ui.C.tema.id) {
+            io.github.facuperma.tvon.ui.C.tema = t
+            prefsApariencia.edit().putString("tema", t.id).apply()
+        }
     }
 
     fun elegirAnimadas(si: Boolean) {
@@ -577,6 +598,7 @@ class Modelo(app: Application) : AndroidViewModel(app) {
         pidiendoEstado = true
         try {
             estado = Estado.de(leer { it.obj("/api/estado") })
+            estado?.tema?.let { if (it.isNotEmpty()) { temaPc = it; aplicarTemaDeLaPc(it) } }
         } finally {
             pidiendoEstado = false
         }

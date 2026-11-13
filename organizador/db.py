@@ -1,4 +1,5 @@
 """Persistencia en SQLite: archivos, categorías y su relación."""
+import json
 import re
 import sqlite3
 from pathlib import Path
@@ -482,15 +483,34 @@ class Biblioteca:
         ).fetchall())
 
     def empezadas_por_categoria(self) -> set[int]:
-        """Las categorías con algún video a medias (empezado y sin terminar), como el amarillo de la lista."""
-        return {c for (c,) in self.con.execute(
+        """Las categorías con algún video a medias (empezado y sin terminar), como el amarillo de la lista. Los videos
+        a los que se les sacó el amarillo a mano no cuentan."""
+        sin = self.videos_sin_pendiente()
+        categorias = set()
+        for c, ruta in self.con.execute(
             """
-            SELECT DISTINCT ac.categoria_id FROM archivo_categoria ac
+            SELECT ac.categoria_id, a.ruta FROM archivo_categoria ac
             JOIN archivos a ON a.id = ac.archivo_id
             JOIN progreso p ON p.ruta = a.ruta AND NOT p.visto AND p.posicion_ms >= ? AND p.duracion_ms > 0
             WHERE a.tipo = 'video'
             """, (RETOMAR_DESDE_MS,)
-        )}
+        ):
+            if ruta not in sin:
+                categorias.add(c)
+        return categorias
+
+    def videos_sin_pendiente(self) -> set[str]:
+        """Los videos a medias a los que se les sacó el amarillo de «pendiente» a mano."""
+        try:
+            return set(json.loads(self.config("videos_sin_pendiente") or "[]"))
+        except ValueError:
+            return set()
+
+    def marcar_sin_pendiente(self, rutas, sin: bool = True):
+        """Saca (o vuelve a poner) el amarillo de «pendiente» de esos videos."""
+        actual = self.videos_sin_pendiente()
+        actual = (actual | set(rutas)) if sin else (actual - set(rutas))
+        self.guardar_config("videos_sin_pendiente", json.dumps(sorted(actual)))
 
     def videos_por_categoria(self) -> dict[int, int]:
         """{id de categoría: cantidad de videos}."""

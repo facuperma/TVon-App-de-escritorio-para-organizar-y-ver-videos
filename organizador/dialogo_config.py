@@ -27,6 +27,18 @@ class DialogoConfig(QDialog):
         capa_carpeta.addWidget(btn_carpeta)
 
         self.idiomas = QLineEdit(bib.config("idiomas_subtitulos"), placeholderText="es,en")
+        # El idioma de los subtítulos (todos los idiomas y variantes): el que se eligió al instalar
+        from . import idiomas as _idiomas
+        self._idiomas = _idiomas
+        self.idioma = bib.config(_idiomas.CLAVE) or ""
+        self.lbl_idioma = QLabel(_idiomas.nombre_de(self.idioma) if self.idioma else "Sin elegir")
+        btn_idioma = QPushButton("Cambiar…")
+        btn_idioma.clicked.connect(self._cambiar_idioma)
+        fila_idioma = QWidget()
+        capa_idioma = QHBoxLayout(fila_idioma)
+        capa_idioma.setContentsMargins(0, 0, 0, 0)
+        capa_idioma.addWidget(self.lbl_idioma, 1)
+        capa_idioma.addWidget(btn_idioma)
         self.api_key = QLineEdit(bib.config("os_api_key"))
         self.usuario = QLineEdit(bib.config("os_usuario"), placeholderText="Opcional: da más descargas por día")
         self.clave = QLineEdit(bib.config("os_clave"), echoMode=QLineEdit.Password)
@@ -46,7 +58,12 @@ class DialogoConfig(QDialog):
 
         form = QFormLayout()
         form.addRow("Carpeta para películas de dominio público:", fila_carpeta)
-        form.addRow("Idiomas de subtítulos:", self.idiomas)
+        form.addRow("Idioma de los subtítulos:", fila_idioma)
+        lbl_fuentes = QLabel("Español: se bajan solos de subtis.io · Otros: OpenSubtitles", objectName="pista")
+        lbl_fuentes.setToolTip("Al bajar una película, si el idioma es español los subtítulos se buscan solos en "
+                               "subtis.io (gratis, sin límite); en los demás idiomas, en OpenSubtitles (con la clave).")
+        form.addRow("", lbl_fuentes)
+        form.addRow("Más idiomas (OpenSubtitles):", self.idiomas)
         form.addRow("OpenSubtitles – clave de API:", self.api_key)
         form.addRow("OpenSubtitles – usuario:", self.usuario)
         form.addRow("OpenSubtitles – contraseña:", self.clave)
@@ -99,6 +116,15 @@ class DialogoConfig(QDialog):
         capa.addWidget(ayuda)
         capa.addWidget(botones)
 
+    def _cambiar_idioma(self):
+        dialogo = self._idiomas.DialogoIdioma(self.idioma, self)
+        if dialogo.exec() and dialogo.elegido():
+            self.idioma = dialogo.elegido()
+            self.lbl_idioma.setText(self._idiomas.nombre_de(self.idioma))
+            nuevo = self._idiomas.base(self.idioma)
+            otros = [i.strip() for i in self.idiomas.text().split(",") if i.strip() and i.strip() != nuevo]
+            self.idiomas.setText(",".join([nuevo] + otros))
+
     def _elegir_carpeta(self):
         if carpeta := QFileDialog.getExistingDirectory(self, "Carpeta de descargas", self.carpeta.text()):
             self.carpeta.setText(carpeta)
@@ -116,6 +142,8 @@ class DialogoConfig(QDialog):
                              ("carpeta_descargas_sistema", self.descargas_sistema),
                              ("carpeta_videos", self.carpeta_videos)):
             self.bib.guardar_config(clave, campo.text().strip())
+        if self.idioma:
+            self.bib.guardar_config(self._idiomas.CLAVE, self.idioma)
         self.bib.guardar_config("mover_descargas", "1" if self.chk_mover.isChecked() else "0")
         carpetas = [self.lista_carpetas.item(i).text() for i in range(self.lista_carpetas.count())]
         self.bib.guardar_config("carpetas_biblioteca", SEPARADOR_CARPETAS.join(carpetas))

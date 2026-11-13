@@ -21,7 +21,8 @@ NOMBRE = "BiriBiri"   # cómo se llama el avatar en la app («Armá tu BiriBiri�
 # Cada opción: clave -> {valor: texto}. El primer valor es el predeterminado (salvo el género: ver más abajo).
 OPCIONES = {
     "genero": {"hombre": "Hombre", "mujer": "Mujer", "nobinario": "No binario"},
-    "peinado": {"corto": "Corto", "flequillo": "Flequillo", "largo": "Largo", "colita": "Colita", "trenzas": "Trenzas",
+    "peinado": {"corto": "Corto", "flequillo": "Flequillo", "largo": "Largo", "ondas": "Largo con ondas", "lacio": "Largo lacio",
+                "melena": "Melena (carré)", "coletas": "Dos colitas", "colita": "Colita", "trenzas": "Trenzas",
                 "rulos": "Rulos", "afro": "Afro", "cresta": "Cresta", "rodete": "Rodete", "pelado": "Pelado"},
     "mirada": {"normal": "Normales", "grandes": "Grandes y asombrados", "feliz": "Felices (^ ^)", "guino": "Guiño",
                "enojados": "Enojados", "tristes": "Tristes", "entrecerrados": "Entrecerrados",
@@ -65,7 +66,9 @@ COLORES = ("piel", "pelo", "ojos", "remera", "estampa_color", "pantalon", "zapat
            "mascota_color", "mascota_color2")
 # Valores numéricos (mínimo, máximo, de partida): cómo se acomoda la bandera de fondo
 NUMEROS = {"bandera_x": (-100, 100, 0), "bandera_y": (-100, 100, 0), "bandera_tam": (40, 220, 100),
-           "bandera_giro": (-60, 60, 16), "bandera_costado": (-80, 80, -32)}
+           "bandera_giro": (-60, 60, 16), "bandera_costado": (-80, 80, -32),
+           # Proporciones (en %): tamaño de la cabeza, altura y ancho del cuerpo, y las curvas (con «Mujer»)
+           "prop_cabeza": (75, 135, 100), "prop_alto": (85, 118, 100), "prop_ancho": (80, 125, 100), "prop_curvas": (0, 100, 50)}
 PREDETERMINADO = {
     "piel": "#e8b896", "pelo": "#3b2a1e", "ojos": "#2b1d14",
     "remera": "#2f7fd1", "estampa_color": "#f2f2f2", "pantalon": "#2b3a55", "zapatillas": "#f2f2f2",
@@ -436,6 +439,7 @@ def armar(spec: dict):
         _esfera(m, (0, 2.3, 0.2), 0.5, pelo, escala=(1.06, 0.62, 0.86), lat=7, lon=12)
     # --- Pelo. Con algo en la cabeza, lo que sobresale arriba (cresta, rodete, afro) no se ve
     p, sombrero = s["peinado"], s["cabeza"]
+    p = {"ondas": "largo", "lacio": "largo", "melena": "flequillo", "coletas": "colita"}.get(p, p)   # los nuevos, como el más parecido
     tapado = sombrero != "ninguno"
     if p in ("corto", "flequillo", "largo", "rodete", "cresta", "colita", "trenzas") or (tapado and p != "pelado"):
         _esfera(m, (0, 2.62, -0.03), 0.68, pelo, hasta=0.42, lat=10, lon=14)
