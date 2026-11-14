@@ -244,10 +244,25 @@ Item {
         }
         return z
     }
+    // Para los brazos que se mueven solos (saludar, agitar, caminar): la corrección se calcula UNA vez para todo el
+    // recorrido (la pose quieta y sus dos puntas) y se corre el movimiento entero. Calcularla cuadro a cuadro dejaba
+    // el brazo clavado y saltando de un lado al otro.
+    function corrimiento(s, z, amp, x, y) {
+        function choca(d) {
+            return raiz.manoEnCabeza(s, z + d, x, y) || raiz.manoEnCabeza(s, z + d + amp, x, y)
+                || raiz.manoEnCabeza(s, z + d - amp, x, y)
+        }
+        if (!choca(0)) return 0
+        for (var k = 4; k <= 120; k += 4) {
+            if (!choca(-s * k)) return -s * k
+            if (!choca(s * k)) return s * k
+        }
+        return 0
+    }
     // La bandera de fondo (archivo PNG) flameando detrás: solo si la vista pide fondo
     property string bandera: ""
     property bool fondo: false
-    readonly property real distFondo: raiz.busto ? 4.9 : 6.6 * raiz.zoomM + 0.7
+    readonly property real distFondo: raiz.busto ? 4.9 * Math.max(1, raiz.cabezaK / 1.45) : 6.6 * raiz.zoomM + 0.7
     readonly property real visAlto: 2 * raiz.distFondo * Math.tan((raiz.busto ? 13.6 : 11.6) * Math.PI / 360)
     readonly property real anchoBandera: raiz.casa ? 1.5 : Math.min(raiz.visAlto * 0.62 * 1.5, raiz.visAlto * (raiz.width / Math.max(1, raiz.height)) * 1.0)
     readonly property real altoBandera: raiz.anchoBandera / 1.5
@@ -280,7 +295,7 @@ Item {
         PerspectiveCamera {
             id: camara
             // Con margen para que entren los gorros, la galera y los rulos del afro
-            position: raiz.casa ? Qt.vector3d(raiz.panX, 2.15 + raiz.panY, 5.7 / raiz.zoomU) : (raiz.busto ? Qt.vector3d(0, 0.88, 4.2) : Qt.vector3d((raiz.conMascota ? 0.14 : 0) + raiz.panX, (raiz.conMascota ? 0.74 : 0.62) + raiz.panY, 6.6 * raiz.zoomM / raiz.zoomU))
+            position: raiz.casa ? Qt.vector3d(raiz.panX, 2.15 + raiz.panY, 5.7 / raiz.zoomU) : (raiz.busto ? Qt.vector3d(0, 0.88 + 0.42 * Math.max(0, raiz.cabezaK / 1.45 - 1), 4.2 * Math.max(1, raiz.cabezaK / 1.45) * Math.max(1, raiz.escala.y)) : Qt.vector3d((raiz.conMascota ? 0.14 : 0) + raiz.panX, (raiz.conMascota ? 0.74 : 0.62) + raiz.panY, 6.6 * raiz.zoomM / raiz.zoomU))
             eulerRotation.x: raiz.casa ? -17 : 0
             fieldOfView: raiz.casa ? 34 : (raiz.busto ? 13.6 : 11.6)
             clipNear: 0.1
@@ -653,7 +668,11 @@ Item {
                     position: Qt.vector3d(-0.155, 0.585, 0)
                     property real zCrudo: (-4 - 2 * Math.sin(raiz.tiempo * 1.1)) * (1 - raiz.manos) * raiz.reposo + raiz.aiZ - raiz.ondaI * Math.sin(raiz.tiempo * raiz.ritmo)
                     property real xCrudo: 4 * Math.sin(raiz.tiempo * 0.8) * (1 - raiz.manos) * raiz.reposo - raiz.manos * 98 + raiz.aiX + raiz.anima(0)
-                    eulerRotation.z: raiz.zLibre(-1, zCrudo, xCrudo, raiz.aiY)
+                    // la pose quieta (sin lo que se mueve con el tiempo) y cuánto se mueve: con eso se corre el brazo
+                    property real zQuieto: -4 * (1 - raiz.manos) * raiz.reposo + raiz.aiZ
+                    property real xQuieto: -raiz.manos * 98 + raiz.aiX
+                    property real corre: raiz.corrimiento(-1, zQuieto, Math.abs(raiz.ondaI) + 6, xQuieto, raiz.aiY)
+                    eulerRotation.z: zCrudo + corre
                     eulerRotation.y: raiz.aiY
                     eulerRotation.x: xCrudo
                     RuntimeLoader { source: raiz.url("brazo_i"); position: Qt.vector3d(0.155, -0.585, 0)
@@ -663,7 +682,10 @@ Item {
                     position: Qt.vector3d(0.155, 0.585, 0)
                     property real zCrudo: (4 + 2 * Math.sin(raiz.tiempo * 1.1 + 1)) * (1 - raiz.manos) * raiz.reposo + raiz.empuje * 80 + raiz.adZ + raiz.ondaD * Math.sin(raiz.tiempo * raiz.ritmo)
                     property real xCrudo: -4 * Math.sin(raiz.tiempo * 0.8) * (1 - raiz.manos) * raiz.reposo - raiz.empuje * 35 - raiz.manos * 98 + raiz.adX - raiz.ampBx * Math.sin(raiz.tiempo * raiz.ritmo) - raiz.giroB * (raiz.tiempo * raiz.ritmo * 57.29578 + 180)
-                    eulerRotation.z: raiz.zLibre(1, zCrudo, xCrudo, raiz.adY)
+                    property real zQuieto: 4 * (1 - raiz.manos) * raiz.reposo + raiz.empuje * 80 + raiz.adZ
+                    property real xQuieto: -raiz.empuje * 35 - raiz.manos * 98 + raiz.adX
+                    property real corre: raiz.corrimiento(1, zQuieto, Math.abs(raiz.ondaD) + 6, xQuieto, raiz.adY)
+                    eulerRotation.z: zCrudo + corre
                     eulerRotation.y: raiz.adY
                     eulerRotation.x: xCrudo
                     RuntimeLoader { source: raiz.url("brazo_d"); position: Qt.vector3d(-0.155, -0.585, 0)

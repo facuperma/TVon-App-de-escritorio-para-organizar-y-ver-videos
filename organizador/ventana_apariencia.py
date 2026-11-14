@@ -81,6 +81,8 @@ class VentanaApariencia(QDialog):
                                  resizeMode=QListWidget.Adjust, spacing=10, wordWrap=True)
         self.lista.setIconSize(QSize(236, 140))
         self.lista.setGridSize(QSize(262, 196))
+        from . import suave
+        suave.activar(self.lista)          # la rueda desliza suave, sin saltar de a una fila
         for t in TEMAS:
             item = QListWidgetItem(QIcon(vista_previa(t)), f"{t.nombre}\n{t.epoca}")
             item.setData(ROL, t.id)

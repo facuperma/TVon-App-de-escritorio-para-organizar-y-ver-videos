@@ -16,7 +16,7 @@ import numpy as np
 from . import avatar3d, mascotas
 from .modelado import cortar, curva, elipsoide, esfera, capsula, caja_redonda, guardar_glb, malla, restar, unir
 
-VERSION = 28 # subir si cambia la forma: así se rearman los que están en caché
+VERSION = 29 # subir si cambia la forma: así se rearman los que están en caché
 PASO = 0.0045
 
 # Puntos de articulación (para animar): hombros, cuello, cadera
@@ -620,7 +620,15 @@ def _armar(s: dict, foto_jpg: bytes | None) -> dict[str, list]:
     if not con_foto:
         _rasgos(partes["cabeza"], s, m_tela)
     if (pelo_sdf := _pelo_funcion(s)) is not None:
-        partes["cabeza"].append(("pelo", pelo_sdf, caja_cabeza, m_pelo))
+        if con_foto:
+            # Que ningún pelo (el afro, los rulos, un flequillo) pase por delante de la foto: se le saca un tubo apenas
+            # más ancho que la ventana, desde la cara hacia adelante (el pelo la enmarca)
+            def _sin_tapar_foto(p, f=pelo_sdf):
+                tubo = np.linalg.norm(p[..., :2] - np.array([0.0, 0.8], np.float32), axis=-1) - (RADIO_FOTO + 0.03)
+                return restar(f(p), cortar(tubo, 0.06 - p[..., 2]), 0.015)
+            partes["cabeza"].append(("pelo", _sin_tapar_foto, caja_cabeza, m_pelo))
+        else:
+            partes["cabeza"].append(("pelo", pelo_sdf, caja_cabeza, m_pelo))
     b = s["barba"]
     if b != "ninguna":
         partes["cabeza"].append(("barba", lambda p, b=b: _barba(p, b, con_foto), ((-0.23, 0.55, -0.1), (0.23, 0.86, 0.26)), m_pelo))

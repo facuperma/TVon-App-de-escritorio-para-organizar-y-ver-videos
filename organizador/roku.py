@@ -570,16 +570,19 @@ def evaluar(ruta: str) -> tuple[str, list[str]]:
         if info["audio"] and not (info["audio"] in ("aac", "mp3") and 0 < info["canales"] <= 2):
             return "audio", ["solo sonido, no estéreo"]
         return "", []
-    if info["video"] != "h264":
+    # Un Roku 4K (según el modelo conectado) decodifica HEVC de 10 bits y 2160p: esos van tal cual
+    hevc_ok = bool(PERFIL.get("hevc")) and info["video"] == "hevc" and info["pixeles"] in ("yuv420p", "yuv420p10le", "")
+    if info["video"] != "h264" and not hevc_ok:
         motivos_video.append(f"imagen {info['video'] or 'desconocida'}")
-    if info["pixeles"] not in ("yuv420p", "yuvj420p", ""):
+    if info["pixeles"] not in ("yuv420p", "yuvj420p", "") and not hevc_ok:
         motivos_video.append(f"color {info['pixeles']}")
-    if info["perfil"] and info["perfil"].split(" ")[0] not in ("Baseline", "Constrained", "Main", "High") \
-            or info["perfil"] in ("High 10", "High 4:2:2", "High 4:4:4 Predictive", "High 10 Intra"):
+    if not hevc_ok and (info["perfil"] and info["perfil"].split(" ")[0] not in ("Baseline", "Constrained", "Main", "High")
+                        or info["perfil"] in ("High 10", "High 4:2:2", "High 4:4:4 Predictive", "High 10 Intra")):
         motivos_video.append(f"perfil {info['perfil']}")
-    if info["nivel"] > 42:
+    if info["nivel"] > 42 and not hevc_ok:
         motivos_video.append(f"nivel {info['nivel'] / 10:g}")
-    if info["ancho"] > 1920 or info["alto"] > 1088:
+    ancho_max, alto_max = (3840, 2176) if PERFIL.get("4k") else (1920, 1088)
+    if info["ancho"] > ancho_max or info["alto"] > alto_max:
         motivos_video.append(f"{info['ancho']}x{info['alto']}")
     if info["fps"] > 61:
         motivos_video.append(f"{info['fps']:g} cuadros por segundo")
@@ -822,3 +825,74 @@ def iniciar_servidor(remoto) -> _Servidor | None:
 
 def datos_json(obj) -> bytes:
     return json.dumps(obj, ensure_ascii=False).encode()
+
+
+# --- Conectar un Roku desde la PC: qué modelo es, el canal y cómo mandarle los videos ----------------------------
+
+PERFIL: dict = {}      # el del Roku conectado: {"modelo", "version", "4k", "hevc"}; lo usa evaluar()
+
+
+def perfil_de(ip: str) -> dict:
+    """Modelo, versión del sistema y qué video aguanta, sacado de /query/device-info."""
+    info = _pedir_ecp(ip, "/query/device-info", tiempo=3) or b""
+    if b"<device-info" not in info:
+        return {}
+    modelo = _etiqueta(info, "model-name") or "Roku"
+    numero = _etiqueta(info, "model-number")
+    version = _etiqueta(info, "software-version")
+    modo = (_etiqueta(info, "video-mode") or "").lower()
+    pantalla = (_etiqueta(info, "ui-resolution") or "").lower()
+    es_4k = modo.startswith("2160") or "4k" in modelo.lower() or "ultra" in modelo.lower() or pantalla.startswith("2160") \
+        or (_etiqueta(info, "is-tv") == "true" and "4k" in (_etiqueta(info, "friendly-model-name") or "").lower())
+    return {"ip": ip, "nombre": _etiqueta(info, "user-device-name", "friendly-device-name", "default-device-name") or modelo,
+            "modelo": f"{modelo} {numero}".strip(), "version": version, "resolucion": modo or pantalla,
+            "4k": bool(es_4k), "hevc": bool(es_4k),
+            "desarrollador": _etiqueta(info, "developer-enabled") == "true"}
+
+
+def poner_perfil(perfil: dict | None):
+    """El Roku conectado: con uno 4K (que decodifica HEVC de 10 bits y 2160p) la PC deja de convertir esos videos."""
+    PERFIL.clear()
+    PERFIL.update(perfil or {})
+    _analisis.clear()
+
+
+def canal_instalado(ip: str) -> bool:
+    return b'id="dev"' in (_pedir_ecp(ip, "/query/apps", tiempo=3) or b"")
+
+
+def instalar_canal(ip: str, clave: str, paquete: Path) -> str:
+    """Sube el canal TorrentVision al Roku (modo desarrollador, usuario rokudev). Devuelve «» si salió bien o el error."""
+    import urllib.error
+    import urllib.request
+    import uuid
+    base = f"http://{ip}"
+    manager = urllib.request.HTTPPasswordMgrWithDefaultRealm()
+    manager.add_password(None, base, "rokudev", clave)
+    abrir = urllib.request.build_opener(urllib.request.HTTPDigestAuthHandler(manager)).open
+    limite = uuid.uuid4().hex
+    cuerpo = (f'--{limite}\r\nContent-Disposition: form-data; name="mysubmit"\r\n\r\nInstall\r\n'.encode()
+              + f'--{limite}\r\nContent-Disposition: form-data; name="archive"; filename="{paquete.name}"\r\n'
+                "Content-Type: application/zip\r\n\r\n".encode() + paquete.read_bytes() + b"\r\n"
+              + f"--{limite}--\r\n".encode())
+    pedido = urllib.request.Request(f"{base}/plugin_install", data=cuerpo, method="POST",
+                                    headers={"Content-Type": f"multipart/form-data; boundary={limite}"})
+    try:
+        with abrir(pedido, timeout=90) as r:
+            html = r.read().decode("utf-8", "replace")
+    except urllib.error.HTTPError as e:
+        return "La contraseña del modo desarrollador no es esa." if e.code == 401 else f"El Roku respondió {e.code}."
+    except OSError as e:
+        return f"No se pudo hablar con el Roku ({e}). ¿Está activado el modo desarrollador?"
+    return "" if ("Install Success" in html or "Application Received" in html or "Identical to previous" in html) \
+        else "El Roku no aceptó el canal."
+
+
+def paquete_canal() -> Path | None:
+    """El .zip del canal: el que viene con la app instalada o, desde el código, el de la carpeta instalador."""
+    base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
+    for ruta in (base / "organizador" / "roku" / "TorrentVision-Roku.zip",
+                 Path(__file__).resolve().parent.parent / "instalador" / "TorrentVision-Roku.zip"):
+        if ruta.is_file():
+            return ruta
+    return None

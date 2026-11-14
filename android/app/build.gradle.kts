@@ -20,8 +20,8 @@ android {
         applicationId = "io.github.facuperma.tvon"
         minSdk = 26
         targetSdk = 35
-        versionCode = 32
-        versionName = "1.1.30"
+        versionCode = 34
+        versionName = "1.2.0"
     }
 
     signingConfigs {

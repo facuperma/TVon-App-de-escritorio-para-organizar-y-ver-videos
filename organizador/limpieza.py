@@ -142,3 +142,42 @@ def limpiar_origen(carpeta: Path, video_nuevo: Path, protegidas: set[Path]) -> t
     finally:
         shutil.rmtree(temporal, ignore_errors=True)
     return rescatados, _a_la_papelera(carpeta)
+
+
+NO_TOCAR = {"peliculas", "películas", "captures", "capturas", "tvon"}
+
+
+def limpiar_restos(raiz: Path, protegidas: set[Path]) -> list[str]:
+    """Las carpetas de Videos que quedaron sin película (la película ya se movió a Videos/Peliculas/<título>,
+    pero el programa de torrents tenía abierta la carpeta y no se pudo mandar a la Papelera en ese momento):
+    los subtítulos se rescatan junto a la película y la carpeta va a la Papelera. Si no se sabe de qué película
+    es y tiene subtítulos, no se toca; si es solo basura (publicidades, .txt, imágenes), va a la Papelera.
+    Devuelve las carpetas que se limpiaron."""
+    from .descargas import nombre_seguro
+    from .titulos import titulo_de
+    limpias = []
+    try:
+        hijas = [d for d in raiz.iterdir() if d.is_dir() and not d.name.startswith(".") and d.name.lower() not in NO_TOCAR]
+    except OSError:
+        return limpias
+    peliculas = raiz / "Peliculas"
+    for carpeta in hijas:
+        try:
+            subs, comprimidos, _basura, videos, otros = _clasificar(carpeta)
+        except OSError:
+            continue
+        if videos or otros:
+            continue
+        destino = peliculas / nombre_seguro(titulo_de(carpeta.name))
+        video_nuevo = None
+        if destino.is_dir():
+            video_nuevo = next((v for v in destino.iterdir() if v.suffix.lower() in EXT_VIDEO and not es_extra(v)), None)
+        if video_nuevo is not None:
+            _rescatados, borrada = limpiar_origen(carpeta, video_nuevo, protegidas)
+        elif not subs and not comprimidos and se_puede_limpiar(carpeta, protegidas):
+            borrada = _a_la_papelera(carpeta)
+        else:
+            continue
+        if borrada:
+            limpias.append(str(carpeta))
+    return limpias

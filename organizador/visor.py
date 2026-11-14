@@ -6,7 +6,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QLocale, QPoint, QPointF, QRectF, QSize, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import (
-    QBrush, QColor, QConicalGradient, QCursor, QFont, QFontMetrics, QKeySequence, QPainter, QPainterPath, QPen, QPixmap,
+    QBrush, QColor, QConicalGradient, QCursor, QFont, QFontMetrics, QIcon, QKeySequence, QPainter, QPainterPath, QPen, QPixmap,
     QShortcut,
 )
 from PySide6.QtMultimedia import QAudioOutput, QMediaDevices, QMediaMetaData, QMediaPlayer, QVideoSink
@@ -101,6 +101,42 @@ def _envolver(texto: str, fm: QFontMetrics, ancho: float) -> list[str]:
                 actual = prueba
         lineas.append(actual)
     return lineas
+
+
+def icono_control(nombre: str, color: str = "#e8e8ee") -> QIcon:
+    """Los íconos del reproductor dibujados en el color del texto del tema (los de Windows son grises oscuros y
+    en los temas oscuros casi no se ven: contraste de componentes ≥ 3:1, WCAG 2 / ISO/IEC 40500)."""
+    lado = 64
+    pix = QPixmap(lado, lado)
+    pix.fill(Qt.transparent)
+    p = QPainter(pix)
+    p.setRenderHint(QPainter.Antialiasing)
+    c = QColor(color)
+    p.setPen(Qt.NoPen)
+    p.setBrush(c)
+    if nombre == "play":
+        p.drawPolygon([QPointF(20, 12), QPointF(54, 32), QPointF(20, 52)])
+    elif nombre == "pausa":
+        p.drawRoundedRect(QRectF(16, 12, 11, 40), 3, 3)
+        p.drawRoundedRect(QRectF(37, 12, 11, 40), 3, 3)
+    elif nombre == "stop":
+        p.drawRoundedRect(QRectF(15, 15, 34, 34), 4, 4)
+    elif nombre == "siguiente":
+        p.drawPolygon([QPointF(12, 14), QPointF(40, 32), QPointF(12, 50)])
+        p.drawRoundedRect(QRectF(42, 14, 9, 36), 2, 2)
+    elif nombre in ("volumen", "mudo"):
+        p.drawPolygon([QPointF(8, 24), QPointF(20, 24), QPointF(34, 12), QPointF(34, 52), QPointF(20, 40), QPointF(8, 40)])
+        lapiz = QPen(c, 5, Qt.SolidLine, Qt.RoundCap)
+        p.setPen(lapiz)
+        p.setBrush(Qt.NoBrush)
+        if nombre == "mudo":
+            p.drawLine(QPointF(42, 24), QPointF(56, 40))
+            p.drawLine(QPointF(56, 24), QPointF(42, 40))
+        else:
+            p.drawArc(QRectF(30, 20, 16, 24), -55 * 16, 110 * 16)
+            p.drawArc(QRectF(30, 12, 26, 40), -55 * 16, 110 * 16)
+    p.end()
+    return QIcon(pix)
 
 
 class PantallaVideo(QWidget):
@@ -406,7 +442,10 @@ class Bienvenida(QWidget):
     vuelve caminando (poner_protagonista)."""
 
     PERIODO = 21.0          # segundos que dura una vuelta de la escena
-    ALTO_PROTA, ANCHO_PROTA = 240, 270      # holgado: con la cabeza grande, al girar por el aire se cortaba en el borde
+    # Recuadro grande (el muñeco se achica en la misma proporción con «esc»): al girar por el aire con la cabeza grande
+    # se salía del recuadro de antes (270 × 240) y se cortaba
+    ALTO_PROTA, ANCHO_PROTA = 360, 400
+    ESC_PROTA = 0.78 * 240 / 360
 
     def __init__(self, texto: str):
         super().__init__(objectName="vacio")
@@ -562,8 +601,9 @@ class Bienvenida(QWidget):
             cabe = self._spec is not None and self.height() >= 300 and self.width() >= 360
             self._prota.setVisible(cabe)
             # Apoyado en el borde izquierdo del anillo, con los pies a la altura de la base del logo
-            self._base_prota = (centro_x - 92 - self.ANCHO_PROTA / 2,
-                                arriba + self.logo.height() / 2 + 82 - self.ALTO_PROTA * 0.96)
+            # (mismo lugar en pantalla que con el recuadro de 270 × 240: medido, el muñeco queda 65 px más a la derecha
+            # y 114 px más abajo dentro del recuadro grande)
+            self._base_prota = (centro_x - 92 - 135 - 65, arriba + self.logo.height() / 2 + 82 - 230.4 - 114)
         self._mover(0.0, (0.0, 0.0))
 
     def _mover(self, desplazamiento_logo: float, protagonista: tuple[float, float]):
@@ -578,8 +618,11 @@ class Bienvenida(QWidget):
     def _pose_de_reposo(self, t: float) -> dict:
         """Apoyado de costado en el logo (de espaldas a él), mirando para el que mira, con una respiración suave."""
         respira = math.sin(t * 1.4)
+        # Todo lo que los otros tramos mueven vuelve a su lugar (si no, una pierna o un brazo quedaba como en el tramo anterior)
         return dict(giroMano=-68, mira=64 + 5 * math.sin(t * 0.5), inclinacion=-12 + 1.2 * respira, empuje=0.12,
-                    manos=0.0, vuelo=0.0, sombra=True, esc=0.78)      # esc: más chico dentro de la vista, para que entre al girar
+                    manos=0.0, vuelo=0.0, sombra=True, esc=self.ESC_PROTA,   # más chico dentro de la vista, para que entre al girar
+                    liX=0.0, ldX=0.0, ampP=0.0, ampBx=0.0, ondaI=0.0, ondaD=0.0, cabX=0.0, cabZ=0.0,
+                    aiX=0.0, adX=0.0, ritmo=6.0)
 
     def _tic(self):
         if self.window().isMinimized() or self._prota is None or self._spec is None:
@@ -604,7 +647,9 @@ class Bienvenida(QWidget):
             pose.update(giroMano=-68 + 150 * k, mira=(64 + 5) * (1 - k) - 18 * k, inclinacion=-12 + 6 * k, empuje=0.12 * (1 - k))
         elif u < 7.6:                                       # 3) toma impulso: se echa un poco para atrás y levanta las manos
             k = _suave((u - 6.7) / 0.9)
-            pose.update(giroMano=82, mira=-18, inclinacion=-6 + 10 * k, empuje=0.0, manos=0.85 * k)
+            # se agacha, adelanta una pierna y baja la cabeza: va en serio
+            pose.update(giroMano=82, mira=-18, inclinacion=-6 + 10 * k, empuje=0.0, manos=0.85 * k,
+                        liX=-14 * k, ldX=18 * k, cabX=7 * k, aiX=14 * k, adX=14 * k)
             d_x = -6 * k
         elif u < 11.6:                                      # 4) empuja con las dos manos, como algo muy pesado
             k = (u - 7.6) / 4.0
@@ -613,14 +658,20 @@ class Bienvenida(QWidget):
             tirones = avance + 0.045 * math.sin(k * 34) * (1 - abs(2 * k - 1) * 0.3)
             d_logo = 50 * max(0.0, tirones)
             esfuerzo = 1.6 * math.sin(t * 17) * (0.4 + 0.6 * math.sin(math.pi * k))
-            pose.update(giroMano=82, mira=-12, inclinacion=-16 + esfuerzo + 3 * math.sin(k * 34), empuje=0.0, manos=1.0)
+            # pierna de atrás estirada, la de adelante flexionada, pasitos de esfuerzo; los brazos un poco más abajo
+            # (a la altura del pecho: con la cabeza grande, más arriba las manos se metían en la cara)
+            pasito = math.sin(k * 34)
+            pose.update(giroMano=82, mira=-12, inclinacion=-16 + esfuerzo + 3 * pasito, empuje=0.0, manos=1.0,
+                        liX=-30 + 6 * pasito, ldX=22 - 4 * pasito, cabX=10 + 2 * math.sin(t * 17), aiX=16, adX=16)
             d_x = -6 + 0.82 * d_logo + 2.0 * math.sin(t * 17)
             giro_logo = 4 * math.sin(k * 34) * k
             escala = 1.0 - 0.03 * math.sin(math.pi * k)
         elif u < 12.1:                                      # 5) el logo se frena, tiembla, se está cargando…
             k = (u - 11.6) / 0.5
             d_logo = 50 - 6 * k + 2.5 * math.sin(t * 60)
-            pose.update(giroMano=82, mira=-12, inclinacion=-16 + 5 * k, empuje=0.0, manos=1.0 - 0.2 * k)
+            # «uh-oh»: se queda quieto, mira a cámara con la cabeza ladeada
+            pose.update(giroMano=82, mira=-12 + 40 * _suave(k * 2), inclinacion=-16 + 5 * k, empuje=0.0, manos=1.0 - 0.2 * k,
+                        liX=-30 * (1 - k), ldX=22 * (1 - k), cabX=10 * (1 - k), cabZ=-14 * _suave(k * 2), aiX=16, adX=16)
             d_x = -6 + 0.82 * 50 - 6 * k
             escala = 1.0 - 0.10 * k
             giro_logo = 3 * math.sin(t * 60)
@@ -636,8 +687,10 @@ class Bienvenida(QWidget):
             km = min(1.0, k * 1.1)
             d_x = (-6 + 0.82 * 44) + (salida_x - (-6 + 0.82 * 44)) * (km ** 1.15)
             d_y = -(105 * 4 * km * (1 - km)) + 80 * km * km
+            # por el aire: agita los brazos y patalea (cómico, como en los dibujitos)
             pose.update(giroMano=82 + 700 * km, mira=0, inclinacion=-18 * (1 - km), empuje=0.3, manos=max(0.0, 1.0 - km * 3),
-                        vuelo=-1100 * (km ** 0.9), sombra=False)
+                        vuelo=-1100 * (km ** 0.9), sombra=False, ondaI=38 * min(1.0, km * 4), ondaD=38 * min(1.0, km * 4),
+                        ampP=36 * min(1.0, km * 4), ritmo=17.0, cabZ=12 * math.sin(u * 20))
         elif u < 16.8:                                      # 7) el logo solo, se acomoda (y se «ríe» un poquito)
             k = (u - 14.2) / 2.6
             d_logo = 36 * (1 - _suave(k * 1.6)) * math.cos(k * 9)
@@ -648,8 +701,12 @@ class Bienvenida(QWidget):
             k = _suave((u - 16.8) / 3.0)
             d_x = (salida_x - 20) * (1 - k)
             d_y = -9 * abs(math.sin((u - 16.8) * 5.2)) * (1 - k * 0.8)
-            pose.update(giroMano=70 - 138 * k, mira=20 + 40 * k, inclinacion=14 * (1 - k) - 12 * k, empuje=0.12 * k, manos=0.0,
-                        vuelo=0.0, sombra=True)
+            # camina de verdad (piernas y brazos), mareado al principio: se bambolea y la cabeza le da vueltas
+            mareo = (1 - k) ** 1.5
+            camina = 1 - _suave((u - 19.0) / 0.8)           # al llegar deja de caminar
+            pose.update(giroMano=70 - 138 * k, mira=20 + 40 * k, inclinacion=14 * (1 - k) - 12 * k + 7 * math.sin(u * 2.7) * mareo,
+                        empuje=0.12 * k, manos=0.0, vuelo=0.0, sombra=True, ampP=28 * camina, ampBx=-20 * camina, ritmo=9.0,
+                        cabZ=12 * math.sin(u * 4.2) * mareo, cabX=-6 * mareo)
         # (de 19,8 a 21 queda apoyado, como al principio)
         self._pose(vaiven=0, **pose)
         self.logo.efecto_escala, self.logo.efecto_giro, self.logo.efecto_destello = escala, giro_logo, destello
@@ -760,15 +817,16 @@ class Visor(QWidget):
 
         # Controles de reproducción
         estilo = self.style()
-        self.btn_play = QPushButton(icon=estilo.standardIcon(QStyle.SP_MediaPlay), objectName="play", toolTip="Reproducir / pausar (Espacio o clic en el video)")
-        self.btn_stop = QPushButton(icon=estilo.standardIcon(QStyle.SP_MediaStop), toolTip="Detener")
-        self.btn_siguiente = QPushButton(icon=estilo.standardIcon(QStyle.SP_MediaSkipForward),
+        self._color_iconos = "#e8e8ee"
+        self.btn_play = QPushButton(icon=icono_control("play"), objectName="play", toolTip="Reproducir / pausar (Espacio o clic en el video)")
+        self.btn_stop = QPushButton(icon=icono_control("stop"), toolTip="Detener")
+        self.btn_siguiente = QPushButton(icon=icono_control("siguiente"),
                                          toolTip="Siguiente de la cola o capítulo de la categoría (N)")
         self.btn_atras15 = QPushButton("↺ 15", toolTip="Retroceder 15 segundos (Shift+←)")
         self.btn_adelante15 = QPushButton("15 ↻", toolTip="Adelantar 15 segundos (Shift+→)")
         self.barra = BarraTiempo()
         self.lbl_tiempo = QLabel("0:00 / 0:00")
-        self.btn_mute = QPushButton(icon=estilo.standardIcon(QStyle.SP_MediaVolume), toolTip="Silenciar")
+        self.btn_mute = QPushButton(icon=icono_control("volumen"), toolTip="Silenciar / volver a escuchar")
         self.volumen = QSlider(Qt.Horizontal, maximum=100, value=VOLUMEN_INICIAL)
         self.volumen.setFixedWidth(60)
         self.lbl_volumen = QLabel(f"{VOLUMEN_INICIAL} %", toolTip="Volumen", objectName="volumen")
@@ -820,11 +878,17 @@ class Visor(QWidget):
         # Barra de sincronización, visible con un archivo de subtítulos cargado.
         # En palabras («1,5 s antes») en vez de un retraso con signo, que confunde.
         self.lbl_sub = QLabel()
+        self.lbl_sub.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)   # un nombre largo se recorta
         self.lbl_sincronia = QLabel(alignment=Qt.AlignCenter, minimumWidth=120)
         self.lbl_sincronia.setToolTip("Cómo salen los subtítulos respecto del archivo original")
         self.barra_subs = QWidget()
         self.barra_subs.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
-        fila_subs = QHBoxLayout(self.barra_subs)
+        # Dos filas: arriba el subtítulo y sus botones; abajo (plegado) el ajuste fino, así nada se pisa
+        filas_subs = QVBoxLayout(self.barra_subs)
+        filas_subs.setContentsMargins(0, 0, 0, 0)
+        filas_subs.setSpacing(3)
+        fila_subs = QHBoxLayout()
+        filas_subs.addLayout(fila_subs)
         fila_subs.setContentsMargins(4, 2, 4, 0)
         fila_subs.setSpacing(4)
         fila_subs.addWidget(self.lbl_sub, 1)
@@ -872,6 +936,33 @@ class Visor(QWidget):
         fila_subs.addWidget(btn_sinc_ahora)
         fila_subs.addWidget(btn_cero)
         botones_sinc += [btn_auto, btn_sinc_ahora, btn_cero]
+        # Lo fino (flechas, milisegundos, volver a cero) va plegado detrás de «⏱ Ajustar»: a la vista quedan el
+        # subtítulo, 🎯 Ahora y 🪄 Auto (menos cosas a la vez para el que recién empieza; ISO 9241-110/112)
+        self.fino_sinc = QWidget()
+        capa_fino = QHBoxLayout(self.fino_sinc)
+        capa_fino.setContentsMargins(0, 0, 0, 0)
+        capa_fino.setSpacing(4)
+        finos = [w for w in (fila_subs.itemAt(i).widget() for i in range(fila_subs.count()))
+                 if w is not None and (w in (*botones_sinc[:4], self.lbl_sincronia, self.campo_ms, btn_cero)
+                                       or (isinstance(w, QLabel) and w.text() == "Sincronía:"))]
+        for w in finos:
+            fila_subs.removeWidget(w)
+            capa_fino.addWidget(w)
+        capa_fino.setContentsMargins(4, 0, 4, 0)
+        capa_fino.insertStretch(0, 1)                     # a la derecha, debajo de «⏱ Ajustar»
+        filas_subs.addWidget(self.fino_sinc)
+        fila_subs.removeWidget(btn_auto)
+        fila_subs.addWidget(btn_auto)
+        from PySide6.QtCore import QSettings
+        self._ajustes = QSettings("TVon", "visor")
+        self.btn_fino = QPushButton("⏱ Ajustar", objectName="chico", checkable=True,
+                                    toolTip="Mostrar el ajuste fino de la sincronía (flechas y milisegundos)")
+        self.btn_fino.toggled.connect(self._mostrar_fino)
+        fila_subs.addWidget(self.btn_fino)
+        botones_sinc.append(self.btn_fino)
+        abierto = self._ajustes.value("sincronia_fina", False, type=bool)
+        self.btn_fino.setChecked(abierto)
+        self.fino_sinc.setVisible(abierto)
 
         # Aviso de siguiente capítulo, sobre el video
         self.panel_sig = QFrame(self.pantalla, objectName="panelSiguiente")
@@ -1160,7 +1251,8 @@ class Visor(QWidget):
 
     def _actualizar_controles(self):
         self.controles.setVisible(self._es_video)
-        self.barra_subs.setVisible(self._es_video and self.subs is not None)
+        # En pantalla completa, la configuración de subtítulos no va (agrandaba mucho la barra): queda solo el CC
+        self.barra_subs.setVisible(self._es_video and self.subs is not None and not self._modo_completo)
 
     # --- Subtítulos -----------------------------------------------------------
 
@@ -1176,7 +1268,8 @@ class Visor(QWidget):
         self.reproductor.setActiveSubtitleTrack(-1)
         self.subs, self.ruta_sub = subs, ruta_sub
         self._fin_dialogo = max((b for _a, b, t in subs.cues if not PUBLICIDAD_SUB.search(t)), default=None)
-        self.lbl_sub.setText(f"Subtítulos: {Path(ruta_sub).name}")
+        self.lbl_sub.setText(f"💬 {Path(ruta_sub).name}")
+        self.lbl_sub.setToolTip(f"Subtítulo cargado: {ruta_sub}")
         self.lbl_sub.setToolTip(ruta_sub)
         self._poner_retraso(retraso_ms)
         self._actualizar_controles()
@@ -1257,6 +1350,20 @@ class Visor(QWidget):
     def _girar(self):
         self._giro = (self._giro + 1) % 4
         self.lbl_cargando.setText(f"{'◐◓◑◒'[self._giro]} Analizando… {max(0, self.progreso_sincronia)} %")
+
+    def colorear_iconos(self, color: str):
+        """Los íconos de los controles, en el color del texto del tema elegido."""
+        self._color_iconos = color
+        tocando = self.reproductor.playbackState() == QMediaPlayer.PlayingState
+        self.btn_play.setIcon(icono_control("pausa" if tocando else "play", color))
+        self.btn_stop.setIcon(icono_control("stop", color))
+        self.btn_siguiente.setIcon(icono_control("siguiente", color))
+        self.btn_mute.setIcon(icono_control("mudo" if self.audio.isMuted() else "volumen", color))
+
+    def _mostrar_fino(self, si: bool):
+        self.fino_sinc.setVisible(si)
+        self.btn_fino.setText("⏱ Listo" if si else "⏱ Ajustar")
+        self._ajustes.setValue("sincronia_fina", si)
 
     def _campo_ms_cambio(self, ms: int):
         if self.subs is None:
@@ -1452,8 +1559,7 @@ class Visor(QWidget):
 
     def alternar_mute(self):
         self.audio.setMuted(not self.audio.isMuted())
-        icono = QStyle.SP_MediaVolumeMuted if self.audio.isMuted() else QStyle.SP_MediaVolume
-        self.btn_mute.setIcon(self.style().standardIcon(icono))
+        self.btn_mute.setIcon(icono_control("mudo" if self.audio.isMuted() else "volumen", self._color_iconos))
 
     def _posicion(self, pos: int):
         if not self.barra.isSliderDown():
@@ -1641,8 +1747,7 @@ class Visor(QWidget):
             self._preparar_vista_previa()
 
     def _estado(self, estado):
-        icono = QStyle.SP_MediaPause if estado == QMediaPlayer.PlayingState else QStyle.SP_MediaPlay
-        self.btn_play.setIcon(self.style().standardIcon(icono))
+        self.btn_play.setIcon(icono_control("pausa" if estado == QMediaPlayer.PlayingState else "play", self._color_iconos))
         if estado == QMediaPlayer.PausedState:
             self.guardar_progreso()
         if self._modo_completo:

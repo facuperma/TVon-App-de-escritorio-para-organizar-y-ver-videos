@@ -178,6 +178,11 @@ private val CATALOGO = listOf(
         0xFF0B1A8A, 0xFF06106A, 0xFF0F22A0, 0xFF1630B8, 0xFF5A74FF, 0xFFFFFFFF, 0xFFC6D0FF, 0xFFFFFFFF, 0xFF0B1A8A,
         0xFF3F5CFF, 0xFFFFFFFF, listOf(0xFF06106A, 0xFF0B1A8A), listOf(0xFF0B1A8A), 0xFFFFFFFF, 0xFFFFFFFF,
         0xFF06106A, 0xFFFFFFFF, radio = 2, letra = FontFamily.Monospace),
+    TemaCel("tactico", "Táctico", "Los menús de los shooters de los 2000",
+        "Verde oliva y gris militar, paneles con filo en relieve y un acento arena.", "ninguna",
+        0xFF4C5844, 0xFF3E4637, 0xFF3E4637, 0xFF4C5844, 0xFF292E24, 0xFFD8DED3, 0xFFA0AA95, 0xFFC4B550, 0xFF1E2219,
+        0xFF958831, 0xFFD8DED3, listOf(0xFF4C5844, 0xFF3E4637), listOf(0xFF5A6851, 0xFF4C5844), 0xFF8C9284, 0xFFD8DED3,
+        0xFF2E3428, 0xFFC4B550, radio = 0, menu = "biselado"),
 )
 
 /** Forma de los botones y estilo de los menús de cada tema: los mismos que en la PC (temas.py). */

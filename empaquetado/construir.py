@@ -110,6 +110,7 @@ def main():
         "--add-data", f"{RAIZ / 'organizador' / 'icono.png'};organizador",
         "--add-data", f"{RAIZ / 'organizador' / 'icono.ico'};organizador",
         "--add-data", f"{RAIZ / 'organizador' / 'paleta.dat'};organizador",
+        "--add-data", f"{RAIZ / 'instalador' / 'TorrentVision-Roku.zip'};organizador/roku",
         # La app del celular (modo ON)
         "--add-data", f"{RAIZ / 'organizador' / 'web'};organizador/web",
         "--add-data", f"{RAIZ / 'organizador' / 'fuentes'};organizador/fuentes",

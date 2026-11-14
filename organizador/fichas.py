@@ -199,11 +199,62 @@ def _wikipedia(titulo: str, anio: str | None) -> dict | None:
             imagen = (resumen.get("thumbnail") or {}).get("source")
             if not imagen and idioma == "es":
                 imagen = _poster_en_ingles(resultado["title"])
+            titulo_en = resumen.get("title") if idioma == "en" else _titulo_en_ingles(resultado["title"])
             return {
+                "buscado": titulo, "titulo_en": titulo_en,
                 "titulo": resumen.get("title") or titulo, "anio": anio_texto, "sinopsis": texto,
                 "generos": [], "puntaje": None, "poster_url": imagen, "fuente": f"Wikipedia ({idioma})",
             }
     return None
+
+
+def _titulo_en_ingles(titulo_es: str) -> str:
+    try:
+        datos = pedir_json("https://es.wikipedia.org/w/api.php",
+                           {"action": "query", "prop": "langlinks", "lllang": "en", "titles": titulo_es,
+                            "format": "json"}, cabeceras=AGENTE, timeout=20)
+        return next((e.get("*") for p in datos.get("query", {}).get("pages", {}).values()
+                     for e in p.get("langlinks", []) if e.get("*")), "")
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+_VACIAS = {"de", "del", "la", "las", "los", "el", "en", "y", "a", "al", "con", "por", "para", "the", "of", "and", "in",
+           "on", "hd", "full", "video", "relato", "oficial", "official"}
+
+
+def _imagen_por_contexto(titulo: str) -> dict | None:
+    """Videos que no son películas ni series (un gol, un recital, un documental casero): una imagen del tema sacada
+    del artículo de Wikipedia que más se le parece. Solo con 3 palabras o más en el título y si la mayoría aparecen
+    en ese artículo (así un video personal no termina con la foto de otra persona)."""
+    # Lo principal va antes de « - » («Gol de Maradona a los ingleses HD - Relato de Víctor Hugo»)
+    principal = re.split(r"\s[-–|]\s", titulo)[0]
+    palabras = [p for p in _normal(principal).split() if len(p) > 2 and p not in _VACIAS and not p.isdigit()]
+    if len(palabras) < 3:
+        return None
+    for idioma in ("es", "en"):
+        datos = pedir_json(f"https://{idioma}.wikipedia.org/w/api.php",
+                           {"action": "query", "list": "search", "srsearch": " ".join(palabras), "srlimit": 4,
+                            "format": "json"}, cabeceras=AGENTE, timeout=20)
+        for resultado in datos.get("query", {}).get("search", []):
+            resumen = pedir_json(f"https://{idioma}.wikipedia.org/api/rest_v1/page/summary/"
+                                 + quote(resultado["title"].replace(" ", "_"), safe=""), cabeceras=AGENTE, timeout=20)
+            imagen = (resumen.get("originalimage") or resumen.get("thumbnail") or {}).get("source")
+            if not imagen:
+                continue
+            texto = _normal(" ".join((resumen.get("title") or "", _sin_html(resultado.get("snippet")),
+                                      resumen.get("extract") or "")))
+            if sum(1 for p in palabras if p in texto.split()) / len(palabras) >= 0.6:
+                return {"titulo": titulo, "anio": None, "sinopsis": resumen.get("extract") or "", "generos": [],
+                        "puntaje": None, "poster_url": imagen,
+                        "fuente": f"Wikipedia ({idioma}, imagen por contexto: {resumen.get('title')})"}
+    return None
+
+
+def _confirmada_en_ingles(encontrada: dict) -> bool:
+    """Una ficha de la Wikipedia en castellano con otro título («Ciudad de Dios» para «City of God»): se acepta si el
+    artículo equivalente en inglés se llama como lo buscado (lo anota _wikipedia en «titulo_en»)."""
+    return bool(encontrada.get("buscado")) and _parecido(encontrada["buscado"], encontrada.get("titulo_en") or "") >= 0.6
 
 
 def _poster_en_ingles(titulo_es: str) -> str | None:
@@ -260,6 +311,67 @@ def _archive(identificador: str) -> dict | None:
     }
 
 
+def _parecido(buscado: str, encontrado: str) -> float:
+    """Qué tanto se parece un título a otro (0 a 1): la parte de las palabras del buscado que está en el
+    encontrado, castigando si el encontrado tiene muchas de más. «The Vietnam War» vs «Avengers: Infinity War» = 0,33."""
+    a, b = set(_normal(buscado).split()) - {"the", "a", "el", "la", "los", "las"}, set(_normal(encontrado).split()) - {"the", "a", "el", "la", "los", "las"}
+    if not a or not b:
+        return 0.0
+    comunes = len(a & b)
+    return min(comunes / len(a), comunes / len(b) + 0.25)
+
+
+def _anio_cerca(anio: str | None, otro: str | None) -> bool:
+    return not anio or not otro or abs(int(anio) - int(otro)) <= 1
+
+
+def _por_wikidata(titulo: str, anio: str | None, tipo: str) -> dict | None:
+    """La forma más segura sin clave: Wikidata dice exactamente qué película o serie es (título en inglés y en
+    castellano, año, si es película o serie, su IMDb y su artículo de Wikipedia). Solo se acepta si el título
+    coincide, el año está a un año de distancia como mucho y es del tipo correcto. Después: la sinopsis del
+    artículo exacto de Wikipedia (en castellano si hay) y, en las películas, póster, géneros y puntaje de Letterboxd."""
+    from . import letterboxd
+    candidatos = []
+    for c in letterboxd.buscar_peliculas(titulo, maximo=12):
+        if c.get("tipo") != tipo or not _anio_cerca(anio, c.get("anio")):
+            continue
+        parecido = max(_parecido(titulo, c.get("titulo") or ""), _parecido(titulo, c.get("titulo_es") or ""))
+        if parecido < 0.75:
+            continue
+        exacto = _normal(titulo) in (_normal(c.get("titulo") or ""), _normal(c.get("titulo_es") or ""))
+        candidatos.append((exacto, parecido, -(abs(int(anio) - int(c["anio"])) if anio and c.get("anio") else 0), c))
+    if not candidatos:
+        return None
+    c = max(candidatos, key=lambda x: x[:3])[3]
+    sinopsis, poster, generos, puntaje = "", "", [], None
+    if c.get("wiki"):
+        try:
+            w = letterboxd.detalle_wikipedia(c["wiki"])
+            sinopsis, poster = w.get("sinopsis") or "", w.get("poster_url") or ""
+        except Exception:  # noqa: BLE001
+            pass
+    if tipo == "pelicula" and "letterboxd.com" in (c.get("url") or ""):
+        try:
+            lb = letterboxd.detalle(c["url"])
+            poster = lb.get("poster_url") or poster          # el póster de verdad (Wikipedia suele no tenerlo)
+            sinopsis = sinopsis or lb.get("sinopsis") or ""
+            generos = [GENEROS_ES.get(g, g) for g in lb.get("generos") or []]
+            puntaje = (lb["puntaje"] * 2) if lb.get("puntaje") else None   # Letterboxd puntúa de 0 a 5
+        except Exception:  # noqa: BLE001
+            pass
+    if tipo == "serie" and (not poster or not generos):
+        tv = _tvmaze(c.get("titulo") or titulo)
+        if tv and _parecido(c.get("titulo") or titulo, tv["titulo"]) >= 0.75:
+            poster = poster or tv.get("poster_url") or ""
+            generos, puntaje = tv.get("generos") or [], tv.get("puntaje")
+            sinopsis = sinopsis or tv.get("sinopsis") or ""
+    if not sinopsis and not poster:
+        return None
+    return {"titulo": c.get("titulo_es") or c.get("titulo") or titulo, "anio": c.get("anio") or anio, "sinopsis": sinopsis,
+            "generos": generos, "puntaje": puntaje, "poster_url": poster,
+            "fuente": "Wikidata + " + ("Letterboxd" if tipo == "pelicula" else "Wikipedia")}
+
+
 def buscar_en_internet(bib: Biblioteca, clave: str, titulo: str, anio: str | None,
                        identificador_archive: str | None = None) -> dict | None:
     tipo = clave.split("|", 1)[0]
@@ -274,7 +386,21 @@ def buscar_en_internet(bib: Biblioteca, clave: str, titulo: str, anio: str | Non
             return _Tmdb(clave_tmdb).buscar(tipo, titulo, anio)
         except Exception:  # noqa: BLE001 - clave mal escrita, sin internet: se prueba sin TMDb
             pass
-    return _wikipedia(titulo, anio) if tipo == "pelicula" else _tvmaze(titulo)
+    try:
+        if encontrada := _por_wikidata(titulo, anio, tipo):
+            return encontrada
+    except Exception:  # noqa: BLE001 - si Wikidata no responde, lo de antes (pero verificado)
+        pass
+    encontrada = _wikipedia(titulo, anio) if tipo == "pelicula" else _tvmaze(titulo)
+    # Que de verdad sea esa: «The Vietnam War» no puede volver como «Avengers: Infinity War»
+    if encontrada and _parecido(titulo, encontrada.get("titulo") or "") < 0.6 and not _confirmada_en_ingles(encontrada):
+        encontrada = None
+    if encontrada is None and tipo == "pelicula":
+        try:
+            encontrada = _imagen_por_contexto(titulo)      # un video que no es una película: al menos una portada
+        except Exception:  # noqa: BLE001
+            encontrada = None
+    return encontrada
 
 
 def guardar(bib: Biblioteca, carpeta_posters: Path, clave: str, encontrada: dict | None, busqueda: str | None):
@@ -326,6 +452,17 @@ class BuscadorFichas(QObject):
 
     def _bucle(self):
         bib = Biblioteca(self.ruta_db)
+        # Una vez: las fichas de antes (Wikipedia o TVmaze sin verificar) se buscan de nuevo con Wikidata, que no
+        # confunde «The Vietnam War» con «Avengers: Infinity War». Las corregidas a mano y las de TMDb quedan.
+        # (versión 3: también las que no se habían encontrado, que ahora pueden tener una portada por contexto)
+        if bib.config("fichas_version") != "3":
+            try:
+                bib.con.execute("""UPDATE fichas SET buscada = 0 WHERE (busqueda IS NULL OR busqueda = '')
+                                   AND (fuente IS NULL OR (fuente NOT LIKE '%TMDb%' AND fuente NOT LIKE '%Archive%'))""")
+                bib.con.commit()
+                bib.guardar_config("fichas_version", "3")
+            except Exception:  # noqa: BLE001
+                pass
         while not self._parar.is_set():
             try:
                 self._pasada(bib)

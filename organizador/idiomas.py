@@ -20,35 +20,53 @@ def _nombre(loc: QLocale) -> str:
     return texto
 
 
-_TODOS: list[tuple[str, str]] | None = None
+# Una opción por idioma; variantes solo donde los subtítulos cambian de verdad (español, portugués, chino).
+# Primero los más usados; después el resto, por nombre.
+_COMUNES = [
+    ("es_AR", "Español (Argentina)"), ("es_ES", "Español (España)"), ("en", "English — Inglés"),
+    ("pt_BR", "Português (Brasil) — Portugués"), ("pt_PT", "Português (Portugal) — Portugués"),
+    ("fr", "Français — Francés"), ("it", "Italiano"), ("de", "Deutsch — Alemán"),
+    ("ja", "日本語 — Japonés"), ("ko", "한국어 — Coreano"), ("zh_CN", "中文 简体 — Chino simplificado"),
+    ("zh_TW", "中文 繁體 — Chino tradicional"), ("ru", "Русский — Ruso"), ("ar", "العربية — Árabe"),
+]
+_OTROS = [
+    ("bg", "Български — Búlgaro"), ("ca", "Català — Catalán"), ("cs", "Čeština — Checo"), ("da", "Dansk — Danés"),
+    ("el", "Ελληνικά — Griego"), ("eu", "Euskara — Vasco"), ("fa", "فارسی — Persa"), ("fi", "Suomi — Finés"),
+    ("gl", "Galego — Gallego"), ("he", "עברית — Hebreo"), ("hi", "हिन्दी — Hindi"), ("hr", "Hrvatski — Croata"),
+    ("hu", "Magyar — Húngaro"), ("id", "Bahasa Indonesia — Indonesio"), ("nl", "Nederlands — Neerlandés"),
+    ("no", "Norsk — Noruego"), ("pl", "Polski — Polaco"), ("ro", "Română — Rumano"), ("sk", "Slovenčina — Eslovaco"),
+    ("sr", "Српски — Serbio"), ("sv", "Svenska — Sueco"), ("th", "ไทย — Tailandés"), ("tr", "Türkçe — Turco"),
+    ("uk", "Українська — Ucraniano"), ("vi", "Tiếng Việt — Vietnamita"),
+]
 
 
 def todos() -> list[tuple[str, str]]:
-    """[(código, nombre)] de todos los idiomas y variantes, ordenados por nombre. Primero cada idioma solo
-    (es, en, pt…) y después sus variantes por país."""
-    global _TODOS
-    if _TODOS is None:
-        vistos, lista = set(), []
-        for loc in QLocale.matchingLocales(QLocale.AnyLanguage, QLocale.AnyScript, QLocale.AnyTerritory):
-            if loc.language() in (QLocale.C, QLocale.AnyLanguage):
-                continue
-            codigo = loc.name()
-            base = codigo.split("_")[0]
-            if base not in vistos:
-                vistos.add(base)
-                nombre = loc.nativeLanguageName() or QLocale.languageToString(loc.language())
-                en_ingles = QLocale.languageToString(loc.language())
-                lista.append((base, nombre[:1].upper() + nombre[1:] + (f" — {en_ingles}" if en_ingles.lower() != nombre.lower() else "")))
-            if codigo not in vistos:
-                vistos.add(codigo)
-                lista.append((codigo, _nombre(loc)))
-        lista.sort(key=lambda x: (x[1].split(" (")[0].split(" —")[0].lower(), "_" in x[0], x[1].lower()))
-        _TODOS = lista
-    return _TODOS
+    """[(código, nombre)]: los más usados primero y después el resto por nombre."""
+    return _COMUNES + sorted(_OTROS, key=lambda x: x[1].split(" —")[0].lower())
+
+
+def mas_cercano(codigo: str) -> str:
+    """La opción de la lista para cualquier código: es_MX/es_419 → es_AR (español latino), es_ES → es_ES,
+    en_US → en, pt → pt_BR, zh_Hant_TW → zh_TW…"""
+    codigos = [c for c, _n in todos()]
+    if codigo in codigos:
+        return codigo
+    partes = (codigo or "").replace("-", "_").split("_")
+    idioma = partes[0].lower()
+    if idioma == "es":
+        return "es_ES" if "ES" in partes else "es_AR"
+    if idioma == "pt":
+        return "pt_PT" if "PT" in partes else "pt_BR"
+    if idioma == "zh":
+        return "zh_TW" if {"Hant", "TW", "HK", "MO"} & set(partes) else "zh_CN"
+    if idioma == "nb" or idioma == "nn":
+        return "no"
+    return idioma if idioma in codigos else ""
 
 
 def nombre_de(codigo: str) -> str:
-    return next((n for c, n in todos() if c == codigo), codigo)
+    cercano = mas_cercano(codigo)
+    return next((n for c, n in todos() if c == cercano), codigo)
 
 
 def base(codigo: str) -> str:
@@ -56,8 +74,8 @@ def base(codigo: str) -> str:
     partes = (codigo or "").replace("-", "_").split("_")
     if not partes[0]:
         return ""
-    if partes[0] == "pt" and "BR" in partes:
-        return "pt-BR"
+    if partes[0] == "pt":
+        return "pt-BR" if "BR" in partes else "pt-PT"
     if partes[0] == "zh":
         return "zh-TW" if ("Hant" in partes or "TW" in partes or "HK" in partes) else "zh-CN"
     return partes[0].lower()
@@ -82,19 +100,19 @@ class DialogoIdioma(QDialog):
     def __init__(self, actual: str = "", parent=None, primera_vez: bool = False):
         super().__init__(parent)
         self.setWindowTitle("Idioma de los subtítulos — TorrentVision")
-        self.resize(520, 600)
+        self.resize(480, 640)
         capa = QVBoxLayout(self)
         texto = ("¡Bienvenido a TorrentVision! " if primera_vez else "") + (
             "Elegí en qué idioma querés los subtítulos. Cuando bajes una película, TorrentVision los busca solo "
             "en ese idioma (se puede cambiar cuando quieras en Configuración → Preferencias).")
         capa.addWidget(QLabel(texto, wordWrap=True))
-        self.filtro = QLineEdit(placeholderText="🔎 Buscar: español, english, Argentina, pt_BR…")
+        self.filtro = QLineEdit(placeholderText="🔎 Buscar: español, inglés, Brasil…")
         capa.addWidget(self.filtro)
         self.lista = QListWidget()
         capa.addWidget(self.lista, 1)
-        elegir = actual or del_sistema()
+        elegir = mas_cercano(actual or del_sistema()) or "es_AR"
         for codigo, nombre in todos():
-            item = QListWidgetItem(f"{nombre}   ·   {codigo}")
+            item = QListWidgetItem(nombre)
             item.setData(Qt.UserRole, codigo)
             self.lista.addItem(item)
             if codigo == elegir:

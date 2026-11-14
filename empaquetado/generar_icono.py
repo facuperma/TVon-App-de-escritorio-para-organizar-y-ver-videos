@@ -37,10 +37,26 @@ def png_de(imagen: QImage) -> bytes:
     return bytes(buffer.data())
 
 
+def dib_de(imagen: QImage) -> bytes:
+    """El formato clásico de los .ico (mapa de bits de 32 bits + máscara): la barra de tareas y la caché de
+    íconos de Windows lo leen siempre; un PNG adentro del .ico solo es seguro en el tamaño de 256."""
+    imagen = imagen.convertToFormat(QImage.Format_ARGB32)
+    lado = imagen.width()
+    cabecera = struct.pack("<IiiHHIIiiII", 40, lado, lado * 2, 1, 32, 0, 0, 0, 0, 0, 0)
+    filas = []
+    for y in range(lado - 1, -1, -1):              # de abajo hacia arriba
+        linea = bytes(imagen.constScanLine(y))[:lado * 4]   # BGRA en memoria (ARGB32 little endian)
+        filas.append(linea)
+    ancho_mascara = ((lado + 31) // 32) * 4
+    mascara = bytes(ancho_mascara * lado)          # todo 0: la transparencia la da el alfa
+    return cabecera + b"".join(filas) + mascara
+
+
 def main():
     original = QImage(str(ORIGEN)).convertToFormat(QImage.Format_ARGB32)
     sin_margen = recortado(original)
-    imagenes = [png_de(reducir(sin_margen, lado)) for lado in TAMANOS]
+    imagenes = [png_de(reducir(sin_margen, lado)) if lado >= 256 else dib_de(reducir(sin_margen, lado))
+                for lado in TAMANOS]
     # Formato ICO: cabecera, una entrada de 16 bytes por tamaño y los PNG a continuación
     cabecera = struct.pack("<HHH", 0, 1, len(TAMANOS))
     desplazamiento = len(cabecera) + 16 * len(TAMANOS)

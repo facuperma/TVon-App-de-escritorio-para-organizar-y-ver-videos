@@ -3,6 +3,7 @@
 Cada tema es una paleta, una letra, una forma de botón y una animación para la banda de arriba.
 Son estilos inspirados en esa época, con nombres y diseños propios (sin logos ni marcas de nadie).
 """
+import re
 from dataclasses import dataclass, replace
 
 
@@ -460,6 +461,17 @@ TEMAS += [
          barra=_degrade("#06106a", "#0b1a8a"), boton="#0b1a8a", boton_hover="#2a46e0", boton_borde="#ffffff",
          boton_texto="#ffffff", letra="Lucida Console", radio=2, borde_boton="2px solid",
          lcd_fondo="#06106a", lcd_texto="#ffffff", lcd_letra="Lucida Console", forma="recto", menu="lcd"),
+
+    # Inspirado en los menús de los shooters tácticos de los 2000 (sin nombres ni logos de ningún juego): verde
+    # oliva grisáceo, paneles con un filo claro arriba/izquierda y oscuro abajo/derecha, letra chica y acento arena
+    Tema("tactico", "Táctico", "Los menús de los shooters de los 2000", "Verde oliva y gris militar, paneles con "
+         "filo en relieve, letra chica y un acento arena. En la banda, un radar que barre la zona.", "radar",
+         fondo="#4c5844", fondo_hondo="#3e4637", panel="#3e4637", panel_claro="#4c5844", borde="#292e24",
+         texto="#d8ded3", tenue="#a0aa95", acento="#c4b550", acento_texto="#1e2219", seleccion="#958831",
+         hover="#5a6851", titulo="#d8ded3",
+         barra=_degrade("#4c5844", "#3e4637"), boton="#4c5844", boton_hover="#5a6851", boton_borde="#8c9284",
+         boton_texto="#d8ded3", letra="Tahoma", radio=0, borde_boton="1px outset",
+         lcd_fondo="#2e3428", lcd_texto="#c4b550", lcd_letra="Tahoma", forma="recto", menu="biselado"),
 ]
 
 POR_ID = {t.id: t for t in TEMAS}
@@ -594,8 +606,16 @@ def _moderno(t: Tema) -> str:
     tarjeta_borde = _mix(t.panel_claro, "#ffffff", 0.06)
     manija = _mix(t.panel_claro, "#ffffff", 0.12)
     manija_h = _mix(t.panel_claro, "#ffffff", 0.25)
+    # Relieve: en los temas casi negros (Fósforo, Arcade…) la sombra del fondo no se ve; ahí el canto de abajo sale del
+    # color del borde, más oscuro y más grueso, con un filo de luz arriba: el botón parece una tecla
+    oscuro = _luminancia(_solido(t.fondo) or "#000000") < 0.012
+    canto = _mix(t.boton_borde, "#000000", 0.28) if oscuro else sombra
+    filo = _mix(t.boton_borde, "#ffffff", 0.35) if oscuro else t.boton_borde
+    if oscuro:                                  # la cara del botón, con más degradé (de su borde a negro)
+        alto, bajo = _mix(t.boton, t.boton_borde, 0.32), _mix(t.boton, "#000000", 0.4)
     boton = (f"background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {alto}, stop:1 {bajo}); color: {t.boton_texto}; "
-             f"border: 1px solid {t.boton_borde}; border-bottom: 2px solid {sombra}; border-radius: 9px;")
+             f"border: 1px solid {t.boton_borde}; border-top: 1px solid {filo}; border-bottom: {4 if oscuro else 2}px solid {canto}; "
+             f"border-radius: 9px;")
     hover = (f"background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {alto_h}, stop:1 {bajo_h}); "
              f"border-color: {_mix(t.boton_borde, t.acento, 0.5)};")
     apretado = (f"background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {bajo}, stop:1 {alto}); "
@@ -678,7 +698,7 @@ QTabBar::tab:selected {{ background: transparent; color: {t.titulo}; border-bott
 QGroupBox {{ border: 1px solid {t.borde}; border-radius: 12px; margin-top: 20px; padding: 16px 10px 10px; background: {t.panel}; }}
 QGroupBox::title {{ subcontrol-origin: margin; left: 14px; padding: 0 6px; color: {t.tenue}; font-weight: 600; background: transparent; }}
 QSplitter::handle {{ background: transparent; width: 10px; }}
-QStatusBar {{ background: {t.barra}; color: {t.tenue}; border-top: 1px solid {t.borde}; padding: 3px 10px; }}
+QStatusBar {{ background: {t.barra}; color: {legible(t.tenue, t.barra)}; border-top: 1px solid {t.borde}; padding: 3px 10px; }}
 QSlider::groove:horizontal {{ height: 4px; background: {t.panel_claro}; border-radius: 2px; }}
 QSlider::sub-page:horizontal {{ background: {t.acento}; border-radius: 2px; }}
 QSlider::handle:horizontal {{ background: #ffffff; border: none; width: 14px; margin: -5px 0; border-radius: 7px; }}
@@ -695,8 +715,30 @@ def _redondeo(t: Tema, hoja: str) -> str:
     return re.sub(r"border-radius: (\d+)px", lambda m: f"border-radius: {round(int(m.group(1)) * k)}px", hoja)
 
 
+def _solido(color: str) -> str | None:
+    m = re.search(r"#[0-9a-fA-F]{6}", str(color))
+    return m.group(0) if m else None
+
+
+def legible(texto: str, fondo: str, minimo: float = 4.5) -> str:
+    """El color del texto, corrido de a poco hacia blanco o negro (el que contraste más con el fondo) hasta que se lea:
+    4,5:1 para texto (WCAG 2 / ISO/IEC 40500, nivel AA). Si ya se lee, queda igual."""
+    t, f = _solido(texto), _solido(fondo)
+    if not t or not f or contraste(t, f) >= minimo:
+        return texto
+    extremo = "#ffffff" if contraste("#ffffff", f) >= contraste("#000000", f) else "#000000"
+    for paso in range(1, 11):
+        nuevo = _mix(t, extremo, paso / 10)
+        if contraste(nuevo, f) >= minimo:
+            return nuevo
+    return extremo
+
+
 def estilo(t: Tema) -> str:
     """La hoja de estilo completa de la app para el tema."""
+    # Que todo texto se lea sobre su fondo (los grises tenues y el texto de los botones de algunos temas no llegaban)
+    from dataclasses import replace
+    t = replace(t, tenue=legible(t.tenue, t.panel), boton_texto=legible(t.boton_texto, t.boton))
     r = t.radio
     rc = max(0, r - 2)
     barra_texto = "#ffffff" if t.id in ("luna", "luna_noche", "noventa") else t.texto

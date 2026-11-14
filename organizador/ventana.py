@@ -160,7 +160,7 @@ class Ventana(QMainWindow):
 
         self.izq = izq = QWidget()
         capa_izq = QVBoxLayout(izq)
-        capa_izq.addWidget(QLabel("Biblioteca y categorías", objectName="titulo"))
+        capa_izq.addWidget(QLabel("📚 Biblioteca", objectName="titulo", toolTip="Todo lo que tenés y tus categorías"))
         capa_izq.addWidget(self.lista_filtros, 1)
         capa_izq.addWidget(btn_nueva)
         fila = QHBoxLayout()
@@ -204,8 +204,8 @@ class Ventana(QMainWindow):
         self.btn_categoria_titulo.clicked.connect(self._categoria_desde_titulo)
         self.btn_categoria_titulo.hide()
         # Siempre a la vista, junto a «Quitar de la biblioteca»; se habilita al seleccionar algo
-        self.btn_eliminar = QPushButton("🗑 Eliminar del disco", objectName="peligro",
-                                        toolTip="Mandar los archivos seleccionados a la Papelera de reciclaje (Supr)")
+        self.btn_eliminar = QPushButton("🗑 Eliminar", objectName="peligro",
+                                        toolTip="Eliminar del disco: manda los archivos seleccionados a la Papelera de reciclaje (Supr)")
         self.btn_eliminar.clicked.connect(self._eliminar_del_disco)
         self.btn_eliminar.setEnabled(False)
         QShortcut(QKeySequence.Delete, self.lista, activated=self._eliminar_del_disco,
@@ -244,6 +244,9 @@ class Ventana(QMainWindow):
         btn_cast = QPushButton("📺", toolTip="Transmitir a la tele (Chromecast)")
         btn_cast.clicked.connect(self._abrir_cast)
         self.visor.agregar_control(btn_cast)
+        btn_roku = QPushButton("📡", toolTip="Conectar un Roku (se adapta a tu modelo)")
+        btn_roku.clicked.connect(self._conectar_roku)
+        self.visor.agregar_control(btn_roku)
 
         self.lbl_nombre = QLabel(objectName="titulo")
         self.lbl_nombre.setWordWrap(True)
@@ -278,10 +281,11 @@ class Ventana(QMainWindow):
         capa_cat.addWidget(self.chips, 1)
         capa_cat.addWidget(self.btn_editar_cat)
 
-        btn_ant = QPushButton("◀ Anterior")
-        btn_sig = QPushButton("Siguiente ▶")
-        btn_ventana = QPushButton("⧉ Abrir en ventana", toolTip="Abrir en una ventana aparte")
-        btn_quitar = QPushButton("Quitar de la biblioteca")
+        # Textos cortos (se leen enteros en cualquier tema y tamaño); lo largo, al pasar el mouse
+        btn_ant = QPushButton("◀ Anterior", toolTip="El video anterior de la lista")
+        btn_sig = QPushButton("Siguiente ▶", toolTip="El video siguiente de la lista")
+        btn_ventana = QPushButton("⧉ Ventana", toolTip="Abrir en una ventana aparte (se puede dejar siempre encima)")
+        btn_quitar = QPushButton("Quitar", toolTip="Quitar de la biblioteca: deja de aparecer acá, el archivo sigue en el disco")
         btn_ant.clicked.connect(lambda: self.mover(-1))
         btn_sig.clicked.connect(lambda: self.mover(1))
         btn_ventana.clicked.connect(lambda: self.abrir_en_ventana([self.archivo_actual()]))
@@ -318,6 +322,7 @@ class Ventana(QMainWindow):
         self.buscador = QLineEdit(placeholderText="🔎 Buscar película o serie… (Enter: buscar también para bajar)",
                                   clearButtonEnabled=True)
         self.buscador.setMinimumHeight(30)
+        self.buscador.installEventFilter(self)       # el texto de ayuda y el alto se ajustan al ancho y a la letra
         self.buscador.setToolTip("Filtra tu biblioteca mientras escribís.\nCon Enter: si ya la tenés, te muestra "
                                  "dónde está; si no, la busca para bajar (con portada y de qué trata)")
         self.buscador.returnPressed.connect(self._buscar_para_bajar)
@@ -360,6 +365,8 @@ class Ventana(QMainWindow):
         self.grilla_simple.reproducir.connect(self._simple_reproducir)
         self.ficha_simple.reproducir.connect(self._simple_reproducir)
         self.grilla_simple.salir.connect(lambda: self.alternar_modo_simple(False))
+        self.grilla_simple.menu_pedido.connect(self._menu_simple)
+        self.ficha_simple.en_ventana.connect(self._simple_en_ventana)
 
         self._crear_menu()
         self._atajos()
@@ -372,6 +379,11 @@ class Ventana(QMainWindow):
         self.vigilante.iniciar()
         self.torrents.iniciar()
         self.buscador_fichas.iniciar()
+        try:                                    # el Roku conectado: a uno 4K se le manda el HEVC sin convertir
+            from . import roku as _roku
+            _roku.poner_perfil(json.loads(self.bib.config("roku_perfil") or "{}"))
+        except (ValueError, TypeError):
+            pass
         if self.bib.config("modo_simple") == "1":
             QTimer.singleShot(0, lambda: self.alternar_modo_simple(True))
 
@@ -434,6 +446,38 @@ class Ventana(QMainWindow):
         self.ficha_simple.mostrar(e)
         self._ver_ficha()
 
+    def _menu_simple(self, e: dict, pos_global):
+        """Clic derecho en un póster del modo simple: las mismas opciones que en la lista, más las propias."""
+        rutas = [e["ruta"]] if e["tipo"] == "pelicula" else [c["ruta"] for c in e["episodios"]]
+
+        def marcar():
+            return [it for it in self._items() if it.data(0, ROL) and it.data(0, ROL)[1] in rutas]
+        items = marcar()
+        if not items:                   # la lista escondida tenía otro filtro o una búsqueda: se muestra todo
+            self.buscador.blockSignals(True)
+            self.buscador.clear()
+            self.buscador.blockSignals(False)
+            self.filtro = ("todos", None)
+            self._cargar_archivos()
+            items = marcar()
+        if not items:
+            return
+        self.lista.blockSignals(True)
+        self.lista.clearSelection()
+        for it in items:
+            it.setSelected(True)
+        self.lista.blockSignals(False)
+        primera = rutas[0] if e["tipo"] == "pelicula" else (self.ficha_simple._ruta or rutas[0])
+        extras = [("▶ Reproducir", lambda: self._simple_reproducir(primera)),
+                  ("🎞 Ver la ficha", lambda: self._simple_elegido(e))]
+        self._menu_archivos(None, global_pos=pos_global, extras=extras)
+        self.grilla_simple.cargar()          # lo que cambió (vista, categorías, quitada) se ve enseguida
+
+    def _simple_en_ventana(self, ruta: str):
+        aid = self.bib.id_de_ruta(ruta)
+        if aid is not None:
+            self.abrir_en_ventana([(aid, ruta, "video")])
+
     def _simple_reproducir(self, ruta: str):
         self._ver_reproductor()
         if self.visor.ruta_video == ruta and not self.visor.en_vista_previa():
@@ -459,7 +503,7 @@ class Ventana(QMainWindow):
         self.acc_torrents.setToolTip("Descargar películas con un link magnet o un archivo .torrent")
         acc_letterboxd = barra.addAction("🎬 Letterboxd", self._abrir_letterboxd)
         acc_letterboxd.setToolTip("Tu watchlist de Letterboxd y las mejor puntuadas, marcando las que ya tenés")
-        self.acc_on = barra.addAction("📱 ON", self._abrir_on)
+        self.acc_on = barra.addAction("📱 Celular", self._abrir_on)
         self.acc_on.setToolTip("Manejar TorrentVision desde el celular")
         barra.addSeparator()
         # Accesos a páginas externas: se abren en el navegador
@@ -699,6 +743,58 @@ class Ventana(QMainWindow):
         super().resizeEvent(e)
         if self._modo_fullscreen:
             self._ubicar_salir_fullscreen()
+        if hasattr(self, "_texto_lleno"):
+            self._ajustar_barra()
+
+    @staticmethod
+    def _texto_corto(texto: str, nivel: int, con_icono: bool) -> str:
+        """Nivel 1: el emoji y la primera palabra («🎞 Dominio»); nivel 2: solo el emoji (o solo el ícono)."""
+        from .emojis import separar
+        partes = separar(texto)
+        if partes:
+            emoji, resto = partes
+            return emoji if nivel >= 2 else f"{emoji} {resto.split()[0]}"
+        palabras = texto.split()
+        if nivel >= 2 and con_icono:
+            return ""
+        return palabras[-1].capitalize() if palabras else texto
+
+    def _ajustar_barra(self):
+        """Que en la barra de botones entre todo, con BiriBiri a la derecha: si no hay lugar, los botones se
+        quedan con un nombre corto y, si igual no entra, solo con el emoji (el nombre completo, al pasar el mouse)."""
+        barra = getattr(self, "barra_herramientas", None)
+        llenos = getattr(self, "_texto_lleno", None)
+        if barra is None or not llenos or not barra.isVisible():
+            return
+        acciones = {c: self._acciones_barra[c] for c in llenos if self._acciones_barra[c] in barra.actions()}
+        if not hasattr(self, "_ayudas_barra"):
+            self._ayudas_barra = {c: a.toolTip() for c, a in self._acciones_barra.items()}
+
+        def necesario() -> int:
+            total = 0
+            for a in barra.actions():
+                if a is self._acc_espacio:
+                    continue
+                w = barra.widgetForAction(a)
+                total += (w.sizeHint().width() if w is not None else 10) + barra.layout().spacing()
+            m = barra.contentsMargins()
+            return total + m.left() + m.right() + 16
+
+        from collections import Counter
+        from .emojis import separar
+        repetidos = Counter((separar(llenos[c]) or ("",))[0] for c in acciones)
+        for nivel in (0, 1, 2):
+            for clave, accion in acciones.items():
+                lleno = llenos[clave]
+                # dos botones con el mismo emoji (🌐 Películas, 🌐 Subtítulos): esos conservan la palabra
+                propio = nivel if repetidos[(separar(lleno) or ("",))[0]] < 2 else min(nivel, 1)
+                texto = lleno if nivel == 0 else self._texto_corto(lleno, propio, not accion.icon().isNull())
+                if accion.text() != texto:
+                    accion.setText(texto)
+                ayuda = self._ayudas_barra.get(clave) or ""
+                accion.setToolTip(ayuda if nivel == 0 else (f"{lleno}\n{ayuda}" if ayuda and ayuda != lleno else lleno))
+            if necesario() <= barra.width():
+                break
 
     def alternar_pantalla_completa(self):
         """Pantalla completa propia: se oculta todo menos el visor."""
@@ -856,6 +952,49 @@ class Ventana(QMainWindow):
 
     # --- Archivos -------------------------------------------------------------
 
+    def _ajustar_buscador(self):
+        """Que el texto de ayuda del buscador se lea entero: el largo si entra, si no uno más corto; y el alto según la
+        letra del tema (las letras altas, como la de Fósforo, se cortaban arriba y abajo)."""
+        b = self.buscador
+        fm = b.fontMetrics()
+        alto = max(32, fm.height() + 24)          # el relleno de arriba y abajo de los temas llega a 9 px
+        if b.minimumHeight() != alto:
+            b.setMinimumHeight(alto)
+        libre = b.width() - 46
+        for texto in ("🔎 Buscar película o serie… (Enter: buscar también para bajar)",
+                      "🔎 Buscar película o serie… (Enter: para bajar)", "🔎 Buscar película o serie…", "🔎 Buscar…"):
+            if fm.horizontalAdvance(texto) <= libre:
+                break
+        if b.placeholderText() != texto:
+            b.setPlaceholderText(texto)
+
+    def _mensaje_lista_vacia(self, vacia: bool, filtro: str):
+        """Lista vacía: en vez de un blanco, qué hacer (para el que abre TorrentVision por primera vez)."""
+        cartel = getattr(self, "_cartel_vacio", None)
+        if cartel is None:
+            cartel = self._cartel_vacio = QLabel(self.lista.viewport(), alignment=Qt.AlignCenter, wordWrap=True,
+                                                 objectName="pista")
+            cartel.setAttribute(Qt.WA_TransparentForMouseEvents)
+            cartel.setStyleSheet("background: transparent; font-size: 11pt; padding: 18px;")
+        if not vacia:
+            cartel.hide()
+            return
+        texto = self.buscador.text().strip()
+        if texto:
+            mensaje = (f"No hay nada que se llame «{texto}» en tu biblioteca.<br><br>"
+                       "Apretá <b>Enter</b> en el buscador para buscarla en internet y bajarla.")
+        elif filtro == "todos":
+            mensaje = ("<span style='font-size:15pt'>👋 Tu biblioteca está vacía</span><br><br>"
+                       "Sumá tus películas y series con <b>Agregar carpeta</b> (arriba a la izquierda)<br>"
+                       "o arrastrando los archivos a esta ventana.<br><br>"
+                       "¿Querés bajar algo? Escribí el nombre en el <b>buscador</b> de arriba del reproductor.")
+        else:
+            mensaje = "No hay nada en esta sección todavía."
+        cartel.setText(mensaje)
+        cartel.setGeometry(self.lista.viewport().rect())
+        cartel.show()
+        cartel.raise_()
+
     def _cargar_archivos(self):
         """Recarga la lista según el filtro, conservando la selección que siga visible."""
         actual = self.archivo_actual()
@@ -910,10 +1049,11 @@ class Ventana(QMainWindow):
                 carpeta = str(Path(ruta).parent)
                 columna = self.COLUMNA_CARPETA
                 # Se muestra el título limpio (con capítulo, año y calidad); el nombre real, al pasar el mouse
-                item = QTreeWidgetItem([nombre_lindo(nombre), carpeta])
+                # Solo el nombre de la carpeta («Before Sunrise»), no la ruta entera que se corta en «C:/Users/…»
+                item = QTreeWidgetItem([nombre_lindo(nombre), "📁 " + (Path(carpeta).name or carpeta)])
                 item.setIcon(0, icono_video if tipo == "video" else icono_imagen)
                 item.setData(0, ROL, (aid, ruta, tipo))
-                item.setToolTip(columna, "Abrir la carpeta en el Explorador")
+                item.setToolTip(columna, carpeta + "\nClic: abrir la carpeta en el Explorador")
                 if not Path(ruta).exists():
                     item.setForeground(0, gris)
                     item.setText(columna, f"{carpeta}  (no encontrado)")
@@ -937,6 +1077,7 @@ class Ventana(QMainWindow):
             self.lista.setCurrentItem(seleccionar, 0, QItemSelectionModel.NoUpdate)
         self.lista.blockSignals(False)
         self.lbl_cantidad.setText(f"{len(filas)} archivo(s)")
+        self._mensaje_lista_vacia(not filas, filtro)
 
         if seleccionar:
             self._mostrar_categorias_archivo()
@@ -1047,6 +1188,10 @@ class Ventana(QMainWindow):
     def eventFilter(self, objeto, e):
         if not hasattr(self, "lista"):  # todavía se está armando la ventana
             return super().eventFilter(objeto, e)
+        if objeto is getattr(self, "buscador", None) and e.type() in (QEvent.Resize, QEvent.FontChange, QEvent.StyleChange, QEvent.Show):
+            self._ajustar_buscador()
+        if objeto is self.lista.viewport() and e.type() == QEvent.Resize and getattr(self, "_cartel_vacio", None):
+            self._cartel_vacio.setGeometry(self.lista.viewport().rect())
         if objeto is self.lista.viewport() and e.type() == QEvent.MouseMove:
             vinculo = self._vinculo_carpeta(e.position().toPoint())
             self.lista.viewport().setCursor(Qt.PointingHandCursor if vinculo else Qt.ArrowCursor)
@@ -1111,22 +1256,31 @@ class Ventana(QMainWindow):
     def _ids_seleccionados(self) -> list[int]:
         return [item.data(0, ROL)[0] for item in self.lista.selectedItems()]
 
-    def _menu_archivos(self, pos):
-        item = self.lista.itemAt(pos)
-        if item is None:
-            return
-        if clave := item.data(0, ROL_GRUPO):
-            self._menu_grupo(clave, pos)
-            return
-        if not item.isSelected():
-            # Seleccionar sin cambiar el archivo actual, así no se corta el video que se está viendo
-            self.lista.clearSelection()
-            item.setSelected(True)
+    def _menu_archivos(self, pos, global_pos=None, extras=None):
+        """El menú de la lista. global_pos/extras: lo usa el modo simple (con la selección ya hecha y sus opciones
+        propias arriba de todo)."""
+        if global_pos is None:
+            item = self.lista.itemAt(pos)
+            if item is None:
+                return
+            if clave := item.data(0, ROL_GRUPO):
+                self._menu_grupo(clave, pos)
+                return
+            if not item.isSelected():
+                # Seleccionar sin cambiar el archivo actual, así no se corta el video que se está viendo
+                self.lista.clearSelection()
+                item.setSelected(True)
         ids = self._ids_seleccionados()
         n = len(ids)
+        if not n:
+            return
         categorias = self.bib.listar_categorias()
 
         menu = QMenu(self)
+        for texto, accion in (extras or []):
+            menu.addAction(texto, accion)
+        if extras:
+            menu.addSeparator()
         seleccion = [i.data(0, ROL) for i in self.lista.selectedItems()]
         menu.addAction(f"⧉ Abrir en ventana nueva ({n})", lambda: self.abrir_en_ventana(seleccion))
         videos = [ruta for _aid, ruta, tipo in seleccion if tipo == "video"]
@@ -1181,7 +1335,7 @@ class Ventana(QMainWindow):
                 menu.addAction("🎞 Corregir ficha…", lambda: self._corregir_ficha(seleccion[0][1]))
         menu.addAction(f"Quitar de la biblioteca ({n})", self._quitar_archivo)
         menu.addAction(f"🗑 Eliminar del disco ({n})…", self._eliminar_del_disco)
-        menu.exec(self.lista.viewport().mapToGlobal(pos))
+        menu.exec(global_pos if global_pos is not None else self.lista.viewport().mapToGlobal(pos))
 
     def _copiar_rutas(self):
         rutas = [item.data(0, ROL)[1] for item in self.lista.selectedItems()]
@@ -1356,6 +1510,8 @@ class Ventana(QMainWindow):
             if dato in FILTROS_FIJOS:
                 n = len(self.bib.listar_archivos(dato[0]))
                 item.setText(f"{FILTROS_FIJOS[dato]}  ({n})")
+                # Sin imágenes no se muestra «Imágenes (0)»: una opción menos que no lleva a nada
+                item.setHidden(dato[0] == "imagen" and n == 0 and self.lista_filtros.currentItem() is not item)
             elif dato and dato[0] == "categoria" and dato[1] in conteos:
                 nombre, n = conteos[dato[1]]
                 item.setText(f"  {self._nombre_categoria(dato[1], nombre)}  ({n})")
@@ -1629,6 +1785,9 @@ class Ventana(QMainWindow):
             ventana = VentanaVideo(self.bib, ruta, tipo, posicion)
             ventana.cerrada.connect(self.ventanas_video.remove)
             ventana.visor.apagar_al_terminar = self.chk_apagar.isChecked()
+            from . import emojis
+            if emojis.color_texto:
+                ventana.visor.colorear_iconos(emojis.color_texto)
             ventana.visor.pedir_apagado.connect(self._apagar_computadora)
             ventana.visor.buscar_subtitulos_subdivx.connect(self._buscar_en_subdivx)
             ventana.visor.progreso.connect(self._refrescar_progreso)
@@ -1680,6 +1839,10 @@ class Ventana(QMainWindow):
         self.ventana_torrents.raise_()
         self.ventana_torrents.activateWindow()
         return self.ventana_torrents
+
+    def _conectar_roku(self):
+        from .dialogo_roku import DialogoRoku
+        DialogoRoku(self).exec()
 
     def _abrir_cast(self):
         if self.ventana_cast is None:
@@ -2081,6 +2244,9 @@ class Ventana(QMainWindow):
         fuentes.registrar()
         from . import emojis
         emojis.color_texto = t.texto   # los símbolos de un color (⛶ ↺) van del color del texto del tema
+        for visor in [getattr(self, "visor", None), *(w.visor for w in getattr(self, "ventanas_video", []))]:
+            if visor is not None and hasattr(visor, "colorear_iconos"):
+                visor.colorear_iconos(t.texto)
         QApplication.instance().setStyleSheet(estilo(t) + diseno.qss(self._diseno)
                                               + "\nQMenu { icon-size: 20px; }")
         if hasattr(self, "lista"):
@@ -2137,11 +2303,14 @@ class Ventana(QMainWindow):
                     continue
                 accion = self._acciones_barra[clave]
                 accion.setText(d["barra"]["textos"].get(clave) or self._textos_barra[clave])
+                self._texto_lleno = getattr(self, "_texto_lleno", {})
+                self._texto_lleno[clave] = accion.text()
                 if clave not in d["barra"]["ocultos"]:
                     barra.insertAction(antes_de, accion) if antes_de else barra.addAction(accion)
                     anterior_sep = False
             barra.setToolButtonStyle({"texto": Qt.ToolButtonTextOnly, "icono": Qt.ToolButtonIconOnly,
                                       "texto_abajo": Qt.ToolButtonTextUnderIcon}.get(d["barra"]["estilo"], Qt.ToolButtonTextBesideIcon))
+            QTimer.singleShot(0, self._ajustar_barra)
         visor = getattr(self, "visor", None)
         if visor is not None and hasattr(visor, "esconder_controles"):
             visor.esconder_controles(set(d["controles_ocultos"]))
@@ -2210,8 +2379,8 @@ class Ventana(QMainWindow):
     def _actualizar_boton_titulo(self):
         seleccion = self.lista.selectedItems()
         self.btn_eliminar.setEnabled(bool(seleccion))
-        self.btn_eliminar.setText(f"🗑 Eliminar del disco ({len(seleccion)})" if len(seleccion) > 1
-                                  else "🗑 Eliminar del disco")
+        self.btn_eliminar.setText(f"🗑 Eliminar ({len(seleccion)})" if len(seleccion) > 1
+                                  else "🗑 Eliminar")
         titulo = (titulo_de(_archivo(seleccion[0])) if len(seleccion) == 1
                   else self._titulo_seleccion(seleccion) if seleccion else "")
         # Si ya están todos en esa categoría, no se ofrece crearla otra vez

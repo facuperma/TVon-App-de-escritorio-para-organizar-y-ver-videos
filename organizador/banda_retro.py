@@ -4,7 +4,7 @@ import math
 import random
 
 from PySide6.QtCore import QPointF, QRectF, Qt, QTimer
-from PySide6.QtGui import QColor, QFont, QFontMetrics, QLinearGradient, QPainter, QPainterPath, QPen, QRadialGradient
+from PySide6.QtGui import QColor, QConicalGradient, QFont, QFontMetrics, QLinearGradient, QPainter, QPainterPath, QPen, QRadialGradient
 from PySide6.QtWidgets import QSizePolicy, QWidget
 
 from .temas import Tema
@@ -685,6 +685,45 @@ class BandaRetro(QWidget):
         xa = dial.left() + 10 + busca * (dial.width() - 20)
         p.setPen(QPen(_color("#c2210a"), 2))
         p.drawLine(QPointF(xa, dial.top() + 2), QPointF(xa, dial.bottom() - 2))
+
+    def _radar(self, p: QPainter, t: Tema, sonando: bool):
+        """Tema Táctico: un radar verde que barre la zona y va marcando puntitos que se apagan de a poco."""
+        w, h = self.width(), self.height()
+        p.fillRect(self.rect(), _color("#2e3428"))
+        # una cuadrícula tenue de mapa
+        p.setPen(QPen(_color("#3e4637"), 1))
+        for x in range(0, w, 24):
+            p.drawLine(x, 0, x, h)
+        for y in range(0, h, 12):
+            p.drawLine(0, y, w, y)
+        r = h * 0.42
+        cx, cy = w - r - 18, h / 2
+        p.setPen(QPen(_color("#6a8a4a"), 1))
+        p.setBrush(_color("#1e2a18"))
+        p.drawEllipse(QPointF(cx, cy), r, r)
+        p.setBrush(Qt.NoBrush)
+        p.drawEllipse(QPointF(cx, cy), r * 0.5, r * 0.5)
+        p.drawLine(QPointF(cx - r, cy), QPointF(cx + r, cy))
+        p.drawLine(QPointF(cx, cy - r), QPointF(cx, cy + r))
+        angulo = (self.t * (110 if sonando else 60)) % 360
+        barrido = QConicalGradient(QPointF(cx, cy), -angulo)
+        barrido.setColorAt(0.0, _color("#9cff7a", 170))
+        barrido.setColorAt(0.12, _color("#9cff7a", 0))
+        barrido.setColorAt(1.0, _color("#9cff7a", 0))
+        p.setPen(Qt.NoPen)
+        p.setBrush(barrido)
+        p.drawEllipse(QPointF(cx, cy), r, r)
+        # puntitos fijos (se iluminan cuando pasa la línea)
+        for i, (ang, dist) in enumerate(((40, 0.7), (130, 0.45), (215, 0.8), (300, 0.55), (350, 0.3))):
+            atraso = (angulo - ang) % 360
+            brillo = max(0, 255 - int(atraso * 1.4))
+            if brillo:
+                a = math.radians(ang)
+                p.setBrush(_color("#c4ff8a", brillo))
+                p.drawEllipse(QPointF(cx + math.cos(a) * r * dist, cy - math.sin(a) * r * dist), 2.6, 2.6)
+        # una franja arena a la izquierda del radar, como la barra del menú
+        p.setBrush(_color("#c4b550", 40))
+        p.drawRect(QRectF(0, h - 4, w, 4))
 
     def _vhs(self, p: QPainter, t: Tema, sonando: bool):
         """La pantalla azul del video con «PLAY ▶», la fecha y franjas de tracking que pasan."""

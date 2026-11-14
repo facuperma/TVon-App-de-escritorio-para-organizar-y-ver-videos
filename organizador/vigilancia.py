@@ -25,6 +25,7 @@ from .subtitulos import (
     nombres_de_comprimido, subtitulos_junto_a, video_del_subtitulo,
 )
 from .titulos import es_extra, titulo_de
+from .limpieza import limpiar_origen, limpiar_restos
 
 INTERVALO_S = 10            # revisión de Descargas
 INTERVALO_ESCANEO_S = 60    # revisión de las carpetas de la biblioteca
@@ -150,6 +151,15 @@ class Vigilante(QObject):
     def iniciar(self):
         self._hilo.start()
 
+    @staticmethod
+    def _protegidas(bib: Biblioteca) -> set[Path]:
+        """Carpetas que nunca se mandan a la Papelera (ni las que las contienen)."""
+        carpetas = [*bib.carpetas_biblioteca(), bib.config("carpeta_videos"), bib.config("carpeta_descargas_sistema"),
+                    bib.config("carpeta_descargas")]
+        if bib.config("carpeta_videos"):
+            carpetas.append(str(Path(bib.config("carpeta_videos")) / "Peliculas"))
+        return {Path(c).resolve() for c in carpetas if c}
+
     def despertar(self):
         """Revisar ya (p. ej. después de cambiar la configuración o de mover videos)."""
         self._escanear_ya = True
@@ -178,6 +188,9 @@ class Vigilante(QObject):
                 if self._escanear_ya or time.monotonic() - ultimo_escaneo > INTERVALO_ESCANEO_S:
                     self._escanear_ya = False
                     ultimo_escaneo = time.monotonic()
+                    # Las carpetas de Videos que quedaron sin película: a la Papelera (con sus subtítulos rescatados)
+                    if bib.config("carpeta_videos"):
+                        limpiar_restos(Path(bib.config("carpeta_videos")), self._protegidas(bib))
                     if nuevos := self._escanear(bib):
                         llegaron += nuevos
                         self.archivos_nuevos.emit(nuevos)
@@ -221,6 +234,14 @@ class Vigilante(QObject):
         nuevo, subtitulos = mover_video(video, carpeta_de_categoria(bib, titulo))
         if carpeta_propia is not None:
             traer_subtitulos(carpeta_propia, nuevo)
+            # Lo que queda en la carpeta del torrent (publicidades, .txt, «Subs» de otros idiomas): los subtítulos
+            # se rescatan junto a la película y la carpeta va a la Papelera (si el programa de torrents la tiene
+            # abierta, se reintenta en el barrido de restos)
+            if ".tvon_descomprimiendo" not in carpeta_propia.parts:     # la temporal de un .zip ya se borra sola
+                try:
+                    limpiar_origen(carpeta_propia, nuevo, self._protegidas(bib))
+                except OSError:
+                    pass
             for carpeta in sorted(carpeta_propia.rglob("*"), reverse=True):  # «Subs\» y demás que quedaron vacías
                 if carpeta.is_dir():
                     try:

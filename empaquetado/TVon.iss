@@ -46,9 +46,10 @@ Source: "{#Origen}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs cre
 Type: filesandordirs; Name: "{autoprograms}\TVon"
 
 [Icons]
-Name: "{group}\TorrentVision"; Filename: "{app}\TVon.exe"
+; AppUserModelID igual al que pone la app (main.py): así Windows une la ventana con el acceso y usa su ícono
+Name: "{group}\TorrentVision"; Filename: "{app}\TVon.exe"; IconFilename: "{app}\TVon.exe"; AppUserModelID: "TVon"
 Name: "{group}\Desinstalar TorrentVision"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\TorrentVision"; Filename: "{app}\TVon.exe"; Tasks: escritorio
+Name: "{autodesktop}\TorrentVision"; Filename: "{app}\TVon.exe"; IconFilename: "{app}\TVon.exe"; AppUserModelID: "TVon"; Tasks: escritorio
 
 [Run]
 Filename: "{app}\TVon.exe"; Description: "Abrir TorrentVision"; Flags: nowait postinstall skipifsilent

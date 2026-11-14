@@ -6,7 +6,7 @@ de capítulos). No tiene botones de organizar ni de bajar: es solo para elegir q
 """
 from __future__ import annotations
 
-from PySide6.QtCore import QRectF, QSize, Qt, Signal
+from PySide6.QtCore import QPoint, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QIcon, QLinearGradient, QPainter, QPainterPath, QPixmap
 from PySide6.QtWidgets import (
     QHBoxLayout, QLabel, QLineEdit, QListView, QListWidget, QListWidgetItem, QPushButton, QScrollArea,
@@ -72,6 +72,7 @@ class GrillaSimple(QWidget):
     elegido = Signal(dict)          # {"tipo": "pelicula"|"serie", ...}
     reproducir = Signal(str)        # doble clic en una película
     salir = Signal()
+    menu_pedido = Signal(dict, QPoint)   # clic derecho en un póster (el menú lo arma la ventana, como en la lista)
 
     def __init__(self, bib, parent=None):
         super().__init__(parent)
@@ -118,15 +119,31 @@ class GrillaSimple(QWidget):
         self.grilla.setFrameShape(QListWidget.NoFrame)
         self.grilla.setVerticalScrollMode(QListWidget.ScrollPerPixel)
         self.grilla.verticalScrollBar().setSingleStep(24)
+        from . import suave
+        suave.activar(self.grilla)
         self.grilla.setStyleSheet("QListWidget { background: transparent; } "
                                   "QListWidget::item { border-radius: 12px; padding: 6px; } ")
         self.grilla.currentItemChanged.connect(lambda item, _a: item and self.elegido.emit(item.data(ROL)))
         self.grilla.itemDoubleClicked.connect(self._doble)
+        self.grilla.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.grilla.customContextMenuRequested.connect(self._menu)
         capa.addWidget(self.grilla, 1)
         self.vacio = QLabel("", alignment=Qt.AlignCenter, objectName="pista", wordWrap=True)
         capa.addWidget(self.vacio)
         self.vacio.hide()
+        # Abajo a la izquierda: esconder lo que ya viste (se recuerda)
+        abajo = QHBoxLayout()
+        self.btn_vistas = QPushButton("👁 Ocultar las vistas", checkable=True, objectName="chico",
+                                      toolTip="Esconder las películas y series que ya viste completas")
+        self.btn_vistas.setCursor(Qt.PointingHandCursor)
+        self.btn_vistas.setChecked(bib.config("simple_ocultar_vistas") == "1")
+        self.btn_vistas.toggled.connect(self._ocultar_vistas)
+        abajo.addWidget(self.btn_vistas)
+        abajo.addStretch(1)
+        capa.addLayout(abajo)
         self.tipo = "pelicula"
+        if self.btn_vistas.isChecked():
+            self.btn_vistas.setText("👁 Mostrar las vistas")
         self._cache: dict[tuple, QIcon] = {}
 
     def _pestana(self, tipo: str):
@@ -166,9 +183,10 @@ class GrillaSimple(QWidget):
             clave_icono = (F.poster(e["ficha"]), e["titulo"], round(e["progreso"], 2), e["visto"])
             if clave_icono not in self._cache:
                 self._cache[clave_icono] = QIcon(_tarjeta(*clave_icono))
-            texto = e["titulo"] + (f"\n{e['anio']}" if e.get("anio") else "")
-            if e["tipo"] == "serie":
-                texto = e["titulo"] + f"\n{len(e['episodios'])} capítulos"
+            # Sin póster el título ya está dibujado en la tarjeta: abajo va solo el año (no repetirlo)
+            titulo = e["titulo"] if clave_icono[0] else ""
+            extra = f"{len(e['episodios'])} capítulos" if e["tipo"] == "serie" else str(e.get("anio") or "")
+            texto = "\n".join(x for x in (titulo, extra) if x) or " "
             item = QListWidgetItem(self._cache[clave_icono], texto)
             item.setData(ROL, e)
             item.setTextAlignment(Qt.AlignHCenter | Qt.AlignTop)
@@ -182,11 +200,24 @@ class GrillaSimple(QWidget):
                            else "Todavía no hay series en tu biblioteca.")
         self._filtrar(self.buscador.text())
 
+    def _ocultar_vistas(self, si: bool):
+        self.bib.guardar_config("simple_ocultar_vistas", "1" if si else "0")
+        self.btn_vistas.setText("👁 Mostrar las vistas" if si else "👁 Ocultar las vistas")
+        self._filtrar(self.buscador.text())
+
     def _filtrar(self, texto: str):
         t = texto.strip().lower()
+        sin_vistas = self.btn_vistas.isChecked()
         for i in range(self.grilla.count()):
             item = self.grilla.item(i)
-            item.setHidden(bool(t) and t not in item.data(ROL)["titulo"].lower())
+            e = item.data(ROL)
+            item.setHidden((bool(t) and t not in e["titulo"].lower()) or (sin_vistas and e["visto"]))
+
+    def _menu(self, pos):
+        item = self.grilla.itemAt(pos)
+        if item is not None:
+            self.grilla.setCurrentItem(item)
+            self.menu_pedido.emit(item.data(ROL), self.grilla.viewport().mapToGlobal(pos))
 
     def _doble(self, item):
         e = item.data(ROL)
@@ -197,6 +228,7 @@ class GrillaSimple(QWidget):
 class FichaSimple(QWidget):
     """La ficha grande, en el lugar del reproductor."""
     reproducir = Signal(str)
+    en_ventana = Signal(str)
 
     def __init__(self, bib, parent=None):
         super().__init__(parent)
@@ -231,11 +263,18 @@ class FichaSimple(QWidget):
         self.boton.clicked.connect(self._reproducir)
         datos.addWidget(self.titulo)
         datos.addWidget(self.meta)
-        desplazable.setMaximumHeight(300)
+        desplazable.setMinimumHeight(170)
+        desplazable.setMaximumHeight(320)
         datos.addWidget(desplazable)
         datos.addSpacing(6)
         fila = QHBoxLayout()
         fila.addWidget(self.boton)
+        # Como en el modo normal: verla en una ventana aparte (que se puede dejar siempre encima)
+        self.btn_ventana = QPushButton("⧉ Ventana", toolTip="Abrir en una ventana aparte")
+        self.btn_ventana.setCursor(Qt.PointingHandCursor)
+        self.btn_ventana.setMinimumHeight(44)
+        self.btn_ventana.clicked.connect(lambda: self._ruta and self.en_ventana.emit(self._ruta))
+        fila.addWidget(self.btn_ventana)
         fila.addStretch(1)
         datos.addLayout(fila)
         datos.addStretch(1)
@@ -255,6 +294,7 @@ class FichaSimple(QWidget):
             self.sinopsis.setText("Tocá un póster de la izquierda para ver de qué trata. Doble clic para verla.")
             self.poster.clear()
             self.boton.hide()
+            self.btn_ventana.hide()
             self.capitulos.hide()
             return
         fi = e.get("ficha") or {}
@@ -275,6 +315,7 @@ class FichaSimple(QWidget):
                               "sola en internet; si salió mal, en el modo normal: clic derecho → Corregir ficha.")
         progresos = self.bib.progresos()
         self.boton.show()
+        self.btn_ventana.show()
         if e["tipo"] == "pelicula":
             self._ruta = e["ruta"]
             pos, dur, visto = progresos.get(e["ruta"], (0, 0, False))

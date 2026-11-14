@@ -40,7 +40,8 @@ def nombre_lindo(nombre_archivo: str) -> str:
     capitulo = ""
     if m := re.search(r"(?i)\bs(\d{1,2})\s?e(\d{1,3})\b", resto) or re.search(r"\b(\d{1,2})x(\d{1,3})\b", resto):
         capitulo = f"S{int(m.group(1)):02}E{int(m.group(2)):02}"
-    elif m := re.search(r"(?i)\b(?:cap(?:[ií]tulo)?|episod(?:e|io)|ep|chapter)\.?\s*(\d{1,4})\b", resto):
+    # «part01», «Parte 2»: las partes de una miniserie o documental («The Vietnam War 2017 part01»)
+    elif m := re.search(r"(?i)\b(?:cap(?:[ií]tulo)?|episod(?:e|io)|ep|chapter|parte?|pt)\.?\s*(\d{1,4})\b", resto):
         capitulo = f"Cap. {int(m.group(1))}"
     elif m := re.search(r"(?i)\b(?:s|season|temporada)\s*(\d{1,2})\b", resto):
         capitulo = f"Temporada {int(m.group(1))}"

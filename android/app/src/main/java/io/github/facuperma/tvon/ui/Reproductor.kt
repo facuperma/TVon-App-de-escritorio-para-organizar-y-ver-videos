@@ -224,6 +224,17 @@ fun PestanaReproductor(vm: Modelo) {
         // Al hacer clic en un campo de texto de la PC, el teclado del celular se abre solo acá
         vm.errorControl?.let { Text(it, color = C.error) }
         if (vm.monitores?.control != false) {
+            // Dos formas de manejar la PC, intercambiables (se recuerda la última): mouse y teclado, o flechas como
+            // un control remoto (para moverse por menús y listas sin apuntar)
+            val prefs = androidx.compose.ui.platform.LocalContext.current.getSharedPreferences("control", 0)
+            var flechas by rememberSaveable { mutableStateOf(prefs.getBoolean("flechas", false)) }
+            Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Chip("🖱 Mouse y teclado", !flechas) { flechas = false; prefs.edit().putBoolean("flechas", false).apply() }
+                Chip("✛ Flechas", flechas) { flechas = true; prefs.edit().putBoolean("flechas", true).apply() }
+            }
+            if (flechas) {
+                ControlFlechas(vm)
+            } else {
             Teclado(vm, compacto = true)
             Tarjeta {
                 TituloTarjeta("🖱 Mouse")
@@ -237,6 +248,7 @@ fun PestanaReproductor(vm: Modelo) {
                         Modifier.weight(1f).padding(start = 12.dp), valueRange = 0.5f..4f, colors = deslizador(),
                     )
                 }
+            }
             }
         }
 
@@ -505,5 +517,32 @@ private fun OpcionSub(texto: String, activa: Boolean, alTocar: () -> Unit) {
     ) {
         Text(if (activa) "●" else "○", color = if (activa) C.acentoClaro else C.tenue, modifier = Modifier.width(24.dp))
         Text(texto, color = if (activa) C.titulo else C.texto)
+    }
+}
+
+
+/** Un control con flechas (↑ ↓ ← →) y OK en el medio, como el de la tele: manda las teclas a la PC. */
+@Composable
+fun ControlFlechas(vm: Modelo) {
+    val tecla = { teclas: String -> vm.entrada("tipo" to "teclas", "teclas" to teclas) }
+    Tarjeta {
+        TituloTarjeta("✛ Flechas")
+        Pista("Para moverte por menús y listas de la PC sin el mouse. OK = Enter.")
+        val lado = 78.dp
+        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally,
+               verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Boton("▲", Modifier.size(lado)) { tecla("arriba") }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Boton("◀", Modifier.size(lado)) { tecla("izquierda") }
+                Boton("OK", Modifier.size(lado), estilo = Estilo.PRIMARIO) { tecla("enter") }
+                Boton("▶", Modifier.size(lado)) { tecla("derecha") }
+            }
+            Boton("▼", Modifier.size(lado)) { tecla("abajo") }
+        }
+        Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Boton("↩ Atrás", Modifier.weight(1f)) { tecla("esc") }
+            Boton("⏯ Pausa", Modifier.weight(1f)) { tecla("espacio") }
+            Boton("⇥ Tab", Modifier.weight(1f)) { tecla("tab") }
+        }
     }
 }
